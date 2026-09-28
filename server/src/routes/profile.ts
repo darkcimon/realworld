@@ -1,0 +1,127 @@
+// README 4.4: 화면 상단 프로필(아바타, 현재 학년), 4.5: 졸업장/등급 표시, 11.1: 사진첩(Phase 3)
+import { Router } from "express";
+import { db } from "../db.js";
+import { requireAuth } from "../middleware/auth.js";
+import { requireNotJailed } from "../middleware/jailGate.js";
+import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
+import { getActiveJail } from "../school/jail.js";
+import { InsufficientBalanceError } from "../wallet/ledger.js";
+import { addPhoto, purchasePhotoAlbum } from "../social/photos.js";
+
+export const profileRouter = Router();
+profileRouter.use(requireAuth);
+
+const LEVEL_LABEL: Record<string, string> = {
+  elementary: "초등학교",
+  middle: "중학교",
+  high: "고등학교",
+};
+
+profileRouter.get("/", (req, res) => {
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.userId) as any;
+  const profile = db
+    .prepare("SELECT * FROM student_profile WHERE user_id = ?")
+    .get(req.userId) as any;
+  const graduations = db
+    .prepare("SELECT * FROM graduations WHERE user_id = ? ORDER BY graduated_at")
+    .all(req.userId);
+  const jail = getActiveJail(req.userId!);
+
+  res.json({
+    id: user.id,
+    nickname: user.nickname,
+    avatarUrl: user.avatar_url,
+    isGuest: !!user.is_guest,
+    email: user.email,
+    school: {
+      level: profile.school_level,
+      levelLabel: LEVEL_LABEL[profile.school_level],
+      grade: profile.grade,
+      status: profile.status,
+      label: `${LEVEL_LABEL[profile.school_level]} ${profile.grade}학년`,
+    },
+    graduations,
+    jail: jail ? { type: jail.type, endsAt: jail.ends_at } : null,
+  });
+});
+
+// 채팅(학교 단체 채팅/1:1 채팅) 메시지의 프로필 사진 아이콘을 눌렀을 때 조회하는 공개 프로필.
+// PersonPanel(11절, 300만원 열람권이 필요한 상세 프로필/소셜 콘텐츠)과 달리 비용이나 고3 졸업
+// 여부와 무관하게 누구나 볼 수 있는 정보(닉네임/사진/학년/졸업 등급)만 돌려준다.
+profileRouter.get("/public/:userId", (req, res) => {
+  const userId = Number(req.params.userId);
+  const user = db
+    .prepare("SELECT id, nickname, avatar_url, is_guest FROM users WHERE id = ?")
+    .get(userId) as any;
+  if (!user) {
+    res.status(404).json({ error: "존재하지 않는 유저입니다." });
+    return;
+  }
+  const profile = db
+    .prepare("SELECT * FROM student_profile WHERE user_id = ?")
+    .get(userId) as any;
+  const graduations = db
+    .prepare("SELECT * FROM graduations WHERE user_id = ? ORDER BY graduated_at")
+    .all(userId);
+
+  res.json({
+    id: user.id,
+    nickname: user.nickname,
+    avatarUrl: user.avatar_url,
+    isGuest: !!user.is_guest,
+    school: profile
+      ? {
+          level: profile.school_level,
+          levelLabel: LEVEL_LABEL[profile.school_level],
+          grade: profile.grade,
+          status: profile.status,
+          label: `${LEVEL_LABEL[profile.school_level]} ${profile.grade}학년`,
+        }
+      : null,
+    graduations,
+  });
+});
+
+profileRouter.patch("/", (req, res) => {
+  const { avatarUrl, nickname } = req.body ?? {};
+  db.prepare(
+    "UPDATE users SET avatar_url = COALESCE(?, avatar_url), nickname = COALESCE(?, nickname) WHERE id = ?"
+  ).run(avatarUrl ?? null, nickname ?? null, req.userId);
+  res.json({ ok: true });
+});
+
+// README 11.1: 사진첩 — 사회 콘텐츠이므로 이 두 라우트에만 고3 졸업/비수감 게이트를 건다.
+profileRouter.post(
+  "/photos",
+  requireGraduatedHighSchool,
+  requireNotJailed,
+  (req, res) => {
+    try {
+      const url = String(req.body?.url ?? "").trim();
+      if (!url) {
+        res.status(400).json({ error: "url은 필수입니다." });
+        return;
+      }
+      res.json(addPhoto(req.userId!, url));
+    } catch (e: any) {
+      res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+    }
+  }
+);
+
+profileRouter.post(
+  "/photo-album/purchase",
+  requireGraduatedHighSchool,
+  requireNotJailed,
+  (req, res) => {
+    try {
+      res.json(purchasePhotoAlbum(req.userId!));
+    } catch (e: any) {
+      if (e instanceof InsufficientBalanceError) {
+        res.status(400).json({ error: e.message });
+        return;
+      }
+      res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+    }
+  }
+);
