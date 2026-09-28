@@ -2,11 +2,15 @@
 // node:sqlite(실험적 기능)를 사용해 별도 네이티브 빌드 도구 없이 Windows에서도 바로 동작하게 한다.
 // Phase 2 이후 필요하면 Postgres 등으로 교체 가능하도록 이 파일만 바꾸면 되게 접근을 한곳에 모은다.
 import { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.join(__dirname, "..", "data.sqlite");
+// 배포 환경(Railway 등)에서는 컨테이너 파일시스템이 재배포 때 초기화되므로
+// DB_PATH로 영구 볼륨 안의 경로(예: /data/data.sqlite)를 지정한다.
+const dbPath = process.env.DB_PATH ?? path.join(__dirname, "..", "data.sqlite");
+fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
 export const db = new DatabaseSync(dbPath);
 db.exec("PRAGMA foreign_keys = ON;");

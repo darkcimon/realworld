@@ -1,0 +1,12 @@
+{
+  "name": "realworld",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "build": "npm ci --prefix server --include=dev && npm ci --prefix client --include=dev && npm run build --prefix client",
+    "start": "npm start --prefix server"
+  }
+}

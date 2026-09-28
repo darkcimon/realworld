@@ -4,6 +4,9 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { createServer } from "node:http";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { authRouter } from "./routes/auth.js";
 import { profileRouter } from "./routes/profile.js";
 import { schoolRouter } from "./routes/school.js";
@@ -62,6 +65,17 @@ app.use("/api/matches", matchesRouter);
 app.use("/api/daily", dailyRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/npc", npcRouter);
+
+// 운영 배포: 빌드된 클라이언트(client/dist)가 있으면 같은 서버·같은 도메인에서 함께 제공한다.
+// 개발 중에는 Vite 개발 서버가 /api·/socket.io를 이 서버로 프록시하므로 이 블록은 쓰이지 않는다.
+const clientDist = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "client", "dist");
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  // SPA: /api가 아닌 나머지 GET 요청은 index.html로 돌려 클라이언트 라우팅에 맡긴다.
+  app.get(/^\/(?!api\/|socket\.io\/).*/, (_req, res) => {
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
+}
 
 const httpServer = createServer(app);
 attachSocket(httpServer);
