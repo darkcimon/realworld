@@ -44,10 +44,19 @@ function getProfile(userId: number): StudentProfileRow {
     .get(userId) as unknown as StudentProfileRow;
 }
 
+// 졸업생은 모든 방을 열어준다 — 고등학교 배치고사로 졸업하면 grade가 1로 남아 있어서
+// school_level/grade만으로 계산하면 고1까지만 열린 것처럼 보인다.
+function unlockedOrder(profile: StudentProfileRow): number {
+  return profile.status === "graduated"
+    ? Number.MAX_SAFE_INTEGER
+    : roomOrderIndex(profile.school_level, profile.grade);
+}
+
 // ── 방 목록 ────────────────────────────────────────────────────────
 schoolRouter.get("/rooms", (req, res) => {
   const profile = getProfile(req.userId!);
-  const currentOrder = roomOrderIndex(profile.school_level, profile.grade);
+  const unlockedUpTo = unlockedOrder(profile);
+  const currentOrder = profile.status === "graduated" ? -1 : unlockedUpTo;
   const rooms = db.prepare("SELECT * FROM rooms ORDER BY order_index").all() as any[];
   res.json(
     rooms.map((r) => ({
@@ -55,7 +64,7 @@ schoolRouter.get("/rooms", (req, res) => {
       schoolLevel: r.school_level,
       grade: r.grade,
       label: r.label,
-      unlocked: r.order_index <= currentOrder,
+      unlocked: r.order_index <= unlockedUpTo,
       isCurrent: r.order_index === currentOrder,
     }))
   );
@@ -67,8 +76,7 @@ export function assertRoomAccessible(userId: number, roomId: number) {
   const room = db.prepare("SELECT * FROM rooms WHERE id = ?").get(roomId) as any;
   if (!room) throw { status: 404, message: "존재하지 않는 방입니다." };
   const profile = getProfile(userId);
-  const currentOrder = roomOrderIndex(profile.school_level, profile.grade);
-  if (room.order_index > currentOrder) {
+  if (room.order_index > unlockedOrder(profile)) {
     throw { status: 403, message: "아직 승급 전이라 입장할 수 없는 방입니다." };
   }
   return room;

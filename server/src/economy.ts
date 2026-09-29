@@ -3,18 +3,50 @@
 // 연속 출석 1~7일차 보상(7일차 다음은 다시 1일차로 순환, 하루라도 빠지면 1일차부터 다시 시작).
 export const ATTENDANCE_REWARDS = [200_000, 200_000, 300_000, 300_000, 400_000, 500_000, 1_000_000];
 
-export type QuestKey = "lesson_ask" | "exam_try" | "work_batch" | "alba_tx";
+export type QuestKey =
+  | "lesson_ask"
+  | "group_chat"
+  | "exam_try"
+  | "get_job"
+  | "first_alba"
+  | "set_location"
+  | "work_batch"
+  | "alba_tx";
 
-// phase: school = 졸업 전 학생에게, adult = 고등학교 졸업 후 사회인에게 보이는 퀘스트.
+// 퀘스트 단계는 유저 상태로 정해진다(social/daily.ts의 questPhase).
+// - elementary/middle/high: 졸업 전 학생(학교급이 오를수록 목표·보상이 커진다)
+// - newbie: 고등학교 졸업 후 NEWBIE_DAYS일 동안 — 사회에서 무엇부터 할지 안내하는 입문 퀘스트
+// - adult: 그 이후의 사회인
+export type QuestPhase = "elementary" | "middle" | "high" | "newbie" | "adult";
+
+export const NEWBIE_DAYS = 3;
+
+// 같은 key가 여러 단계에 있을 수 있다(보상 수령 기록은 날짜+key 단위라 하루에 한 번만 받는다).
+// once: 평생 한 번만 받을 수 있는 퀘스트(직업은 바꿀 때마다 새로 배정되므로 반복 수령을 막는다).
 export const QUESTS: {
   key: QuestKey;
   label: string;
   goal: number;
   reward: number;
-  phase: "school" | "adult";
+  phase: QuestPhase;
+  once?: boolean;
 }[] = [
-  { key: "lesson_ask", label: "AI 선생님께 질문하기", goal: 1, reward: 100_000, phase: "school" },
-  { key: "exam_try", label: "시험(승급/배치고사) 1회 끝까지 응시하기", goal: 1, reward: 100_000, phase: "school" },
+  { key: "lesson_ask", label: "AI 선생님께 질문하기", goal: 1, reward: 100_000, phase: "elementary" },
+  { key: "group_chat", label: "단체 수업방에서 대화하기", goal: 1, reward: 100_000, phase: "elementary" },
+  { key: "exam_try", label: "시험(승급/배치고사) 1회 끝까지 응시하기", goal: 1, reward: 200_000, phase: "elementary" },
+
+  { key: "lesson_ask", label: "AI 선생님께 질문 3번 하기", goal: 3, reward: 150_000, phase: "middle" },
+  { key: "group_chat", label: "단체 수업방에서 대화하기", goal: 1, reward: 150_000, phase: "middle" },
+  { key: "exam_try", label: "시험(승급/배치고사) 1회 끝까지 응시하기", goal: 1, reward: 300_000, phase: "middle" },
+
+  { key: "lesson_ask", label: "AI 선생님께 질문 5번 하기", goal: 5, reward: 200_000, phase: "high" },
+  { key: "group_chat", label: "단체 수업방에서 대화하기", goal: 1, reward: 200_000, phase: "high" },
+  { key: "exam_try", label: "시험(승급/배치고사) 1회 끝까지 응시하기", goal: 1, reward: 400_000, phase: "high" },
+
+  { key: "get_job", label: "직업 구하기", goal: 1, reward: 500_000, phase: "newbie", once: true },
+  { key: "first_alba", label: "마트 알바에서 계산 1건 해보기", goal: 1, reward: 200_000, phase: "newbie" },
+  { key: "set_location", label: "내 위치 설정하고 주변 사람 찾아보기", goal: 1, reward: 100_000, phase: "newbie" },
+
   { key: "work_batch", label: "직장 근무 5문제 풀기", goal: 5, reward: 500_000, phase: "adult" },
   { key: "alba_tx", label: "마트 계산 10건 처리하기", goal: 10, reward: 300_000, phase: "adult" },
 ];

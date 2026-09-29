@@ -216,7 +216,12 @@ export function attachSocket(httpServer: HttpServer) {
       const profile = db
         .prepare("SELECT * FROM student_profile WHERE user_id = ?")
         .get(userId) as any;
-      if (!room || roomOrderIndex(room.school_level, room.grade) > roomOrderIndex(profile.school_level, profile.grade)) {
+      // 졸업생(배치고사로 졸업해 grade가 1로 남은 경우 포함)은 모든 방에 들어갈 수 있다.
+      const locked =
+        !!room &&
+        profile.status !== "graduated" &&
+        roomOrderIndex(room.school_level, room.grade) > roomOrderIndex(profile.school_level, profile.grade);
+      if (!room || locked) {
         socket.emit("room:error", "입장할 수 없는 방입니다.");
         return;
       }

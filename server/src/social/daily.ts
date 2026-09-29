@@ -3,7 +3,7 @@
 // 마트 계산)에서 바로 계산한다 — 기존 라우트를 건드리지 않아도 되고 값이 어긋날 일이 없다.
 import { db } from "../db.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
-import { ATTENDANCE_REWARDS, QUESTS, type QuestKey } from "../economy.js";
+import { ATTENDANCE_REWARDS, NEWBIE_DAYS, QUESTS, type QuestKey, type QuestPhase } from "../economy.js";
 import { todayKstDate } from "./lottery.js";
 
 function addDays(dateStr: string, days: number): string {
@@ -27,6 +27,13 @@ function questProgress(userId: number, key: QuestKey, today: string): number {
         userId,
         today
       );
+    case "group_chat":
+      return count(
+        `SELECT COUNT(*) AS c FROM chat_messages
+         WHERE user_id = ? AND sender_type = 'user' AND date(created_at, '+9 hours') = ?`,
+        userId,
+        today
+      );
     case "exam_try":
       return (
         count(
@@ -40,6 +47,18 @@ function questProgress(userId: number, key: QuestKey, today: string): number {
           today
         )
       );
+    case "get_job":
+      return count(
+        "SELECT COUNT(*) AS c FROM job_assignments WHERE user_id = ? AND date(assigned_at, '+9 hours') = ?",
+        userId,
+        today
+      );
+    case "set_location":
+      return count(
+        "SELECT COUNT(*) AS c FROM user_locations WHERE user_id = ? AND date(updated_at, '+9 hours') = ?",
+        userId,
+        today
+      );
     case "work_batch":
       return count(
         `SELECT COUNT(*) AS c FROM work_attempts a JOIN work_sessions s ON s.id = a.session_id
@@ -47,6 +66,7 @@ function questProgress(userId: number, key: QuestKey, today: string): number {
         userId,
         today
       );
+    case "first_alba":
     case "alba_tx":
       return count(
         `SELECT COUNT(*) AS c FROM mart_transactions t JOIN mart_shifts s ON s.id = t.shift_id
@@ -57,11 +77,24 @@ function questProgress(userId: number, key: QuestKey, today: string): number {
   }
 }
 
-function isGraduated(userId: number): boolean {
-  const row = db.prepare("SELECT status FROM student_profile WHERE user_id = ?").get(userId) as
-    | { status: string }
-    | undefined;
-  return row?.status === "graduated";
+// 학생은 지금 다니는 학교급, 졸업생은 고등학교 졸업일로부터 NEWBIE_DAYS일(KST, 졸업 당일 포함)
+// 동안은 신입(newbie), 그 뒤로는 사회인(adult) 퀘스트를 받는다.
+function questPhase(userId: number, today: string): QuestPhase {
+  const profile = db
+    .prepare("SELECT school_level, status FROM student_profile WHERE user_id = ?")
+    .get(userId) as { school_level: string; status: string } | undefined;
+  if (!profile) return "elementary";
+  if (profile.status !== "graduated") return profile.school_level as QuestPhase;
+  const grad = db
+    .prepare(
+      "SELECT date(MAX(graduated_at), '+9 hours') AS d FROM graduations WHERE user_id = ? AND school_level = 'high'"
+    )
+    .get(userId) as { d: string | null };
+  return grad.d && grad.d > addDays(today, -NEWBIE_DAYS) ? "newbie" : "adult";
+}
+
+function claimedEver(userId: number, key: QuestKey): boolean {
+  return !!db.prepare("SELECT 1 FROM quest_claims WHERE user_id = ? AND quest_key = ? LIMIT 1").get(userId, key);
 }
 
 export function getDailyStatus(userId: number) {
@@ -77,7 +110,7 @@ export function getDailyStatus(userId: number) {
   const nextStreak = checkedInToday ? streak : streak + 1;
   const nextReward = ATTENDANCE_REWARDS[(nextStreak - 1) % ATTENDANCE_REWARDS.length];
 
-  const phase = isGraduated(userId) ? "adult" : "school";
+  const phase = questPhase(userId, today);
   const claimed = new Set(
     (
       db.prepare("SELECT quest_key FROM quest_claims WHERE user_id = ? AND date = ?").all(userId, today) as {
@@ -85,7 +118,11 @@ export function getDailyStatus(userId: number) {
       }[]
     ).map((r) => r.quest_key)
   );
-  const quests = QUESTS.filter((q) => q.phase === phase).map((q) => {
+  // 평생 1회 퀘스트는 이전 날짜에 이미 받았으면 목록에서 뺀다(오늘 받은 건 "받음"으로 남겨둔다).
+  const visible = QUESTS.filter(
+    (q) => q.phase === phase && !(q.once && !claimed.has(q.key) && claimedEver(userId, q.key))
+  );
+  const quests = visible.map((q) => {
     const progress = Math.min(questProgress(userId, q.key, today), q.goal);
     return {
       key: q.key,
@@ -131,9 +168,11 @@ export function checkIn(userId: number): { streak: number; reward: number; balan
 
 export function claimQuest(userId: number, key: string): { reward: number; balance: number } {
   const today = todayKstDate();
-  const quest = QUESTS.find((q) => q.key === key);
-  const phase = isGraduated(userId) ? "adult" : "school";
-  if (!quest || quest.phase !== phase) throw { status: 404, message: "존재하지 않는 퀘스트입니다." };
+  const quest = QUESTS.find((q) => q.key === key && q.phase === questPhase(userId, today));
+  if (!quest) throw { status: 404, message: "존재하지 않는 퀘스트입니다." };
+  if (quest.once && claimedEver(userId, quest.key)) {
+    throw { status: 409, message: "이미 보상을 받은 퀘스트입니다." };
+  }
 
   const done = db
     .prepare("SELECT 1 FROM quest_claims WHERE user_id = ? AND date = ? AND quest_key = ?")

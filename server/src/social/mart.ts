@@ -14,7 +14,7 @@ import {
 
 const PER_MINUTE_WAGE_MIN = 1500;
 const PER_MINUTE_WAGE_MAX = 3000;
-const PENALTY_MULTIPLIER = 100;
+const PENALTY_MULTIPLIER = 5;
 
 function randomWage(): number {
   return (

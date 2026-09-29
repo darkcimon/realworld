@@ -164,7 +164,7 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 
 /* 상단 프로필/탭을 사이드바로 뺀 만큼 세로 공간이 넉넉해졌다 — 칠판/채팅이 뷰포트 대부분을
    채우도록 높인다(.app의 padding-top 64px + 상하 여백만큼 뺀다). */
-.chat-room { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; display: flex; flex-direction: column; height: calc(100vh - 100px); min-height: 420px; }
+.chat-room { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; display: flex; flex-direction: column; height: calc(100vh - 84px); height: calc(100dvh - 84px); min-height: 420px; } /* .app 상하 여백(64+20)만큼 빼서 페이지 자체가 스크롤되지 않게 한다 */
 .chat-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
 .chat-header h2 { font-size: 16px; margin: 0; }
 .chat-topic { font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -299,8 +299,11 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .gift-target-input { width: 100%; }
 
 .location-controls { display: flex; flex-direction: column; gap: 8px; }
-.manual-location-form { display: flex; gap: 8px; }
-.manual-location-form input { flex: 1; }
+/* 위도·경도 입력은 한 줄에 반씩, 수동 설정 버튼은 아래 줄 전체 폭 — 가로 한 줄에 셋을 넣으면
+   좁은 화면에서 버튼 글자가 세로로 줄바꿈되며 입력칸까지 길쭉하게 늘어나고 화면 밖으로 밀린다. */
+.manual-location-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.manual-location-form input { min-width: 0; }
+.manual-location-form button { grid-column: 1 / -1; }
 
 .person-modal { width: 420px; max-width: 90vw; display: flex; flex-direction: column; gap: 10px; }
 .person-actions { display: flex; flex-wrap: wrap; gap: 8px; }

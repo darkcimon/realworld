@@ -55,7 +55,9 @@ export function LessonRoom({
   }, [roomId]);
 
   useEffect(() => {
-    listEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // scrollIntoView는 페이지(window)까지 끌어올려 상단 고정 버튼이 글자를 가리므로, 메시지 목록만 스크롤한다.
+    const list = listEndRef.current?.parentElement;
+    list?.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
   async function ask(e: React.FormEvent) {
