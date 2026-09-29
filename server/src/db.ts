@@ -370,7 +370,7 @@ CREATE TABLE IF NOT EXISTS manner_violations (
 CREATE TABLE IF NOT EXISTS catalog_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   category TEXT NOT NULL, -- 'car' | 'apartment' | 'luxury'
-  brand TEXT, -- 명품 전용(루이비통/에르메스/샤넬/구찌/디올)
+  brand TEXT, -- 명품 브랜드(현재 품목은 브랜드 없음, NULL)
   name TEXT NOT NULL,
   price INTEGER NOT NULL
 );
@@ -771,10 +771,25 @@ if (catalogCount.c === 0) {
   insert.run("apartment", null, "원룸", 50_000_000);
   insert.run("apartment", null, "84㎡ 아파트", 300_000_000);
   insert.run("apartment", null, "펜트하우스", 1_000_000_000);
-  // 명품(브랜드별 대표 가방 1종)
-  insert.run("luxury", "루이비통", "루이비통 가방", 3_000_000);
-  insert.run("luxury", "에르메스", "에르메스 가방", 15_000_000);
-  insert.run("luxury", "샤넬", "샤넬 가방", 12_000_000);
-  insert.run("luxury", "구찌", "구찌 가방", 4_000_000);
-  insert.run("luxury", "디올", "디올 가방", 5_000_000);
+  // 명품(실사 3D 모델이 있는 브랜드 없는 품목 — client/src/components/AssetViewer.tsx의 이름과 같아야 한다)
+  insert.run("luxury", null, "명품 선글라스", 3_000_000);
+  insert.run("luxury", null, "명품 가죽 소파", 15_000_000);
+  insert.run("luxury", null, "명품 시계", 12_000_000);
+  insert.run("luxury", null, "명품 운동화", 4_000_000);
+  insert.run("luxury", null, "명품 스탠드 조명", 5_000_000);
+}
+
+// 명품 라인업 교체(브랜드 가방 5종 → 실사 3D 모델 품목). 이미 시드된 DB는 id/가격을 그대로 두고 이름만 바꿔서
+// 유저가 가진 자산(owned_items)과 선물 기록이 그대로 새 품목으로 이어진다. 이미 바뀌었으면 아무 일도 없다.
+{
+  const rename = db.prepare("UPDATE catalog_items SET brand = NULL, name = ? WHERE category = 'luxury' AND name = ?");
+  for (const [from, to] of [
+    ["루이비통 가방", "명품 선글라스"],
+    ["에르메스 가방", "명품 가죽 소파"],
+    ["샤넬 가방", "명품 시계"],
+    ["구찌 가방", "명품 운동화"],
+    ["디올 가방", "명품 스탠드 조명"],
+  ]) {
+    rename.run(to, from);
+  }
 }

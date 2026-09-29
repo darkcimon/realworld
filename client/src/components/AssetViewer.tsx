@@ -2,17 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 
 // 자산(자동차/아파트/명품) 3D 전시장 — 드래그로 돌려보고 핀치/휠로 확대, 가만히 두면 턴테이블처럼 천천히 돈다.
 // three.js가 수백 KB라 이 파일은 React.lazy로만 불러와서 3D 창을 처음 열 때만 내려받게 한다.
 // 모델 출처와 라이선스는 public/models/*/ 안의 LICENSE/CREDITS 파일 참고.
+// 실사 모델(Khronos glTF 샘플)은 gltf-transform으로 압축(meshopt + WebP)해 두었으므로 MeshoptDecoder가 필요하고,
+// 금속/유리/가죽 재질이 제대로 보이도록 환경맵(RoomEnvironment) 조명을 깐다.
 // 모델을 못 불러오면 코드로 만든 단순한 모양으로 대신 보여준다.
 export type AssetCategory = "car" | "apartment" | "luxury";
 
-type ModelSpec = { file: string; tint?: number };
+type ModelSpec = { file: string; icon?: string; credit?: string };
 
+const KHRONOS = "Khronos glTF Sample Assets";
 const MODELS: Record<AssetCategory, { dir: string; icon: string; byName: Record<string, ModelSpec>; fallback: ModelSpec }> = {
-  // Kenney Car Kit (CC0)
+  // Kenney Car Kit (CC0) + 슈퍼카만 실사 모델
   car: {
     dir: "cars",
     icon: "🚗",
@@ -20,7 +25,7 @@ const MODELS: Record<AssetCategory, { dir: string; icon: string; byName: Record<
       경차: { file: "sedan.glb" }, // 키트에서 가장 짧고 각진 차
       "준중형 세단": { file: "hatchback-sports.glb" },
       스포츠카: { file: "sedan-sports.glb" },
-      슈퍼카: { file: "race-future.glb" },
+      슈퍼카: { file: "car-concept.glb", credit: `"Car Concept" © Darmstadt Graphics Group, Eric Chadwick (${KHRONOS}, CC BY 4.0)` },
     },
     fallback: { file: "sedan.glb" },
   },
@@ -35,27 +40,39 @@ const MODELS: Record<AssetCategory, { dir: string; icon: string; byName: Record<
     },
     fallback: { file: "building-j.glb" },
   },
-  // "Purse" by jeremy (CC-BY 3.0) — 브랜드 로고 없이 가방 색으로만 구분한다.
+  // 명품: 브랜드 로고가 없는 실사 모델(모두 Khronos glTF 샘플, CC BY 4.0)
   luxury: {
-    dir: "bags",
-    icon: "👜",
+    dir: "luxury",
+    icon: "💎",
     byName: {
-      "루이비통 가방": { file: "purse.glb", tint: 0x6b4a2b },
-      "에르메스 가방": { file: "purse.glb", tint: 0xd9731f },
-      "샤넬 가방": { file: "purse.glb", tint: 0x1c1c1c },
-      "구찌 가방": { file: "purse.glb", tint: 0x2f5d3a },
-      "디올 가방": { file: "purse.glb", tint: 0xb8a4a0 },
+      "명품 선글라스": {
+        file: "sunglasses.glb",
+        icon: "🕶️",
+        credit: `"Sunglasses Khronos" © Darmstadt Graphics Group, Eric Chadwick (${KHRONOS}, CC BY 4.0)`,
+      },
+      "명품 운동화": { file: "sneaker.glb", icon: "👟", credit: `"Materials Variants Shoe" © Shopify (${KHRONOS}, CC BY 4.0)` },
+      "명품 스탠드 조명": {
+        file: "lamp.glb",
+        icon: "💡",
+        credit: `"Stained Glass Lamp" © Wayfair, Eric Chadwick (${KHRONOS}, CC BY 4.0)`,
+      },
+      "명품 시계": {
+        file: "watch.glb",
+        icon: "⌚",
+        credit: `"Chronograph Watch" © Darmstadt Graphics Group, based on graphiccompressor (${KHRONOS}, CC BY 4.0)`,
+      },
+      "명품 가죽 소파": {
+        file: "sofa.glb",
+        icon: "🛋️",
+        credit: `"Sheen Wood Leather Sofa" © Darmstadt Graphics Group, Eric Chadwick / Fran Calvente (${KHRONOS}, CC BY 4.0)`,
+      },
     },
-    fallback: { file: "purse.glb", tint: 0x6b4a2b },
+    fallback: { file: "watch.glb", icon: "⌚" },
   },
 };
 
-const CREDITS: Partial<Record<AssetCategory, string>> = {
-  luxury: "가방 모델: \"Purse\" by jeremy (Poly Pizza, CC-BY 3.0)",
-};
-
-// 가방 모델의 몸통 재질 이름(검정). 금속 장식(FFEB3B)은 그대로 둔다.
-const BAG_BODY_MATERIAL = "1A1A1A";
+// 모델마다 실제 크기(시계 4cm ~ 건물 수십 m)가 달라서, 가장 긴 변이 이 길이가 되도록 맞춘 뒤 전시한다.
+const DISPLAY_SIZE = 2;
 
 function fallbackModel(category: AssetCategory): THREE.Group {
   if (category !== "car") {
@@ -97,6 +114,7 @@ export default function AssetViewer({
   onClose: () => void;
 }) {
   const config = MODELS[category];
+  const spec = config.byName[name] ?? config.fallback;
   const mountRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
 
@@ -109,10 +127,16 @@ export default function AssetViewer({
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
     mount.appendChild(renderer.domElement);
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x444455, 1.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 2);
+    // 환경맵: 실내 스튜디오 반사광. 금속·유리·클리어코트 재질은 이게 없으면 까맣고 밋밋하게 보인다.
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = envMap;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444455, 0.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
     sun.position.set(3, 5, 4);
     scene.add(sun);
 
@@ -133,8 +157,11 @@ export default function AssetViewer({
     controls.addEventListener("start", () => (controls.autoRotate = false));
     controls.addEventListener("end", () => (controls.autoRotate = true));
 
-    // 차 크기에 맞춰 전시대/카메라 거리를 잡는다(모델마다 크기가 달라도 화면에 꽉 차게).
+    // 모델 크기를 DISPLAY_SIZE로 맞춘 뒤 전시대/카메라 거리를 잡는다(시계든 건물이든 화면에 꽉 차게).
     function place(obj: THREE.Object3D) {
+      const raw = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+      const longest = Math.max(raw.x, raw.y, raw.z);
+      if (longest > 0) obj.scale.multiplyScalar(DISPLAY_SIZE / longest);
       const box = new THREE.Box3().setFromObject(obj);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
@@ -154,23 +181,10 @@ export default function AssetViewer({
     }
 
     let disposed = false;
-    const spec = config.byName[name] ?? config.fallback;
-    new GLTFLoader().load(
+    new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).load(
       `/models/${config.dir}/${spec.file}`,
       (gltf) => {
         if (disposed) return;
-        if (spec.tint !== undefined) {
-          gltf.scene.traverse((o) => {
-            if (o instanceof THREE.Mesh) {
-              for (const m of [o.material].flat()) {
-                if (m.name === BAG_BODY_MATERIAL && m instanceof THREE.MeshStandardMaterial) {
-                  m.color.setHex(spec.tint!);
-                  m.roughness = 0.55; // 가죽 느낌으로 살짝 광택
-                }
-              }
-            }
-          });
-        }
         place(gltf.scene);
       },
       undefined,
@@ -204,6 +218,8 @@ export default function AssetViewer({
           for (const m of [o.material].flat()) m.dispose();
         }
       });
+      envMap.dispose();
+      pmrem.dispose();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
     };
@@ -220,13 +236,13 @@ export default function AssetViewer({
     >
       <div className="modal asset-viewer-modal" onClick={(e) => e.stopPropagation()}>
         <h2>
-          {config.icon} {name}
+          {spec.icon ?? config.icon} {name}
         </h2>
         <div className="asset-viewer-stage" ref={mountRef}>
           {loading && <p className="asset-viewer-loading muted">불러오는 중...</p>}
         </div>
         <p className="muted asset-viewer-hint">드래그해서 돌려보고, 두 손가락(휠)으로 확대할 수 있어요.</p>
-        {CREDITS[category] && <p className="muted asset-viewer-hint">{CREDITS[category]}</p>}
+        {spec.credit && <p className="muted asset-viewer-hint">모델: {spec.credit}</p>}
         <button className="modal-close" onClick={onClose}>
           닫기
         </button>

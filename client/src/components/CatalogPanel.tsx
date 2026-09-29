@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { CatalogItem, OwnedItem, Profile } from "../types";
 import { PersonPanel } from "./PersonPanel";
+import { itemDisplayName } from "../itemName";
 
 // three.js가 무거워서 3D 창을 처음 열 때만 불러온다.
 export const AssetViewer = lazy(() => import("./AssetViewer"));
@@ -118,8 +119,7 @@ export function CatalogPanel({
           <li key={it.id}>
             <div>
               <strong>
-                {it.brand ? `${it.brand} ` : ""}
-                {it.name}
+                {itemDisplayName(it)}
               </strong>
               <div className="muted">{it.price.toLocaleString()}원</div>
             </div>
@@ -151,8 +151,7 @@ export function CatalogPanel({
           <li key={o.id}>
             <div>
               <strong>
-                {o.brand ? `${o.brand} ` : ""}
-                {o.name}
+                {itemDisplayName(o)}
               </strong>
               <div className="muted">{o.price.toLocaleString()}원</div>
             </div>

@@ -1,0 +1,19 @@
+All models from Khronos glTF Sample Assets (https://github.com/KhronosGroup/glTF-Sample-Assets).
+Changes: compressed with gltf-transform (meshopt geometry, WebP textures at 1024px).
+
+watch.glb — "Chronograph Watch"
+  © 2025 Darmstadt Graphics Group GmbH. Based on "Chronograph Watch Mudmaster" by graphiccompressor (https://skfb.ly/oAsPA).
+  License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/
+
+sneaker.glb — "Materials Variants Shoe"
+  © 2021 Shopify. License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/
+
+sunglasses.glb — "Sunglasses Khronos"
+  © 2024 Darmstadt Graphics Group GmbH, model and textures by Eric Chadwick. License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/
+
+sofa.glb — "Sheen Wood Leather Sofa"
+  © 2024 Darmstadt Graphics Group GmbH, improvements by Eric Chadwick (CC BY 4.0).
+  Original asset by Fran Calvente, public domain (CC0 1.0).
+
+lamp.glb — "Stained Glass Lamp"
+  © 2021 Wayfair, model by Eric Chadwick. License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/

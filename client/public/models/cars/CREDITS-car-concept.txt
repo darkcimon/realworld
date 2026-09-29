@@ -1,0 +1,5 @@
+car-concept.glb — "Car Concept" (Khronos glTF Sample Assets)
+https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept
+© 2024 Darmstadt Graphics Group GmbH, model and textures by Eric Chadwick.
+License: Creative Commons Attribution 4.0 International (CC BY 4.0) https://creativecommons.org/licenses/by/4.0/
+Changes: compressed with gltf-transform (meshopt geometry, WebP textures at 1024px).

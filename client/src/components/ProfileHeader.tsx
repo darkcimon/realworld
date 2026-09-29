@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../api";
 import type { Profile } from "../types";
 import { AvatarPicker } from "./AvatarPicker";
+import { itemDisplayName } from "../itemName";
 
 const CATEGORY_ICON: Record<string, string> = { car: "🚗", apartment: "🏠", luxury: "💎" };
 
@@ -52,8 +53,7 @@ export function ProfileHeader({
           <div className="profile-tiers" title="프로필에 전시 중인 자산">
             {profile.displayedItems.map((it) => (
               <span key={it.id} className="badge">
-                {CATEGORY_ICON[it.category] ?? "✨"} {it.brand ? `${it.brand} ` : ""}
-                {it.name}
+                {CATEGORY_ICON[it.category] ?? "✨"} {itemDisplayName(it)}
               </span>
             ))}
           </div>
