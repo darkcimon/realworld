@@ -146,16 +146,30 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 
 .town-hub { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 .town-hub-intro { margin: 0; color: var(--muted); font-size: 13px; }
-.facility-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.facility-card {
-  position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px;
-  background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px;
-  padding: 16px 8px; color: var(--text); font-weight: 600;
+/* 마을 지도(TownHub) */
+.town-map-wrap { width: 100%; max-width: 480px; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+.town-map { display: block; width: 100%; height: auto; touch-action: manipulation; user-select: none; -webkit-tap-highlight-color: transparent; }
+.town-building { cursor: pointer; outline: none; transition: filter .15s; }
+.town-building:hover, .town-building:focus-visible { filter: brightness(1.12) drop-shadow(0 0 3px #fff); }
+.town-building.locked { filter: grayscale(.75) brightness(.85); }
+.town-building.locked:hover, .town-building.locked:focus-visible { filter: grayscale(.75) brightness(.95) drop-shadow(0 0 3px #fff); }
+.town-building.targeted { filter: brightness(1.15) drop-shadow(0 0 4px #ffe27a); }
+.town-target { fill: none; stroke: #ffe27a; stroke-width: 2; animation: town-pulse 1s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes town-pulse { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+.town-char { transition: transform .3s ease-in, opacity .3s ease-in; }
+.town-char.walking .town-char-body { animation: town-bob .32s ease-in-out infinite; }
+.town-char .leg { transform-box: fill-box; transform-origin: top center; }
+.town-char.walking .leg-a { animation: town-leg .32s ease-in-out infinite; }
+.town-char.walking .leg-b { animation: town-leg .32s ease-in-out infinite reverse; }
+.town-char.entering { transform: translateY(-6px) scale(.2); opacity: 0; }
+@keyframes town-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
+@keyframes town-leg { 0%, 100% { transform: rotate(22deg); } 50% { transform: rotate(-22deg); } }
+.town-bubble { animation: town-pop .2s ease-out; transform-box: fill-box; transform-origin: bottom center; }
+@keyframes town-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .town-target, .town-char.walking .town-char-body, .town-char.walking .leg, .town-bubble { animation: none; }
+  .town-char { transition: none; }
 }
-.facility-icon { font-size: 26px; }
-.facility-label { font-size: 13px; }
-.facility-card.locked { color: var(--muted); }
-.facility-lock { position: absolute; top: 8px; right: 10px; font-size: 12px; }
 
 .room-list { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
 .rooms { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }

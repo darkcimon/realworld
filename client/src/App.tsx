@@ -187,7 +187,11 @@ export default function App() {
       )}
 
       {view === "hub" && (
-        <TownHub graduated={profile.school.status === "graduated"} onSelect={enterFacility} />
+        <TownHub
+          graduated={profile.school.status === "graduated"}
+          avatarUrl={profile.avatarUrl}
+          onSelect={enterFacility}
+        />
       )}
 
       {view === "social" && (
