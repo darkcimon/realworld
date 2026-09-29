@@ -1,4 +1,4 @@
-// 직장 동료 NPC(LLM 자유 대화) + 업무 지시 + 징계 사다리.
+// 직장 동료 NPC(LLM 자유 대화) + 업무 지시 + 징계 사다리 + 등장인물끼리의 상호작용(사내 소문/윗선 보고).
 //
 // 역할 분담(점장/상사 NPC와 같은 "감독 + 제한된 도구" 구조):
 //  - LLM(aiProvider.colleagueReply)은 대사를 쓰고 "하고 싶은 행동"을 제안만 한다.
@@ -9,6 +9,9 @@
 //
 // 기억: 최근 대화는 원문으로, 오래된 대화는 요약(colleague_relations.memory)으로 매번 함께 넘겨
 // "어제 칭찬하던 과장이 오늘 나를 모름" 같은 일이 없게 한다(단체 수업 roomMemory와 같은 방식).
+//
+// 등장인물끼리의 상호작용(3단계)도 추가 LLM 호출 없이 이뤄진다: 누군가의 행동은 사내 소문(colleague_hearsay)으로
+// 윗선/전원에게 퍼져 다음 대화의 맥락이 되고, 동료가 "report" 행동을 고르면 바로 위 상사의 신뢰도가 움직인다.
 import { db } from "../db.js";
 import { aiProvider } from "../ai/index.js";
 import type { ColleagueChatTurn, ColleagueProfile } from "../ai/AIProvider.js";
@@ -31,12 +34,18 @@ import { maybeIssueTask, openTask, resolveTasks, taskSummary } from "./workplace
 import {
   activeJob,
   actionsToday,
+  adjustTrust,
   bonusRoomToday,
+  broadcastAction,
   getRelation,
+  hearsayFor,
   insertMessage,
+  officeFeed,
   payBonus,
   recordAction,
   setTrust,
+  spreadHearsay,
+  superiorOf,
   type AppliedAction,
   type JobInfo,
 } from "./workplaceStore.js";
@@ -110,6 +119,8 @@ function rules(): string[] {
     `과장급 이상은 신뢰도 ${WORKPLACE.bonusMinTrust} 이상일 때 보너스를 줄 수 있어요(하루 총액은 일급 상한의 ${Math.round(
       WORKPLACE.bonusDailyRatio * 100
     )}%까지)`,
+    `동료는 들은 이야기를 바로 위 상사에게 보고할 수 있어요(하루 ${WORKPLACE.reportPerDay}회, 상사 신뢰도 ±${WORKPLACE.reportTrust}). 칭찬·보너스는 윗선에, 경고·징계는 회사 전체에 소문이 나요`,
+    `신뢰도 ${WORKPLACE.defenseMinTrust} 이상인 동료는 징계 직전에 한 번 감싸줄 수 있어요(${WORKPLACE.defenseCooldownDays}일에 한 번)`,
     "상사가 업무를 지시하면 기한 안에 근무 기록으로 달성해야 해요. 완료하면 칭찬(과장급 이상이면 보너스), 못 하면 경고",
     ...disciplineRules(),
     "욕설·음담패설은 매너 점수 차감 + 경고(3회 누적 시 감옥)로 처리돼요",
@@ -178,6 +189,7 @@ export function getWorkplace(userId: number) {
     records: actionCounts(userId, job.id),
     evalAdjust: { current: adjust?.colleague_adjust ?? 0, cap: WORKPLACE.evalAdjustPerPeriod },
     task: openTask(userId, job, org),
+    feed: officeFeed(userId, job.id, org),
     discipline: disciplineStatus(userId, job.id),
     bonusRoomToday: bonusRoomToday(userId, job),
     remainingToday: Math.max(0, WORKPLACE.dailyMessagesPerUser - messagesSentToday(userId)),
@@ -231,6 +243,7 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
   if (moderation.violated) {
     const action: AppliedAction = { type: "warning", value: 0, reason: "근무 중 부적절한 언행" };
     recordAction(userId, job.id, key, action);
+    broadcastAction(userId, job.id, org, colleague, action);
     const trust = setTrust(userId, job.id, key, relation.trust + WORKPLACE.warningTrust);
     const reply = "...방금 그 말은 못 들은 걸로 하죠. 회사에서 그런 말은 곤란합니다. 경고로 남겨두겠습니다.";
     insertMessage(userId, job.id, key, "npc", reply);
@@ -249,6 +262,7 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
 
   // 지금 이 동료가 쓸 수 있는 권한(프롬프트에 그대로 알려주고, 아래에서 한 번 더 확인한다)
   const bonusRoom = bonusRoomToday(userId, job);
+  const superior = superiorOf(org, colleague);
   const allowed = {
     praise: actionsToday(userId, job.id, key, "praise") < WORKPLACE.praisePerDay,
     warning: actionsToday(userId, job.id, key, "warning") < WORKPLACE.warningPerDay,
@@ -257,6 +271,10 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
       colleague.level >= WORKPLACE.bonusMinLevel && relation.trust >= WORKPLACE.bonusMinTrust && bonusRoom >= 1000
         ? Math.min(bonusPerAction(job), bonusRoom)
         : 0,
+    reportTo:
+      superior && actionsToday(userId, job.id, key, "report") < WORKPLACE.reportPerDay
+        ? `${superior.name} ${superior.title}`
+        : null,
   };
   const period = workPeriodSummary(userId, job.id);
   const profile = profileOf(org, colleague);
@@ -267,6 +285,7 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
     trust: relation.trust,
     workSummary: [period.text, taskSummary(userId, job, org), disciplineSummary(userId, job.id)].join(" / "),
     memory: relation.memory,
+    hearsay: hearsayFor(userId, job.id, org, key, WORKPLACE.hearsayInPrompt),
     recentHistory: history.reverse().map((m): ColleagueChatTurn => ({ speaker: m.sender, content: m.content })),
     message,
     allowed,
@@ -292,7 +311,15 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
   } else if (a.type === "bonus" && allowed.bonusMax > 0 && a.value > 0) {
     const paid = payBonus(userId, job, colleague, Math.min(a.value, allowed.bonusMax), a.reason);
     if (paid > 0) applied = { type: "bonus", value: paid, reason: a.reason };
+  } else if (a.type === "report" && allowed.reportTo && superior && a.value !== 0) {
+    // 윗선 보고: 바로 위 상사만 전해 듣고, 그 상사의 신뢰도가 조금 움직인다.
+    const sign = Math.sign(a.value);
+    applied = { type: "report", value: sign, reason: a.reason };
+    recordAction(userId, job.id, key, applied);
+    adjustTrust(userId, job.id, superior.key, sign * WORKPLACE.reportTrust);
+    spreadHearsay(userId, job.id, org, colleague, `보고: ${a.reason}`, sign, [superior]);
   }
+  if (applied && applied.type !== "report") broadcastAction(userId, job.id, org, colleague, applied);
   if (applied) {
     const label =
       applied.type === "praise"
@@ -301,7 +328,9 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
           ? "경고 기록"
           : applied.type === "bonus"
             ? `보너스 ${applied.value.toLocaleString()}원`
-            : `평가 ${applied.value > 0 ? "+" : ""}${applied.value}점`;
+            : applied.type === "report"
+              ? `${superior?.name ?? "윗선"}에게 ${applied.value > 0 ? "좋게" : "나쁘게"} 보고`
+              : `평가 ${applied.value > 0 ? "+" : ""}${applied.value}점`;
     notify(userId, "npc", `${colleague.avatar} ${colleague.name} ${colleague.title}: ${label} — ${applied.reason}`);
   }
 
@@ -317,6 +346,7 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
     trust,
     violation: null,
     disciplined,
+    reportedTo: applied?.type === "report" && superior ? `${superior.name} ${superior.title}` : null,
     remainingToday: Math.max(0, WORKPLACE.dailyMessagesPerUser - messagesSentToday(userId)),
   };
 }

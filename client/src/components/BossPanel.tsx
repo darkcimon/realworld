@@ -116,6 +116,12 @@ export function BossPanel({
             {panel.reputation.adjust}점
           </small>
         )}
+        {panel.peers.adjust !== 0 && (
+          <small className={panel.peers.adjust > 0 ? "ok-text" : "error"}>
+            동료 평판(평균 신뢰도 {panel.peers.avgTrust}) → 평가 {panel.peers.adjust > 0 ? "+" : ""}
+            {panel.peers.adjust}점
+          </small>
+        )}
         {panel.colleagueAdjust !== 0 && (
           <small className={panel.colleagueAdjust > 0 ? "ok-text" : "error"}>
             직장 동료 평가 {panel.colleagueAdjust > 0 ? "+" : ""}

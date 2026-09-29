@@ -20,6 +20,8 @@ type ChatLine =
 function actionText(a: ColleagueAction): { text: string; tone: "ok" | "bad" } {
   if (a.type === "praise") return { text: `👍 칭찬 기록: ${a.reason}`, tone: "ok" };
   if (a.type === "warning") return { text: `⚠ 경고 기록: ${a.reason}`, tone: "bad" };
+  if (a.type === "report")
+    return { text: `🗣 윗선에 ${a.value > 0 ? "좋게" : "나쁘게"} 보고함: ${a.reason}`, tone: a.value > 0 ? "ok" : "bad" };
   if (a.type === "bonus") return { text: `💰 보너스 ${a.value.toLocaleString()}원: ${a.reason}`, tone: "ok" };
   return {
     text: `📈 다음 평가 ${a.value > 0 ? "+" : ""}${a.value}점: ${a.reason}`,
@@ -169,6 +171,21 @@ export function ColleaguePanel({ refreshKey, onChange }: { refreshKey: number; o
         </ul>
       )}
 
+      {!open && state.feed.length > 0 && (
+        <div className="office-feed">
+          <small className="muted">🗣 사내 소문</small>
+          <ul>
+            {state.feed.map((f) => (
+              <li key={f.id} className={f.tone > 0 ? "ok-text" : f.tone < 0 ? "error" : "muted"}>
+                <small>
+                  {f.avatar} {f.from} → {f.to.length > 2 ? "모두" : f.to.join(", ")}: {f.content}
+                </small>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {state.evalAdjust.current !== 0 && (
         <small className={state.evalAdjust.current > 0 ? "ok-text" : "error"}>
           이번 평가 기간 동료 평가 {state.evalAdjust.current > 0 ? "+" : ""}
@@ -240,7 +257,11 @@ function ColleagueChat({
       const r = await api.post<ColleagueChatResp>(`/npc/colleagues/${colleague.key}/chat`, { message });
       const added: ChatLine[] = [{ kind: "msg", id: seq.current--, sender: "npc", content: r.reply }];
       if (r.action) {
-        const { text, tone } = actionText(r.action);
+        const { text, tone } = actionText(
+          r.action.type === "report" && r.reportedTo
+            ? { ...r.action, reason: `${r.reportedTo}에게 — ${r.action.reason}` }
+            : r.action
+        );
         added.push({ kind: "system", id: seq.current--, content: text, tone });
       }
       if (r.disciplined) {

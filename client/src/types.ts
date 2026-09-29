@@ -355,6 +355,7 @@ export type BossPanelState =
       };
       reputation: { managerTrust: number; adjust: number };
       colleagueAdjust: number;
+      peers: { avgTrust: number | null; adjust: number };
       project: { goal: number; overtime: number } | null;
       rules: string[];
       greeting: string;
@@ -369,7 +370,7 @@ export interface BossChooseResp {
 
 // ── 직장 동료 NPC(LLM 자유 대화) ──────────────────────────────────
 export interface ColleagueAction {
-  type: "praise" | "warning" | "eval_adjust" | "bonus";
+  type: "praise" | "warning" | "eval_adjust" | "bonus" | "report";
   value: number;
   reason: string;
 }
@@ -408,6 +409,16 @@ export interface DisciplineStatus {
   suspendedUntil: string | null;
 }
 
+export interface OfficeFeedItem {
+  id: number;
+  from: string;
+  avatar: string;
+  to: string[];
+  content: string;
+  tone: number;
+  createdAt: string;
+}
+
 export type WorkplaceState =
   | { assigned: false; bans: { jobName: string; until: string }[] }
   | {
@@ -419,6 +430,7 @@ export type WorkplaceState =
       records: { praise: number; warning: number };
       evalAdjust: { current: number; cap: number };
       task: WorkTask | null;
+      feed: OfficeFeedItem[];
       discipline: DisciplineStatus;
       bonusRoomToday: number;
       remainingToday: number;
@@ -445,5 +457,6 @@ export interface ColleagueChatResp {
   trust: number;
   violation: { level: number; jailed: boolean } | null;
   disciplined: { stage: number; label: string; by: string; fired: boolean } | null;
+  reportedTo: string | null;
   remainingToday: number;
 }

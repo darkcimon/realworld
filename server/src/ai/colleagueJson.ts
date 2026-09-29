@@ -13,7 +13,8 @@ function parseAction(raw: unknown): ColleagueAction {
     case "warning":
       return reason ? { type: o.type, reason } : { type: "none" };
     case "eval_adjust":
-    case "bonus": {
+    case "bonus":
+    case "report": {
       const value = Math.trunc(Number(o.value));
       return reason && Number.isFinite(value) && value !== 0 ? { type: o.type, value, reason } : { type: "none" };
     }

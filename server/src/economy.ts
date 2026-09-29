@@ -171,4 +171,16 @@ export const WORKPLACE = {
     // 단계별로 통보할 수 있는 최소 서열(orgChart level): 감봉·정직은 차장급, 강등·해고는 이사/사장
     authority: { 1: 3, 2: 3, 3: 4, 4: 4 } as Record<number, number>,
   },
+
+  // ── 3단계: 등장인물끼리의 상호작용 ──
+  // 사내 소문: 누가 칭찬/보너스/평가를 하면 윗사람들이, 경고/징계는 모두가 전해 듣는다(프롬프트 맥락).
+  hearsayInPrompt: 4, // 대화할 때 넘기는 "들은 이야기" 최근 개수
+  // 윗선 보고(LLM 행동 "report"): 동료가 들은 말을 바로 위 상사에게 전한다 → 그 상사의 신뢰도 ±reportTrust
+  reportPerDay: 1, // 동료 한 명이 하루에 할 수 있는 보고 수
+  reportTrust: 2,
+  // 감싸주기: 징계가 오르기 직전, 신뢰도가 높은 동료가 윗선에 잘 말해 경고 1회를 덜어준다
+  defenseMinTrust: 80,
+  defenseCooldownDays: 14, // 이 회사에서 감싸주기는 이 기간에 한 번만
+  // 주간 평가의 "동료 평판": 동료들의 평균 신뢰도가 높으면 가산, 낮으면 감산(과장 → 차장 보고의 규칙화)
+  peerReputation: { goodAt: 70, badBelow: 35, adjust: 3 },
 };

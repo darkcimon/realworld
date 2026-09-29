@@ -74,15 +74,17 @@ export interface ColleagueContext {
   trust: number; // 0~100, 이 동료가 플레이어를 얼마나 믿는지
   workSummary: string; // 이번 평가 기간 근무 기록 요약(서버가 계산한 사실)
   memory: string | null; // 지금까지의 관계/대화 요약
+  hearsay: string[]; // 다른 동료에게 전해 들은 플레이어 이야기(사내 소문/보고)
   recentHistory: ColleagueChatTurn[];
   message: string; // 이번 플레이어 발화
-  allowed: { praise: boolean; warning: boolean; evalAdjustMax: number; bonusMax: number }; // 지금 쓸 수 있는 권한
+  // 지금 쓸 수 있는 권한. reportTo: 윗선 보고를 받을 바로 위 상사 이름(보고 불가면 null)
+  allowed: { praise: boolean; warning: boolean; evalAdjustMax: number; bonusMax: number; reportTo: string | null };
 }
 
 export type ColleagueAction =
   | { type: "none" }
   | { type: "praise" | "warning"; reason: string }
-  | { type: "eval_adjust" | "bonus"; value: number; reason: string };
+  | { type: "eval_adjust" | "bonus" | "report"; value: number; reason: string };
 
 export interface ColleagueTurn {
   reply: string;

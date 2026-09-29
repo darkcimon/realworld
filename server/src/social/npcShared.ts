@@ -11,6 +11,14 @@ export function managerTrust(userId: number): number {
   return row?.trust ?? 50;
 }
 
+/** 이 회사 동료들의 평균 신뢰도(아직 아무와도 관계가 없으면 null). workplace 모듈을 import하지 않으려고 SQL로 읽는다. */
+export function colleagueAverageTrust(userId: number, jobId: number): number | null {
+  const row = db
+    .prepare("SELECT AVG(trust) AS t, COUNT(*) AS n FROM colleague_relations WHERE user_id = ? AND job_id = ?")
+    .get(userId, jobId) as { t: number | null; n: number };
+  return row.n > 0 && row.t !== null ? Math.round(row.t) : null;
+}
+
 /** 이 유저가 직장에서 도달한 가장 높은 직급(1=사원). */
 export function bestBossRank(userId: number): number {
   const row = db.prepare("SELECT MAX(rank) AS r FROM boss_state WHERE user_id = ?").get(userId) as {

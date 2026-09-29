@@ -566,7 +566,7 @@ CREATE TABLE IF NOT EXISTS colleague_actions (
   user_id INTEGER NOT NULL REFERENCES users(id),
   job_id INTEGER NOT NULL REFERENCES jobs(id),
   colleague_key TEXT NOT NULL,
-  kind TEXT NOT NULL, -- 'praise' | 'warning' | 'eval_adjust' | 'bonus'
+  kind TEXT NOT NULL, -- 'praise' | 'warning' | 'eval_adjust' | 'bonus' | 'report' | 'defense'
   value INTEGER NOT NULL DEFAULT 0,
   reason TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -614,6 +614,18 @@ CREATE TABLE IF NOT EXISTS workplace_disciplines (
   reason TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- 사내 소문(3단계): 동료 A의 행동/보고를 누가 전해 들었는지. audience는 ",manager,deputy," 형태.
+CREATE TABLE IF NOT EXISTS colleague_hearsay (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  source_key TEXT NOT NULL, -- 소문의 출처(행동하거나 보고한 동료)
+  audience TEXT NOT NULL,
+  content TEXT NOT NULL,
+  tone INTEGER NOT NULL DEFAULT 0, -- 플레이어에게 좋은 소식 +1 / 나쁜 소식 -1
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_colleague_hearsay ON colleague_hearsay (user_id, job_id, id);
 CREATE TABLE IF NOT EXISTS job_bans (
   user_id INTEGER NOT NULL REFERENCES users(id),
   job_id INTEGER NOT NULL REFERENCES jobs(id),

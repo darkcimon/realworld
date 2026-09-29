@@ -5,13 +5,15 @@
 //  - 마지막 징계 이후 순경고(경고 - 칭찬/praiseOffset)가 warningsPerStep에 도달하면 한 단계 위로
 //  - 하루에 한 단계까지만(몇 분 만에 해고까지 가는 일이 없게)
 //  - decayDays 동안 새 경고가 없으면 한 단계 아래로(회복 가능)
-// 통보는 그 단계를 내릴 수 있는 서열(차장급/이사·사장)의 동료가 채팅으로 직접 한다.
+// 통보는 그 단계를 내릴 수 있는 서열(차장급/이사·사장)의 동료가 채팅으로 직접 하고, 소문은 회사 전체에 퍼진다.
+// 감싸주기(3단계): 징계가 오르기 직전, 플레이어를 깊이 믿는 동료(신뢰도 defenseMinTrust↑)가 통보자에게
+// 선처를 부탁해 경고 1회를 덜어준다(회사별 defenseCooldownDays에 한 번). 관계를 쌓은 보람이 규칙으로 돌아온다.
 import { db } from "../db.js";
 import { WORKPLACE } from "../economy.js";
 import { todayKstDate } from "./lottery.js";
 import { demoteForDiscipline, resetBossState } from "./npcBoss.js";
 import type { ColleagueDef, OrgChart } from "./orgChart.js";
-import { addDays, npcSays, type JobInfo } from "./workplaceStore.js";
+import { addDays, getRelation, npcSays, recordAction, spreadHearsay, type JobInfo } from "./workplaceStore.js";
 
 const D = WORKPLACE.discipline;
 export const STAGE_LABEL: Record<number, string> = { 0: "정상", 1: "감봉", 2: "정직", 3: "강등", 4: "해고" };
@@ -38,15 +40,16 @@ function pending(userId: number, jobId: number, throughId: number) {
   const rows = db
     .prepare(
       `SELECT id, kind, reason FROM colleague_actions
-       WHERE user_id = ? AND job_id = ? AND id > ? AND kind IN ('praise', 'warning') ORDER BY id`
+       WHERE user_id = ? AND job_id = ? AND id > ? AND kind IN ('praise', 'warning', 'defense') ORDER BY id`
     )
     .all(userId, jobId, throughId) as { id: number; kind: string; reason: string }[];
   const warnings = rows.filter((r) => r.kind === "warning");
-  const praises = rows.length - warnings.length;
+  const praises = rows.filter((r) => r.kind === "praise").length;
+  const defenses = rows.filter((r) => r.kind === "defense").length; // 감싸주기 1회 = 경고 1회 상쇄
   return {
     warnings: warnings.length,
     praises,
-    net: Math.max(0, warnings.length - Math.floor(praises / D.praiseOffset)),
+    net: Math.max(0, warnings.length - Math.floor(praises / D.praiseOffset) - defenses),
     reasons: [...new Set(warnings.slice(-3).map((w) => w.reason))],
     lastId: rows.length ? rows[rows.length - 1].id : throughId,
   };
@@ -125,6 +128,23 @@ function authorityFor(org: OrgChart, stage: number): ColleagueDef {
   return eligible[0] ?? [...org.colleagues].sort((a, b) => b.level - a.level)[0];
 }
 
+/** 감싸줄 동료: 통보자가 아닌 사람 중 신뢰도가 가장 높은(defenseMinTrust 이상) 사람. 쿨다운 중이면 null. */
+function findDefender(userId: number, job: JobInfo, org: OrgChart, authority: ColleagueDef): ColleagueDef | null {
+  const recent = db
+    .prepare(
+      `SELECT 1 FROM colleague_actions WHERE user_id = ? AND job_id = ? AND kind = 'defense'
+       AND created_at >= datetime('now', ?) LIMIT 1`
+    )
+    .get(userId, job.id, `-${WORKPLACE.defenseCooldownDays} days`);
+  if (recent) return null;
+  const candidates = org.colleagues
+    .filter((c) => c.key !== authority.key)
+    .map((c) => ({ c, trust: getRelation(userId, job.id, c.key).trust }))
+    .filter((x) => x.trust >= WORKPLACE.defenseMinTrust)
+    .sort((a, b) => b.trust - a.trust);
+  return candidates[0]?.c ?? null;
+}
+
 export interface DisciplineResult {
   stage: number;
   label: string;
@@ -162,6 +182,23 @@ export function evaluateDiscipline(userId: number, job: JobInfo, org: OrgChart, 
   const stage = Math.min(MAX_STAGE, state.discipline_level + 1);
   const by = authorityFor(org, stage);
   const why = p.reasons.join(", ") || "근무 태도 문제";
+
+  const defender = findDefender(userId, job, org, by);
+  if (defender) {
+    recordAction(userId, job.id, defender.key, {
+      type: "defense",
+      value: 0,
+      reason: `${by.name} ${by.title}에게 ${STAGE_LABEL[stage]} 선처를 부탁함`,
+    });
+    spreadHearsay(userId, job.id, org, defender, `${STAGE_LABEL[stage]} 직전인 플레이어를 감싸며 선처를 부탁했다`, 1, [by]);
+    npcSays(
+      userId,
+      job.id,
+      defender,
+      `${by.name} ${by.title}께 이번 한 번만 봐달라고 말씀드렸어요. 이번 징계는 겨우 막았는데, 다음엔 저도 못 막아요.`
+    );
+    if (p.net - 1 < D.warningsPerStep) return null;
+  }
   let text: string;
 
   if (stage === 4) {
@@ -212,5 +249,6 @@ export function evaluateDiscipline(userId: number, job: JobInfo, org: OrgChart, 
     why
   );
   npcSays(userId, job.id, by, text);
+  spreadHearsay(userId, job.id, org, by, `${STAGE_LABEL[stage]} 처분을 통보했다(${why})`, -1, "all");
   return { stage, label: STAGE_LABEL[stage], by: `${by.name} ${by.title}`, fired: stage === 4 };
 }

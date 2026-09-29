@@ -9,7 +9,16 @@ import { todayKstDate } from "./lottery.js";
 import { claimDailyRoll, pickRandom } from "./npcShared.js";
 import type { ColleagueDef, OrgChart } from "./orgChart.js";
 import { suspendedUntil } from "./workplaceDiscipline.js";
-import { addDays, adjustTrust, npcSays, payBonus, recordAction, type JobInfo } from "./workplaceStore.js";
+import {
+  addDays,
+  adjustTrust,
+  broadcastAction,
+  npcSays,
+  payBonus,
+  recordAction,
+  type AppliedAction,
+  type JobInfo,
+} from "./workplaceStore.js";
 
 type TaskKind = "attempts" | "accuracy" | "overtime";
 
@@ -85,7 +94,9 @@ export function resolveTasks(userId: number, job: JobInfo, org: OrgChart, today 
     const desc = describe(t);
     if (isMet(t, progressOf(userId, t))) {
       finish(t.id, "done");
-      recordAction(userId, job.id, issuer.key, { type: "praise", value: 0, reason: `업무 완료: ${desc}` });
+      const praise: AppliedAction = { type: "praise", value: 0, reason: `업무 완료: ${desc}` };
+      recordAction(userId, job.id, issuer.key, praise);
+      broadcastAction(userId, job.id, org, issuer, praise);
       adjustTrust(userId, job.id, issuer.key, WORKPLACE.taskTrust);
       const bonus =
         issuer.level >= WORKPLACE.bonusMinLevel
@@ -99,7 +110,9 @@ export function resolveTasks(userId: number, job: JobInfo, org: OrgChart, today 
       );
     } else if (today > t.due_date) {
       finish(t.id, "failed");
-      recordAction(userId, job.id, issuer.key, { type: "warning", value: 0, reason: `업무 기한 미준수: ${desc}` });
+      const warning: AppliedAction = { type: "warning", value: 0, reason: `업무 기한 미준수: ${desc}` };
+      recordAction(userId, job.id, issuer.key, warning);
+      broadcastAction(userId, job.id, org, issuer, warning);
       adjustTrust(userId, job.id, issuer.key, WORKPLACE.taskFailTrust);
       npcSays(userId, job.id, issuer, `${t.due_date}까지 부탁한 ${desc}, 결국 못 끝냈네요. 경고로 남겨두겠습니다.`);
     }

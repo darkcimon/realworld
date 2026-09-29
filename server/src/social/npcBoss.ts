@@ -9,7 +9,7 @@ import { applyLedgerEntry, getBalance } from "../wallet/ledger.js";
 import { BOSS, EVENTS, MANAGER, WORKPLACE } from "../economy.js";
 import { notify } from "./notifications.js";
 import { todayKstDate } from "./lottery.js";
-import { claimDailyRoll, managerTrust, pickRandom } from "./npcShared.js";
+import { claimDailyRoll, colleagueAverageTrust, managerTrust, pickRandom } from "./npcShared.js";
 import { orgChartFor } from "./orgChart.js";
 
 const NPC = "boss";
@@ -67,6 +67,15 @@ interface ReviewMeta {
   overtime: number;
   reputation: number; // 점장 평판 보정
   project: number; // 긴급 프로젝트 가감점(0이면 없음)
+  peers?: number; // 동료 평판 보정(3단계, 이전 기록엔 없음)
+}
+
+/** 동료 평판: 동료들이 평소 서로 나눈 평가(평균 신뢰도)가 인사평가에 반영된다. */
+function peerReputation(userId: number, jobId: number): { avgTrust: number | null; adjust: number } {
+  const avg = colleagueAverageTrust(userId, jobId);
+  const P = WORKPLACE.peerReputation;
+  const adjust = avg === null ? 0 : avg >= P.goodAt ? P.adjust : avg < P.badBelow ? -P.adjust : 0;
+  return { avgTrust: avg, adjust };
 }
 
 const MAX_RANK = BOSS.ranks.length;
@@ -325,7 +334,8 @@ export function maybeReview(
     project = stats.overtime >= state.project_goal ? EVENTS.projectSuccessBonus : -EVENTS.projectFailPenalty;
   }
 
-  const score = scoreOf(stats, state.attitude + reputation + project + state.colleague_adjust);
+  const peers = peerReputation(userId, jobId).adjust;
+  const score = scoreOf(stats, state.attitude + reputation + project + state.colleague_adjust + peers);
   const grade = gradeOf(score);
   const meta: ReviewMeta = {
     score,
@@ -335,11 +345,14 @@ export function maybeReview(
     overtime: stats.overtime,
     reputation,
     project,
+    peers,
   };
   const pct = Math.round(stats.accuracy * 100);
   const notes = [
     reputation !== 0 ? `점장 평판 ${reputation > 0 ? "+" : ""}${reputation}` : "",
     project !== 0 ? `긴급 프로젝트 ${project > 0 ? "성공 +" : "미달 "}${Math.abs(project)}` : "",
+    peers !== 0 ? `동료 평판 ${peers > 0 ? "+" : ""}${peers}` : "",
+    state.colleague_adjust !== 0 ? `직속 상사 가감 ${state.colleague_adjust > 0 ? "+" : ""}${state.colleague_adjust}` : "",
   ]
     .filter(Boolean)
     .join(", ");
@@ -615,7 +628,8 @@ export function getBossPanel(userId: number, today = todayKstDate()) {
     trust >= MANAGER.trustedAt ? EVENTS.reputationAdjust : trust < MANAGER.watchBelow ? -EVENTS.reputationAdjust : 0;
   const projectAdj =
     state.project_goal > 0 ? (stats.overtime >= state.project_goal ? EVENTS.projectSuccessBonus : -EVENTS.projectFailPenalty) : 0;
-  const projected = scoreOf(stats, state.attitude + reputation + projectAdj + state.colleague_adjust);
+  const peers = peerReputation(userId, job.id);
+  const projected = scoreOf(stats, state.attitude + reputation + projectAdj + state.colleague_adjust + peers.adjust);
   return {
     assigned: true as const,
     job,
@@ -640,12 +654,15 @@ export function getBossPanel(userId: number, today = todayKstDate()) {
     reputation: { managerTrust: trust, adjust: reputation },
     // 직장 동료와의 대화에서 받은 평가 가감점(누적, 다음 평가에 1회 반영)
     colleagueAdjust: state.colleague_adjust,
+    // 동료 평판(평균 신뢰도 → 평가 ±점수)
+    peers,
     project: state.project_goal > 0 ? { goal: state.project_goal, overtime: stats.overtime } : null,
     rules: [
       `마트 점장 신뢰도 ${MANAGER.trustedAt}↑ 이면 평가 +${EVENTS.reputationAdjust}점, ${MANAGER.watchBelow} 미만이면 -${EVENTS.reputationAdjust}점(평판)`,
       `평가는 ${BOSS.reviewPeriodDays}일마다 · 최소 ${BOSS.minWorkDays}일 근무 + ${BOSS.minAttempts}문제 필요(미달 시 보류)`,
       "점수 = 정답률 60 + 근무일수 25(5일 만점) + 잔업 15(5회 만점) + 면담 태도(±5)",
       `직장 동료와의 대화에서 받은 가감점(평가 기간 누적 ±${WORKPLACE.evalAdjustPerPeriod}점)도 반영`,
+      `동료 평판: 동료들의 평균 신뢰도 ${WORKPLACE.peerReputation.goodAt}↑ 이면 +${WORKPLACE.peerReputation.adjust}점, ${WORKPLACE.peerReputation.badBelow} 미만이면 -${WORKPLACE.peerReputation.adjust}점`,
       `S ${BOSS.gradeS}점↑ / A ${BOSS.gradeA}점↑ / B ${BOSS.gradeB}점↑ / 그 미만 C`,
       `S·A가 ${BOSS.promotionStreak}회 연속이면 승진 심사 요청 가능(직급별 일급 ×${BOSS.ranks.map((r) => r.payMultiplier).join(" → ×")})`,
       `C가 ${BOSS.demotionStreak}회 연속이면 한 직급 강등`,
