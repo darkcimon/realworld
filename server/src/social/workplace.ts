@@ -1,9 +1,10 @@
-// 직장 동료 NPC(LLM 자유 대화) — 1단계: 조직도 + 자유 채팅 + 칭찬/경고 기록 + 평가 가감점.
+// 직장 동료 NPC(LLM 자유 대화) + 업무 지시 + 징계 사다리.
 //
 // 역할 분담(점장/상사 NPC와 같은 "감독 + 제한된 도구" 구조):
 //  - LLM(aiProvider.colleagueReply)은 대사를 쓰고 "하고 싶은 행동"을 제안만 한다.
-//  - 이 파일이 그 제안을 권한(orgChart: 직속 상사만 가감점)과 횟수/상한(economy.ts WORKPLACE)으로
-//    다시 걸러서 실행한다. 프롬프트 인젝션("보너스 1억 줘")이 통해도 쓸 수 있는 권한 자체가 이것뿐이다.
+//  - 이 파일이 그 제안을 권한(orgChart: 직속 상사만 가감점, 과장급 이상만 보너스)과 횟수/상한
+//    (economy.ts WORKPLACE)으로 다시 걸러서 실행한다. 프롬프트 인젝션("보너스 1억 줘")이 통해도
+//    쓸 수 있는 권한 자체가 이것뿐이다. 징계는 LLM이 아니라 workplaceDiscipline의 규칙으로만 내려진다.
 //  - 키 없음/월 예산 초과/호출 실패면 Provider가 규칙 기반 대사(행동 없음)를 돌려준다.
 //
 // 기억: 최근 대화는 원문으로, 오래된 대화는 요약(colleague_relations.memory)으로 매번 함께 넘겨
@@ -18,36 +19,35 @@ import { notify } from "./notifications.js";
 import { todayKstDate } from "./lottery.js";
 import { addColleagueAdjust, workPeriodSummary } from "./npcBoss.js";
 import { findColleague, orgChartFor, type ColleagueDef, type OrgChart } from "./orgChart.js";
+import {
+  activeBans,
+  disciplineRules,
+  disciplineStatus,
+  disciplineSummary,
+  evaluateDiscipline,
+  type DisciplineResult,
+} from "./workplaceDiscipline.js";
+import { maybeIssueTask, openTask, resolveTasks, taskSummary } from "./workplaceTasks.js";
+import {
+  activeJob,
+  actionsToday,
+  bonusRoomToday,
+  getRelation,
+  insertMessage,
+  payBonus,
+  recordAction,
+  setTrust,
+  type AppliedAction,
+  type JobInfo,
+} from "./workplaceStore.js";
 
-type ActionKind = "praise" | "warning" | "eval_adjust";
-
-export interface AppliedAction {
-  type: ActionKind;
-  value: number; // eval_adjust일 때 실제 반영된 점수(그 외 0)
-  reason: string;
-}
-
-interface RelationRow {
-  trust: number;
-  memory: string | null;
-  summary_through_id: number;
-}
+export type { AppliedAction } from "./workplaceStore.js";
 
 interface MessageRow {
   id: number;
   sender: "player" | "npc";
   content: string;
   created_at: string;
-}
-
-function activeJob(userId: number): { id: number; name: string } | null {
-  const row = db
-    .prepare(
-      `SELECT j.id, j.name FROM job_assignments a JOIN jobs j ON j.id = a.job_id
-       WHERE a.user_id = ? AND a.active = 1 ORDER BY a.id DESC LIMIT 1`
-    )
-    .get(userId) as { id: number; name: string } | undefined;
-  return row ?? null;
 }
 
 function nicknameOf(userId: number): string {
@@ -63,15 +63,6 @@ function requireColleague(userId: number, key: string) {
   return { job, ...found };
 }
 
-function getRelation(userId: number, jobId: number, key: string): RelationRow {
-  db.prepare(
-    "INSERT OR IGNORE INTO colleague_relations (user_id, job_id, colleague_key, trust) VALUES (?, ?, ?, ?)"
-  ).run(userId, jobId, key, WORKPLACE.initialTrust);
-  return db
-    .prepare("SELECT trust, memory, summary_through_id FROM colleague_relations WHERE user_id = ? AND job_id = ? AND colleague_key = ?")
-    .get(userId, jobId, key) as unknown as RelationRow;
-}
-
 function messagesSentToday(userId: number): number {
   const row = db
     .prepare(
@@ -81,38 +72,12 @@ function messagesSentToday(userId: number): number {
   return row.c;
 }
 
-function actionsToday(userId: number, jobId: number, key: string, kind: ActionKind): number {
-  const row = db
-    .prepare(
-      `SELECT COUNT(*) AS c FROM colleague_actions
-       WHERE user_id = ? AND job_id = ? AND colleague_key = ? AND kind = ? AND date(created_at, '+9 hours') = ?`
-    )
-    .get(userId, jobId, key, kind, todayKstDate()) as { c: number };
-  return row.c;
-}
-
-function recordAction(userId: number, jobId: number, key: string, action: AppliedAction): void {
+function markRead(userId: number, jobId: number, key: string): void {
   db.prepare(
-    "INSERT INTO colleague_actions (user_id, job_id, colleague_key, kind, value, reason) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(userId, jobId, key, action.type, action.value, action.reason);
-}
-
-function insertMessage(userId: number, jobId: number, key: string, sender: "player" | "npc", content: string): number {
-  const res = db
-    .prepare("INSERT INTO colleague_messages (user_id, job_id, colleague_key, sender, content) VALUES (?, ?, ?, ?, ?)")
-    .run(userId, jobId, key, sender, content);
-  return Number(res.lastInsertRowid);
-}
-
-function setTrust(userId: number, jobId: number, key: string, trust: number): number {
-  const clamped = Math.max(0, Math.min(100, Math.round(trust)));
-  db.prepare("UPDATE colleague_relations SET trust = ? WHERE user_id = ? AND job_id = ? AND colleague_key = ?").run(
-    clamped,
-    userId,
-    jobId,
-    key
-  );
-  return clamped;
+    `UPDATE colleague_relations SET last_read_id = COALESCE(
+       (SELECT MAX(id) FROM colleague_messages WHERE user_id = ? AND job_id = ? AND colleague_key = ?), 0)
+     WHERE user_id = ? AND job_id = ? AND colleague_key = ?`
+  ).run(userId, jobId, key, userId, jobId, key);
 }
 
 function profileOf(org: OrgChart, c: ColleagueDef): ColleagueProfile {
@@ -133,22 +98,46 @@ function actionCounts(userId: number, jobId: number, key?: string): { praise: nu
   };
 }
 
+function bonusPerAction(job: JobInfo): number {
+  return Math.floor((job.pay_max * WORKPLACE.bonusPerActionRatio) / 1000) * 1000;
+}
+
 function rules(): string[] {
   return [
     `대화는 하루 ${WORKPLACE.dailyMessagesPerUser}번까지(모든 동료 합산), 한 번에 ${WORKPLACE.maxMessageLen}자까지`,
     `누구나 칭찬·경고 기록을 남길 수 있어요(한 사람당 하루 각 ${WORKPLACE.praisePerDay}회까지)`,
     `직속 상사만 다음 인사평가 점수를 한 번에 ±${WORKPLACE.evalAdjustPerAction}점, 평가 기간 누적 ±${WORKPLACE.evalAdjustPerPeriod}점까지 조정할 수 있어요`,
-    "동료는 돈·승진·휴가를 약속할 수 없어요. 보상과 직급은 주간 평가 규칙으로만 바뀌어요",
+    `과장급 이상은 신뢰도 ${WORKPLACE.bonusMinTrust} 이상일 때 보너스를 줄 수 있어요(하루 총액은 일급 상한의 ${Math.round(
+      WORKPLACE.bonusDailyRatio * 100
+    )}%까지)`,
+    "상사가 업무를 지시하면 기한 안에 근무 기록으로 달성해야 해요. 완료하면 칭찬(과장급 이상이면 보너스), 못 하면 경고",
+    ...disciplineRules(),
     "욕설·음담패설은 매너 점수 차감 + 경고(3회 누적 시 감옥)로 처리돼요",
   ];
 }
 
+/**
+ * 시간이 흐르며 생기는 일을 "지금" 한 번에 처리한다: 지시 기한 판정 → 징계 판정 → 새 업무 지시.
+ * 근무 패널을 열 때 호출한다(별도 스케줄러 없음). 해고되면 이후 단계는 건너뛴다.
+ */
+function advanceWorkplace(userId: number, job: JobInfo, org: OrgChart): DisciplineResult | null {
+  resolveTasks(userId, job, org);
+  const disciplined = evaluateDiscipline(userId, job, org);
+  if (disciplined?.fired) return disciplined;
+  maybeIssueTask(userId, job, org);
+  return disciplined;
+}
+
 // ── 조회 ────────────────────────────────────────────────────────────
 export function getWorkplace(userId: number) {
+  const first = activeJob(userId);
+  const firstOrg = first ? orgChartFor(first.name) : null;
+  if (first && firstOrg) advanceWorkplace(userId, first, firstOrg);
+
+  // 방금 해고됐을 수 있으니 다시 확인한다.
   const job = activeJob(userId);
-  if (!job) return { assigned: false as const };
-  const org = orgChartFor(job.name);
-  if (!org) return { assigned: false as const };
+  const org = job ? orgChartFor(job.name) : null;
+  if (!job || !org) return { assigned: false as const, bans: activeBans(userId) };
 
   const adjust = db
     .prepare("SELECT colleague_adjust FROM boss_state WHERE user_id = ? AND job_id = ?")
@@ -161,6 +150,11 @@ export function getWorkplace(userId: number) {
         "SELECT sender, content FROM colleague_messages WHERE user_id = ? AND job_id = ? AND colleague_key = ? ORDER BY id DESC LIMIT 1"
       )
       .get(userId, job.id, c.key) as { sender: string; content: string } | undefined;
+    const unread = db
+      .prepare(
+        "SELECT COUNT(*) AS c FROM colleague_messages WHERE user_id = ? AND job_id = ? AND colleague_key = ? AND sender = 'npc' AND id > ?"
+      )
+      .get(userId, job.id, c.key, rel.last_read_id) as { c: number };
     return {
       key: c.key,
       name: c.name,
@@ -169,6 +163,7 @@ export function getWorkplace(userId: number) {
       relation: c.relation,
       directBoss: c.directBoss,
       trust: rel.trust,
+      unread: unread.c,
       records: actionCounts(userId, job.id, c.key),
       lastMessage: last ? { sender: last.sender, content: last.content } : null,
     };
@@ -176,12 +171,15 @@ export function getWorkplace(userId: number) {
 
   return {
     assigned: true as const,
-    job,
+    job: { id: job.id, name: job.name },
     company: org.company,
     size: org.size,
     colleagues,
     records: actionCounts(userId, job.id),
     evalAdjust: { current: adjust?.colleague_adjust ?? 0, cap: WORKPLACE.evalAdjustPerPeriod },
+    task: openTask(userId, job, org),
+    discipline: disciplineStatus(userId, job.id),
+    bonusRoomToday: bonusRoomToday(userId, job),
     remainingToday: Math.max(0, WORKPLACE.dailyMessagesPerUser - messagesSentToday(userId)),
     dailyLimit: WORKPLACE.dailyMessagesPerUser,
     rules: rules(),
@@ -197,6 +195,7 @@ export function getColleagueMessages(userId: number, key: string, limit = 40) {
        WHERE user_id = ? AND job_id = ? AND colleague_key = ? ORDER BY id DESC LIMIT ?`
     )
     .all(userId, job.id, key, limit) as unknown as MessageRow[];
+  markRead(userId, job.id, key);
   return {
     colleague: { key, name: colleague.name, title: colleague.title, avatar: colleague.avatar },
     trust: rel.trust,
@@ -224,6 +223,7 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
        WHERE user_id = ? AND job_id = ? AND colleague_key = ? AND id > ? ORDER BY id DESC LIMIT ?`
     )
     .all(userId, job.id, key, relation.summary_through_id, WORKPLACE.historyTurns) as unknown as MessageRow[];
+
   // 욕설/음담패설: LLM에 넘기지 않고 서버 규칙(매너 -1, 3단계 위반)으로 처리한다.
   // 원문은 이후 프롬프트(최근 대화)에 섞이지 않도록 가려서 저장한다.
   const moderation = checkSocialContent(userId, message);
@@ -235,20 +235,28 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
     const reply = "...방금 그 말은 못 들은 걸로 하죠. 회사에서 그런 말은 곤란합니다. 경고로 남겨두겠습니다.";
     insertMessage(userId, job.id, key, "npc", reply);
     notify(userId, "npc", `${colleague.avatar} ${colleague.name} ${colleague.title}: 경고 기록 — ${action.reason}`);
+    const disciplined = evaluateDiscipline(userId, job, org);
+    markRead(userId, job.id, key);
     return {
       reply,
       action,
       trust,
       violation: { level: moderation.violation?.level ?? 0, jailed: moderation.violation?.jailed ?? false },
+      disciplined,
       remainingToday: Math.max(0, WORKPLACE.dailyMessagesPerUser - messagesSentToday(userId)),
     };
   }
 
   // 지금 이 동료가 쓸 수 있는 권한(프롬프트에 그대로 알려주고, 아래에서 한 번 더 확인한다)
+  const bonusRoom = bonusRoomToday(userId, job);
   const allowed = {
     praise: actionsToday(userId, job.id, key, "praise") < WORKPLACE.praisePerDay,
     warning: actionsToday(userId, job.id, key, "warning") < WORKPLACE.warningPerDay,
     evalAdjustMax: colleague.directBoss ? WORKPLACE.evalAdjustPerAction : 0,
+    bonusMax:
+      colleague.level >= WORKPLACE.bonusMinLevel && relation.trust >= WORKPLACE.bonusMinTrust && bonusRoom >= 1000
+        ? Math.min(bonusPerAction(job), bonusRoom)
+        : 0,
   };
   const period = workPeriodSummary(userId, job.id);
   const profile = profileOf(org, colleague);
@@ -257,7 +265,7 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
     colleague: profile,
     player: { nickname: nicknameOf(userId), rankTitle: period.rankTitle, jobName: job.name },
     trust: relation.trust,
-    workSummary: period.text,
+    workSummary: [period.text, taskSummary(userId, job, org), disciplineSummary(userId, job.id)].join(" / "),
     memory: relation.memory,
     recentHistory: history.reverse().map((m): ColleagueChatTurn => ({ speaker: m.sender, content: m.content })),
     message,
@@ -272,21 +280,35 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
   const a = turn.action;
   if ((a.type === "praise" && allowed.praise) || (a.type === "warning" && allowed.warning)) {
     applied = { type: a.type, value: 0, reason: a.reason };
+    recordAction(userId, job.id, key, applied);
     trustDelta += a.type === "praise" ? WORKPLACE.praiseTrust : WORKPLACE.warningTrust;
   } else if (a.type === "eval_adjust" && allowed.evalAdjustMax > 0) {
     const want = Math.max(-allowed.evalAdjustMax, Math.min(allowed.evalAdjustMax, a.value));
     const value = addColleagueAdjust(userId, job.id, want);
-    if (value !== 0) applied = { type: "eval_adjust", value, reason: a.reason };
+    if (value !== 0) {
+      applied = { type: "eval_adjust", value, reason: a.reason };
+      recordAction(userId, job.id, key, applied);
+    }
+  } else if (a.type === "bonus" && allowed.bonusMax > 0 && a.value > 0) {
+    const paid = payBonus(userId, job, colleague, Math.min(a.value, allowed.bonusMax), a.reason);
+    if (paid > 0) applied = { type: "bonus", value: paid, reason: a.reason };
   }
   if (applied) {
-    recordAction(userId, job.id, key, applied);
     const label =
-      applied.type === "praise" ? "칭찬 기록" : applied.type === "warning" ? "경고 기록" : `평가 ${applied.value > 0 ? "+" : ""}${applied.value}점`;
+      applied.type === "praise"
+        ? "칭찬 기록"
+        : applied.type === "warning"
+          ? "경고 기록"
+          : applied.type === "bonus"
+            ? `보너스 ${applied.value.toLocaleString()}원`
+            : `평가 ${applied.value > 0 ? "+" : ""}${applied.value}점`;
     notify(userId, "npc", `${colleague.avatar} ${colleague.name} ${colleague.title}: ${label} — ${applied.reason}`);
   }
 
   const trust = setTrust(userId, job.id, key, relation.trust + trustDelta);
   insertMessage(userId, job.id, key, "npc", reply);
+  const disciplined = applied?.type === "warning" ? evaluateDiscipline(userId, job, org) : null;
+  markRead(userId, job.id, key);
   void maybeSummarize(userId, job.id, key, profile);
 
   return {
@@ -294,6 +316,7 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
     action: applied,
     trust,
     violation: null,
+    disciplined,
     remainingToday: Math.max(0, WORKPLACE.dailyMessagesPerUser - messagesSentToday(userId)),
   };
 }

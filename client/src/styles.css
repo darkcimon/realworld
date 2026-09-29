@@ -415,6 +415,9 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .colleague-chat { height: 380px; margin-top: 0; }
 .chat-msg.system.colleague-action.ok .content { background: #1f3326; color: #a6e3b5; }
 .colleague-error { margin: 4px 12px 0; }
+.chip.colleague-unread { margin-left: 6px; border-color: #e8a13a; color: #e8a13a; }
+.task-card { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; }
+.discipline-banner { padding: 8px 10px; border-radius: 10px; background: #3a2323; color: #ffb4b4; font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
 
 /* 직장 상사 카드: 평가 기간 진행 상황 */
 .review-progress { display: flex; flex-direction: column; gap: 4px; }

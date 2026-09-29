@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS wallets (
 CREATE TABLE IF NOT EXISTS ledger_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id),
-  type TEXT NOT NULL, -- '일급' | '알바정산' | '알바오차차감' | '로또구매' | '로또당첨' | '매너초기화'
+  type TEXT NOT NULL, -- '일급' | '알바정산' | '알바오차차감' | '로또구매' | '로또당첨' | '매너초기화' | '승진축하금' | '직장보너스' …
   amount INTEGER NOT NULL, -- +(지급)/-(차감)
   ref_id INTEGER,
   balance_after INTEGER NOT NULL,
@@ -560,16 +560,65 @@ CREATE TABLE IF NOT EXISTS colleague_messages (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_colleague_messages ON colleague_messages (user_id, job_id, colleague_key, id);
--- NPC가 대화 중에 실행한 권한(칭찬/경고/평가 가감점). 2단계 징계(감봉/정직/강등)의 근거 기록이 된다.
+-- NPC가 실행한 권한(칭찬/경고/평가 가감점/보너스). 징계 사다리(감봉/정직/강등/해고)의 근거 기록이 된다.
 CREATE TABLE IF NOT EXISTS colleague_actions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id),
   job_id INTEGER NOT NULL REFERENCES jobs(id),
   colleague_key TEXT NOT NULL,
-  kind TEXT NOT NULL, -- 'praise' | 'warning' | 'eval_adjust'
+  kind TEXT NOT NULL, -- 'praise' | 'warning' | 'eval_adjust' | 'bonus'
   value INTEGER NOT NULL DEFAULT 0,
   reason TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
+
+// 동료가 먼저 건 말(업무 지시/징계 통보)을 "안 읽음"으로 보여주기 위한 읽음 위치.
+const colleagueRelColumns = db.prepare("PRAGMA table_info(colleague_relations)").all() as { name: string }[];
+if (!colleagueRelColumns.some((c) => c.name === "last_read_id")) {
+  db.exec("ALTER TABLE colleague_relations ADD COLUMN last_read_id INTEGER NOT NULL DEFAULT 0");
+}
+
+// ── 직장 2단계: 업무 지시 / 징계 ─────────────────────────────────────
+db.exec(`
+CREATE TABLE IF NOT EXISTS work_tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  colleague_key TEXT NOT NULL, -- 지시한 사람
+  kind TEXT NOT NULL, -- 'attempts' | 'accuracy' | 'overtime'
+  goal INTEGER NOT NULL,
+  accuracy REAL NOT NULL DEFAULT 0, -- kind='accuracy'일 때 목표 정답률(0~1)
+  issued_at TEXT NOT NULL DEFAULT (datetime('now')), -- 이 시각 이후 근무 기록만 센다
+  due_date TEXT NOT NULL, -- KST YYYY-MM-DD, 이 날까지
+  status TEXT NOT NULL DEFAULT 'open', -- 'open' | 'done' | 'failed' | 'cancelled'
+  resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_work_tasks_user ON work_tasks (user_id, status);
+CREATE TABLE IF NOT EXISTS workplace_state (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  discipline_level INTEGER NOT NULL DEFAULT 0, -- 0 정상, 1 감봉, 2 정직, 3 강등, 4 해고
+  discipline_through_id INTEGER NOT NULL DEFAULT 0, -- 이 colleague_actions.id까지는 이미 징계에 반영됨
+  last_discipline_date TEXT, -- 마지막으로 단계가 바뀐 날(KST)
+  pay_cut_until TEXT, -- 이 날짜(포함)까지 감봉
+  suspended_until TEXT, -- 이 날짜(포함)까지 정직
+  PRIMARY KEY (user_id, job_id)
+);
+CREATE TABLE IF NOT EXISTS workplace_disciplines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  colleague_key TEXT NOT NULL, -- 통보한 사람
+  stage INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS job_bans (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  until TEXT NOT NULL, -- KST YYYY-MM-DD(포함)까지 재입사 불가
+  PRIMARY KEY (user_id, job_id)
 );
 `);
 

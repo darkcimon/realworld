@@ -59,7 +59,7 @@ export function BossPanel({
         <div className="manager-head">
           <span className="manager-avatar">👔</span>
           <div className="manager-id">
-            <strong>박부장</strong>
+            <strong>직장 상사</strong>
             <small className="muted">직장 상사</small>
           </div>
         </div>

@@ -76,13 +76,13 @@ export interface ColleagueContext {
   memory: string | null; // 지금까지의 관계/대화 요약
   recentHistory: ColleagueChatTurn[];
   message: string; // 이번 플레이어 발화
-  allowed: { praise: boolean; warning: boolean; evalAdjustMax: number }; // 지금 쓸 수 있는 권한
+  allowed: { praise: boolean; warning: boolean; evalAdjustMax: number; bonusMax: number }; // 지금 쓸 수 있는 권한
 }
 
 export type ColleagueAction =
   | { type: "none" }
   | { type: "praise" | "warning"; reason: string }
-  | { type: "eval_adjust"; value: number; reason: string };
+  | { type: "eval_adjust" | "bonus"; value: number; reason: string };
 
 export interface ColleagueTurn {
   reply: string;

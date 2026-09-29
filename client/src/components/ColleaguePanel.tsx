@@ -9,8 +9,10 @@ import type {
 } from "../types";
 
 // 직장 동료 NPC(LLM 자유 대화). 회사 규모에 따라 조직도가 다르고(사장 1명 ~ 대리·과장·차장·이사),
-// 누구와든 자유롭게 대화할 수 있다. 동료가 남기는 칭찬/경고 기록과 직속 상사의 평가 가감점은
-// 서버가 권한·상한 안에서만 실행하고, 그 결과를 채팅 안에 시스템 메시지로 보여준다.
+// 누구와든 자유롭게 대화할 수 있다. 동료가 남기는 칭찬/경고 기록, 직속 상사의 평가 가감점, 과장급 이상의
+// 보너스는 서버가 권한·상한 안에서만 실행하고, 그 결과를 채팅 안에 시스템 메시지로 보여준다.
+// 상사가 먼저 업무를 지시하기도 하고(기한 안에 근무 기록으로 달성), 경고가 쌓이면 징계 사다리
+// (감봉 → 정직 → 강등 → 해고)가 규칙대로 올라간다 — 현재 단계와 다음 징계까지 남은 경고를 늘 보여준다.
 type ChatLine =
   | { kind: "msg"; id: number; sender: "player" | "npc"; content: string }
   | { kind: "system"; id: number; content: string; tone: "ok" | "bad" };
@@ -18,6 +20,7 @@ type ChatLine =
 function actionText(a: ColleagueAction): { text: string; tone: "ok" | "bad" } {
   if (a.type === "praise") return { text: `👍 칭찬 기록: ${a.reason}`, tone: "ok" };
   if (a.type === "warning") return { text: `⚠ 경고 기록: ${a.reason}`, tone: "bad" };
+  if (a.type === "bonus") return { text: `💰 보너스 ${a.value.toLocaleString()}원: ${a.reason}`, tone: "ok" };
   return {
     text: `📈 다음 평가 ${a.value > 0 ? "+" : ""}${a.value}점: ${a.reason}`,
     tone: a.value > 0 ? "ok" : "bad",
@@ -49,8 +52,21 @@ export function ColleaguePanel({ refreshKey, onChange }: { refreshKey: number; o
     load();
   }, [refreshKey, load]);
 
-  if (!state || !state.assigned) return error ? <p className="error">{error}</p> : null;
+  if (!state) return error ? <p className="error">{error}</p> : null;
+  if (!state.assigned) {
+    return state.bans.length > 0 ? (
+      <div className="manager-card">
+        {state.bans.map((b) => (
+          <small key={b.jobName} className="error">
+            🚫 {b.jobName}에서 해고됨 · {b.until}까지 재입사 불가
+          </small>
+        ))}
+      </div>
+    ) : null;
+  }
   const open = state.colleagues.find((c) => c.key === openKey) ?? null;
+  const d = state.discipline;
+  const t = state.task;
 
   return (
     <div className="manager-card">
@@ -65,20 +81,62 @@ export function ColleaguePanel({ refreshKey, onChange }: { refreshKey: number; o
         <div className="manager-chips">
           {state.records.praise > 0 && <span className="chip tier-trusted">👍 칭찬 {state.records.praise}</span>}
           {state.records.warning > 0 && <span className="chip tier-watch">⚠ 경고 {state.records.warning}</span>}
+          {d.level > 0 && <span className="chip tier-watch">징계: {d.label}</span>}
           <span className="chip">
             오늘 대화 {state.remainingToday}/{state.dailyLimit}
           </span>
         </div>
       </div>
 
+      {(d.suspendedUntil || d.payCutUntil) && (
+        <div className="discipline-banner">
+          {d.suspendedUntil && <div>⛔ 정직 중 — {d.suspendedUntil}까지 출근할 수 없어요</div>}
+          {d.payCutUntil && <div>📉 감봉 중 — {d.payCutUntil}까지 일급이 깎여요</div>}
+        </div>
+      )}
+      {d.netWarnings > 0 && (
+        <div className="review-progress">
+          <div className="review-line">
+            <small className={d.netWarnings >= d.warningsPerStep - 1 ? "error" : "muted"}>
+              ⚠ 누적 경고 {d.netWarnings}/{d.warningsPerStep} — 다 차면 {d.nextLabel}
+            </small>
+          </div>
+          <div className="trust-bar">
+            <div className="trust-fill tier-watch" style={{ width: `${(d.netWarnings / d.warningsPerStep) * 100}%` }} />
+          </div>
+        </div>
+      )}
+
+      {t && (
+        <div className="task-card">
+          <div className="review-line">
+            <strong>
+              📌 {t.issuer ? `${t.issuer.name} ${t.issuer.title}` : "업무"}의 지시: {t.description}
+            </strong>
+            <small className="muted">기한 {t.dueDate}</small>
+          </div>
+          <small className="muted">
+            진행:{" "}
+            {t.kind === "overtime"
+              ? `잔업 ${t.progress.overtime}/${t.goal}회`
+              : t.kind === "accuracy"
+                ? `문제 ${t.progress.attempts}/${t.goal}개 · 정답률 ${t.progress.accuracy}%(목표 ${t.targetAccuracy}%)`
+                : `문제 ${t.progress.attempts}/${t.goal}개`}
+          </small>
+        </div>
+      )}
+
       {open ? (
         <ColleagueChat
           colleague={open}
           remaining={state.remainingToday}
-          onBack={() => setOpenKey(null)}
-          onUpdate={(evalChanged) => {
+          onBack={() => {
+            setOpenKey(null);
             load();
-            if (evalChanged) onChange?.();
+          }}
+          onUpdate={(bossChanged) => {
+            load();
+            if (bossChanged) onChange?.();
           }}
         />
       ) : (
@@ -91,6 +149,7 @@ export function ColleaguePanel({ refreshKey, onChange }: { refreshKey: number; o
                   <span>
                     <strong>{c.name}</strong> <small className="muted">{c.title}</small>
                     {c.directBoss && <span className="chip colleague-boss">직속 상사</span>}
+                    {c.unread > 0 && <span className="chip colleague-unread">새 메시지 {c.unread}</span>}
                   </span>
                   <small className="muted colleague-last">
                     {c.lastMessage
@@ -141,7 +200,7 @@ function ColleagueChat({
   colleague: ColleagueSummary;
   remaining: number;
   onBack: () => void;
-  onUpdate: (evalChanged: boolean) => void;
+  onUpdate: (bossChanged: boolean) => void;
 }) {
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [trust, setTrust] = useState(colleague.trust);
@@ -184,6 +243,14 @@ function ColleagueChat({
         const { text, tone } = actionText(r.action);
         added.push({ kind: "system", id: seq.current--, content: text, tone });
       }
+      if (r.disciplined) {
+        added.push({
+          kind: "system",
+          id: seq.current--,
+          content: `🚨 징계: ${r.disciplined.label} (${r.disciplined.by} 통보)`,
+          tone: "bad",
+        });
+      }
       if (r.violation) {
         added.push({
           kind: "system",
@@ -196,7 +263,8 @@ function ColleagueChat({
       }
       setLines((l) => [...l, ...added]);
       setTrust(r.trust);
-      onUpdate(r.action?.type === "eval_adjust");
+      // 평가 가감점·징계(강등/해고)는 상사 패널과 직업 목록에도 영향을 준다.
+      onUpdate(r.action?.type === "eval_adjust" || r.disciplined !== null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "메시지를 보내지 못했습니다.");
       setInput(message);

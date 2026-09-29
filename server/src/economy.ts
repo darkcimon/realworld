@@ -139,4 +139,36 @@ export const WORKPLACE = {
   praiseTrust: 2,
   warningTrust: -3,
   initialTrust: 50,
+
+  // ── 2단계: 업무 지시 / 보너스 ──
+  // 업무 지시는 하루 1회 판정(taskChance)으로, 진행 중인 지시가 없을 때만 새로 내려온다.
+  // 목표는 근무 기록(work_attempts)으로 서버가 직접 측정한다 — LLM 판단이 끼지 않는다.
+  taskChance: Number(process.env.WORKPLACE_TASK_CHANCE ?? 0.6),
+  taskDueDays: 1, // 오늘 + 1일(내일 자정 전)까지
+  taskAttemptGoals: [10, 15, 20], // "문제 N개 처리"
+  taskAccuracy: { attempts: 10, accuracy: 0.8 }, // "N문제 이상 정답률 X% 이상"
+  taskOvertimeGoal: 2, // "잔업 N회"
+  taskTrust: 4,
+  taskFailTrust: -5,
+  // 보너스: 과장급(level 2) 이상이 신뢰도 bonusMinTrust 이상일 때만. 금액은 직업 일급 상한(pay_max) 비율.
+  bonusMinLevel: 2,
+  bonusMinTrust: 60,
+  bonusPerActionRatio: 0.1, // 대화 중 한 번에 줄 수 있는 최대치
+  bonusDailyRatio: 0.2, // 유저당 하루 보너스 총액 상한(업무 완료 보너스 포함)
+  taskBonusRatio: 0.1, // 업무 완료 보너스(과장급 이상이 지시한 업무만)
+
+  // ── 2단계: 징계 사다리 ── 경고 → 감봉 → 정직 → 강등 → 해고
+  // 마지막 징계 이후 쌓인 "순경고"(경고 - 칭찬/praiseOffset)가 warningsPerStep에 도달하면 한 단계 오른다.
+  // 하루에 한 단계까지만 오르고, decayDays 동안 새 경고가 없으면 한 단계씩 내려온다.
+  discipline: {
+    warningsPerStep: 3,
+    praiseOffset: 2, // 칭찬 2회가 경고 1회를 상쇄
+    decayDays: 14,
+    payCutMultiplier: 0.8,
+    payCutDays: 7,
+    suspensionDays: 2, // 정직: 이 기간 근무 불가
+    rehireBanDays: 7, // 해고 후 같은 회사 재입사 금지 기간
+    // 단계별로 통보할 수 있는 최소 서열(orgChart level): 감봉·정직은 차장급, 강등·해고는 이사/사장
+    authority: { 1: 3, 2: 3, 3: 4, 4: 4 } as Record<number, number>,
+  },
 };

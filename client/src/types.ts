@@ -369,7 +369,7 @@ export interface BossChooseResp {
 
 // ── 직장 동료 NPC(LLM 자유 대화) ──────────────────────────────────
 export interface ColleagueAction {
-  type: "praise" | "warning" | "eval_adjust";
+  type: "praise" | "warning" | "eval_adjust" | "bonus";
   value: number;
   reason: string;
 }
@@ -382,12 +382,34 @@ export interface ColleagueSummary {
   relation: string;
   directBoss: boolean;
   trust: number;
+  unread: number;
   records: { praise: number; warning: number };
   lastMessage: { sender: "player" | "npc"; content: string } | null;
 }
 
+export interface WorkTask {
+  id: number;
+  issuer: { key: string; name: string; title: string; avatar: string } | null;
+  kind: "attempts" | "accuracy" | "overtime";
+  description: string;
+  goal: number;
+  targetAccuracy: number;
+  dueDate: string;
+  progress: { attempts: number; accuracy: number; overtime: number };
+}
+
+export interface DisciplineStatus {
+  level: number;
+  label: string;
+  netWarnings: number;
+  warningsPerStep: number;
+  nextLabel: string;
+  payCutUntil: string | null;
+  suspendedUntil: string | null;
+}
+
 export type WorkplaceState =
-  | { assigned: false }
+  | { assigned: false; bans: { jobName: string; until: string }[] }
   | {
       assigned: true;
       job: { id: number; name: string };
@@ -396,6 +418,9 @@ export type WorkplaceState =
       colleagues: ColleagueSummary[];
       records: { praise: number; warning: number };
       evalAdjust: { current: number; cap: number };
+      task: WorkTask | null;
+      discipline: DisciplineStatus;
+      bonusRoomToday: number;
       remainingToday: number;
       dailyLimit: number;
       rules: string[];
@@ -419,5 +444,6 @@ export interface ColleagueChatResp {
   action: ColleagueAction | null;
   trust: number;
   violation: { level: number; jailed: boolean } | null;
+  disciplined: { stage: number; label: string; by: string; fired: boolean } | null;
   remainingToday: number;
 }

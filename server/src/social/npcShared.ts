@@ -23,7 +23,7 @@ export function bestBossRank(userId: number): number {
  * NPC별 하루 1회 이벤트 판정권을 얻는다. 오늘 이미 판정했으면 false — 패널을 여러 번 열어도
  * 확률 판정을 반복해서 이벤트가 사실상 확정으로 뜨는 일이 없게 한다.
  */
-export function claimDailyRoll(userId: number, npc: "manager" | "boss"): boolean {
+export function claimDailyRoll(userId: number, npc: "manager" | "boss" | "workplace"): boolean {
   const res = db
     .prepare("INSERT OR IGNORE INTO npc_event_rolls (user_id, npc, date) VALUES (?, ?, ?)")
     .run(userId, npc, todayKstDate());

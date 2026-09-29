@@ -12,9 +12,10 @@ function parseAction(raw: unknown): ColleagueAction {
     case "praise":
     case "warning":
       return reason ? { type: o.type, reason } : { type: "none" };
-    case "eval_adjust": {
+    case "eval_adjust":
+    case "bonus": {
       const value = Math.trunc(Number(o.value));
-      return reason && Number.isFinite(value) && value !== 0 ? { type: "eval_adjust", value, reason } : { type: "none" };
+      return reason && Number.isFinite(value) && value !== 0 ? { type: o.type, value, reason } : { type: "none" };
     }
     default:
       return { type: "none" };

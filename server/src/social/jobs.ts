@@ -6,6 +6,7 @@ import { isSTier } from "../middleware/socialGate.js";
 import { buildChoices } from "../ai/choices.js";
 import { notify } from "./notifications.js";
 import { rankPayMultiplier } from "./npcBoss.js";
+import { payCutMultiplier, rehireBannedUntil, suspendedUntil } from "./workplaceDiscipline.js";
 
 const BATCH_SIZE = 5;
 
@@ -30,6 +31,10 @@ export function assignJob(userId: number, jobId: number): JobRow {
   if (!job) throw { status: 404, message: "존재하지 않는 직업입니다." };
   if (job.tier === "S" && !isSTier(userId)) {
     throw { status: 403, message: "S등급 졸업생만 배정받을 수 있는 직업입니다." };
+  }
+  const bannedUntil = rehireBannedUntil(userId, jobId);
+  if (bannedUntil) {
+    throw { status: 403, message: `해고된 회사라 ${bannedUntil}까지는 다시 입사할 수 없습니다.` };
   }
   db.prepare("UPDATE job_assignments SET active = 0 WHERE user_id = ? AND active = 1").run(
     userId
@@ -69,6 +74,8 @@ export function startWork(userId: number): {
 } {
   const assignment = activeAssignment(userId);
   if (!assignment) throw { status: 400, message: "먼저 직업을 배정받아야 합니다." };
+  const suspended = suspendedUntil(userId, assignment.job_id);
+  if (suspended) throw { status: 403, message: `정직 중입니다. ${suspended}까지는 출근할 수 없어요.` };
 
   let session = openSession(userId);
   if (session && session.awaiting_decision) {
@@ -223,6 +230,7 @@ export function settleUnpaidWork(userId: number): {
   let totalPaid = 0;
   let settledSessions = 0;
   let hadRankBonus = false;
+  let hadPayCut = false;
   for (const session of sessions) {
     const attempts = attemptsFor(session.id);
     const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(session.job_id) as unknown as JobRow;
@@ -233,7 +241,10 @@ export function settleUnpaidWork(userId: number): {
       // 직급(직장 상사 승진)에 따른 일급 배수를 곱한다. 직급은 직업별로 따로 쌓인다.
       const rankMult = rankPayMultiplier(userId, session.job_id);
       if (rankMult !== 1) hadRankBonus = true;
-      pay = Math.round((job.pay_min + (job.pay_max - job.pay_min) * ratio) * rankMult);
+      // 징계 "감봉" 기간이면 일급을 깎는다(정산 시점 기준).
+      const cutMult = payCutMultiplier(userId, session.job_id);
+      if (cutMult !== 1) hadPayCut = true;
+      pay = Math.round((job.pay_min + (job.pay_max - job.pay_min) * ratio) * rankMult * cutMult);
       applyLedgerEntry(userId, "일급", pay, session.id);
     }
     db.prepare("UPDATE work_sessions SET paid = 1 WHERE id = ?").run(session.id);
@@ -241,7 +252,7 @@ export function settleUnpaidWork(userId: number): {
     settledSessions += 1;
   }
   if (totalPaid > 0) {
-    notify(userId, "salary", `💰 월급 ${totalPaid.toLocaleString()}원이 지급되었어요! (${settledSessions}건 정산${hadRankBonus ? ", 직급 배수 반영" : ""})`);
+    notify(userId, "salary", `💰 월급 ${totalPaid.toLocaleString()}원이 지급되었어요! (${settledSessions}건 정산${hadRankBonus ? ", 직급 배수 반영" : ""}${hadPayCut ? ", 감봉 반영" : ""})`);
   }
   return { settledSessions, totalPaid };
 }

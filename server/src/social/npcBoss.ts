@@ -10,9 +10,22 @@ import { BOSS, EVENTS, MANAGER, WORKPLACE } from "../economy.js";
 import { notify } from "./notifications.js";
 import { todayKstDate } from "./lottery.js";
 import { claimDailyRoll, managerTrust, pickRandom } from "./npcShared.js";
+import { orgChartFor } from "./orgChart.js";
 
 const NPC = "boss";
-export const BOSS_NAME = "박부장";
+export const BOSS_NAME = "박부장"; // 조직도가 없는 직업일 때만 쓰는 기본 상사
+
+/** 평가를 내리는 사람 = 그 회사 조직도의 직속 상사(없으면 기본 상사). */
+export function bossIdentity(jobName: string): { name: string; title: string; avatar: string } {
+  const boss = orgChartFor(jobName)?.colleagues.find((c) => c.directBoss);
+  return boss ? { name: boss.name, title: boss.title, avatar: boss.avatar } : { name: BOSS_NAME, title: "직장 상사", avatar: "👔" };
+}
+
+function bossLabel(jobId: number): string {
+  const job = db.prepare("SELECT name FROM jobs WHERE id = ?").get(jobId) as { name: string } | undefined;
+  const b = bossIdentity(job?.name ?? "");
+  return `${b.avatar} ${b.name}`;
+}
 
 type Grade = "S" | "A" | "B" | "C";
 export type BossEventKind =
@@ -175,7 +188,7 @@ interface ChoiceDef {
 
 const CHOICES: Record<BossEventKind, Record<string, ChoiceDef>> = {
   review_good: {
-    thanks: { label: "감사합니다, 부장님!", reply: () => "허허, 이 기세로 계속 가요." },
+    thanks: { label: "감사합니다!", reply: () => "허허, 이 기세로 계속 가요." },
     request_promotion: {
       label: "승진 심사를 요청합니다",
       reply: () => "", // 결과에 따라 chooseBossOption에서 채운다
@@ -298,7 +311,7 @@ export function maybeReview(
     advanceDate();
     const msg = `이번 기간은 근무 기록이 적어서(문제 ${stats.attempts}개, ${stats.workDays}일) 평가를 보류할게요. 최소 ${BOSS.minWorkDays}일, ${BOSS.minAttempts}문제는 채워줘야 해요.`;
     createEvent(userId, "deferred", msg, ["ok"], null);
-    notify(userId, "npc", `👔 ${BOSS_NAME}: ${msg}`);
+    notify(userId, "npc", `${bossLabel(jobId)}: ${msg}`);
     return { kind: "deferred" };
   }
 
@@ -388,7 +401,7 @@ export function maybeReview(
   ).run(rank, good, bad, today, userId, jobId);
 
   createEvent(userId, kind, message, choiceKeys, meta);
-  notify(userId, "npc", `👔 ${BOSS_NAME}: ${message}`);
+  notify(userId, "npc", `${bossLabel(jobId)}: ${message}`);
   return { kind };
 }
 
@@ -426,7 +439,8 @@ export function maybeTriggerBossEvent(userId: number, rng: () => number = Math.r
   }
   const picked = pickRandom(candidates, rng);
   createEvent(userId, picked.kind, picked.message, picked.choices, null);
-  notify(userId, "npc", `👔 ${BOSS_NAME}: ${picked.message}`);
+  const job = activeJob(userId);
+  notify(userId, "npc", `${job ? bossLabel(job.id) : `👔 ${BOSS_NAME}`}: ${picked.message}`);
   return { kind: picked.kind };
 }
 
@@ -514,7 +528,7 @@ export function chooseBossOption(
     applyLedgerEntry(userId, "승진축하금", bonus, job.id);
     const info = rankInfo(newRank);
     const text = `축하해요! ${info.title}(으)로 승진입니다. 일급이 ×${info.payMultiplier}로 오르고, 축하금 ${bonus.toLocaleString()}원도 챙겨뒀어요.`;
-    notify(userId, "npc", `👔 ${BOSS_NAME}: ${text}`);
+    notify(userId, "npc", `${bossLabel(job.id)}: ${text}`);
     return { reply: text, promoted: true };
   }
 
@@ -533,7 +547,21 @@ function greeting(rank: number, lastGrade: Grade | null): string {
   return pick(["어서 와요. 오늘도 수고해요.", "좋은 아침이에요. 오늘 업무 시작해볼까요?"]);
 }
 
-// ── 직장 동료(workplace.ts)가 쓰는 조회/반영 함수 ─────────────────────
+// ── 직장 동료(workplace*.ts)가 쓰는 조회/반영 함수 ─────────────────────
+/** 징계 "강등": 한 직급 내리고 좋은 평가 연속 기록을 끊는다. 이미 최하 직급이면 그대로. */
+export function demoteForDiscipline(userId: number, jobId: number): { from: string; to: string } {
+  const state = getState(userId, jobId);
+  const rank = Math.max(1, state.rank - 1);
+  db.prepare("UPDATE boss_state SET rank = ?, good_streak = 0 WHERE user_id = ? AND job_id = ?").run(rank, userId, jobId);
+  return { from: rankInfo(state.rank).title, to: rankInfo(rank).title };
+}
+
+/** 징계 "해고": 이 회사에서 쌓은 직급/평가 상태를 지운다(재입사하면 사원부터). */
+export function resetBossState(userId: number, jobId: number): void {
+  db.prepare("DELETE FROM boss_state WHERE user_id = ? AND job_id = ?").run(userId, jobId);
+  db.prepare("UPDATE npc_events SET resolved = 1 WHERE user_id = ? AND npc = ? AND resolved = 0").run(userId, NPC);
+}
+
 /** 이번 평가 기간의 근무 사실 요약(동료 NPC 프롬프트에 넣는다 — 모델이 기록을 지어내지 않게). */
 export function workPeriodSummary(userId: number, jobId: number, today = todayKstDate()): { rankTitle: string; text: string } {
   const state = getState(userId, jobId, today);
@@ -591,7 +619,7 @@ export function getBossPanel(userId: number, today = todayKstDate()) {
   return {
     assigned: true as const,
     job,
-    npc: { name: BOSS_NAME, title: "직장 상사" },
+    npc: bossIdentity(job.name),
     rank: rankInfo(state.rank),
     streaks: { good: state.good_streak, bad: state.bad_streak },
     review: {
