@@ -5,6 +5,8 @@ import type {
   ColleagueContext,
   ColleagueProfile,
   ColleagueTurn,
+  WorkJobContext,
+  WorkScenario,
   ConversationMemory,
   ConversationTurn,
   ExamQuestion,
@@ -424,13 +426,30 @@ export class MockAIProvider implements AIProvider {
     return bank;
   }
 
+  // LLM 없이는 상황 판단 문제를 만들지 않는다 — 근무는 직업별 계산형 템플릿만으로 돌아간다.
+  async generateWorkScenarios(_job: WorkJobContext, _count: number, _avoid: string[]): Promise<WorkScenario[]> {
+    return [];
+  }
+
+  async solveWorkScenarios(_job: WorkJobContext, items: { question: string; choices: string[] }[]): Promise<(number | null)[]> {
+    return items.map(() => null);
+  }
+
   getWorkQuestions(): ExamQuestion[] {
     const shuffled = [...WORK_QUESTION_BANK].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 5).map((q, i) => ({ ...q, questionNo: i + 1 }));
   }
 
   gradeAnswer(question: ExamQuestion, submittedAnswer: string): boolean {
-    return normalize(question.answer) === normalize(submittedAnswer);
+    if (normalize(question.answer) === normalize(submittedAnswer)) return true;
+    // 숫자 정답은 쉼표/단위/부호 표기를 무시하고 값으로 비교한다("4,500원" == "4500", "+10%" == "10").
+    const num = (s: string) => {
+      const m = s.replace(/,/g, "").match(/^\s*([+-]?\d+(?:\.\d+)?)[^\d]*$/);
+      return m ? Number(m[1]) : null;
+    };
+    const a = num(question.answer);
+    const b = num(submittedAnswer);
+    return a !== null && b !== null && a === b;
   }
 }
 

@@ -6,6 +6,21 @@ export interface ExamQuestion {
   question: string;
   answer: string; // 정답 판정 기준(느슨한 문자열 비교)
   explanation: string; // 왜 이 답이 정답인지 — 오답 시 학생에게 보여준다.
+  choices?: string[]; // 정해진 보기(없으면 choices.ts가 정답에서 만들어낸다)
+  choiceOnly?: boolean; // 보기 중에서만 답할 수 있는 문제(상황 판단형 — 서술형 입력으로는 맞히기 어렵다)
+}
+
+// ── 근무 상황 판단 문제(LLM 생성 → 다른 호출로 검증) ───────────────────
+export interface WorkScenario {
+  question: string;
+  choices: string[]; // 4개
+  answerIndex: number; // 0~3
+  explanation: string;
+}
+
+export interface WorkJobContext {
+  jobName: string;
+  company: string;
 }
 
 export interface StudentUtterance {
@@ -190,6 +205,15 @@ export interface AIProvider {
     previousSummary: string | null,
     turns: ColleagueChatTurn[]
   ): Promise<string>;
+
+  /**
+   * 이 직업 현장에서 일어날 법한 상황 판단 4지선다 문제를 만든다(계산 문제 제외). 실패/예산 초과/키 없음이면 [].
+   * 정답이 확실한지는 호출부가 solveWorkScenarios로 따로 풀어 보고 일치하는 것만 쓴다.
+   */
+  generateWorkScenarios(job: WorkJobContext, count: number, avoid: string[]): Promise<WorkScenario[]>;
+
+  /** 문제들을 독립적으로 풀어 고른 보기 번호(0~3)를 돌려준다. 확신이 없거나 실패하면 null. */
+  solveWorkScenarios(job: WorkJobContext, items: { question: string; choices: string[] }[]): Promise<(number | null)[]>;
 
   /** 제출한 답이 정답인지 판정한다. */
   gradeAnswer(question: ExamQuestion, submittedAnswer: string): boolean;

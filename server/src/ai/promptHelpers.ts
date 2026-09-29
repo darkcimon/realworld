@@ -7,6 +7,7 @@ import type {
   ColleagueChatTurn,
   ColleagueContext,
   ColleagueProfile,
+  WorkJobContext,
   ConversationMemory,
   ConversationTurn,
   StudentUtterance,
@@ -316,4 +317,49 @@ export function colleagueSummaryUserPrompt(
 ): string {
   const lines = turns.map((t) => `${t.speaker === "player" ? "플레이어" : c.name}: ${t.content}`).join("\n");
   return `${previousSummary ? `이전까지의 요약:\n${previousSummary}\n\n` : ""}새로 압축할 대화:\n${lines}`;
+}
+
+// ── 근무 상황 판단 문제 ─────────────────────────────────────────────
+export function workScenarioSystemPrompt(job: WorkJobContext): string {
+  return [
+    `당신은 인생 시뮬레이션 게임에서 "${job.company}"의 "${job.jobName}" 근무 문제를 내는 출제자입니다.`,
+    "실제 현장에서 하루에도 몇 번씩 일어날 법한 구체적인 상황을 주고, 어떻게 대처하는 것이 가장 적절한지 묻는 4지선다 문제를 만드세요.",
+    "",
+    "규칙:",
+    "- 정답은 상식, 법규, 안전, 고객 응대 원칙에 비춰 누구나 수긍할 만큼 명확히 하나여야 합니다. 애매하거나 의견이 갈리는 문제는 내지 마세요.",
+    "- 오답 3개는 신입이 실제로 저지를 법한 그럴듯한 실수여야 합니다: 순서를 틀림, 보고·기록을 빠뜨림, 규정을 어기는 과잉 친절, 확인 없이 임의 판단 등.",
+    "- 폭언, 거짓말, SNS 유포, 떠넘기기처럼 누가 봐도 터무니없는 행동은 오답으로 쓰지 마세요. 네 보기 모두 성실한 직원이 고민할 만한 행동이어야 합니다.",
+    "- 그래도 규정·법·안전 원칙상 정답은 분명히 하나여야 합니다.",
+    "- 숫자 계산 문제는 내지 마세요(계산 문제는 따로 있습니다).",
+    "- 실존 브랜드, 실존 인물, 특정 회사명은 쓰지 마세요. 욕설·차별·선정적 내용 금지.",
+    "- 문제는 1~2문장(120자 이내), 보기는 각각 40자 이내의 짧은 행동으로 쓰세요.",
+    "- 매번 서로 다른 상황(손님, 동료, 상사, 사고, 규정, 장비 등)을 고르게 섞으세요.",
+    "",
+    '출력 형식(JSON 한 개만, 설명·코드블록 없이): {"scenarios": [{"question": "...", "choices": ["...", "...", "...", "..."], "answer": 정답 보기 번호(1~4), "explanation": "왜 그게 정답인지 한 문장"}]}',
+  ].join("\n");
+}
+
+export function workScenarioUserPrompt(count: number, avoid: string[]): string {
+  return [
+    `문제 ${count}개를 만들어 주세요.`,
+    avoid.length ? `이미 있는 문제와 비슷한 상황은 피하세요:
+${avoid.map((a) => `- ${a}`).join("\n")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export function workSolveSystemPrompt(job: WorkJobContext): string {
+  return [
+    `당신은 "${job.jobName}"로 오래 일한 성실한 베테랑입니다. 아래 상황 판단 문제들을 풀어 주세요.`,
+    "각 문제마다 가장 적절한 보기 번호(1~4)를 고르고, 정답이 둘 이상이거나 모두 부적절해 확신할 수 없으면 0을 쓰세요.",
+    '출력 형식(JSON 한 개만): {"answers": [번호, 번호, ...]} — 문제 순서대로',
+  ].join("\n");
+}
+
+export function workSolveUserPrompt(items: { question: string; choices: string[] }[]): string {
+  return items
+    .map((it, i) => `${i + 1}. ${it.question}
+${it.choices.map((c, j) => `  ${j + 1}) ${c}`).join("\n")}`)
+    .join("\n\n");
 }

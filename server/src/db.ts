@@ -579,6 +579,13 @@ if (!colleagueRelColumns.some((c) => c.name === "last_read_id")) {
   db.exec("ALTER TABLE colleague_relations ADD COLUMN last_read_id INTEGER NOT NULL DEFAULT 0");
 }
 
+// 진행 중인 근무 배치(문제+정답)를 세션에 저장한다. 문제가 매번 무작위로 만들어지므로, 서버가 재시작돼도
+// 유저가 보고 있던 바로 그 문제로 채점해야 한다(메모리 캐시만 믿으면 다른 문제로 채점될 수 있다).
+const workSessionColumns = db.prepare("PRAGMA table_info(work_sessions)").all() as { name: string }[];
+if (!workSessionColumns.some((c) => c.name === "pending_batch")) {
+  db.exec("ALTER TABLE work_sessions ADD COLUMN pending_batch TEXT");
+}
+
 // ── 직장 2단계: 업무 지시 / 징계 ─────────────────────────────────────
 db.exec(`
 CREATE TABLE IF NOT EXISTS work_tasks (
@@ -626,6 +633,19 @@ CREATE TABLE IF NOT EXISTS colleague_hearsay (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_colleague_hearsay ON colleague_hearsay (user_id, job_id, id);
+-- 근무 상황 판단 문제 풀: 직업별로 LLM이 만들고 다른 호출이 똑같이 풀어낸 문제만 저장한다.
+-- 유저마다 LLM을 부르지 않고 여기서 꺼내 쓰며, uses가 쌓이면 지우고 새로 채운다(workQuestions.ts).
+CREATE TABLE IF NOT EXISTS work_question_pool (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  question TEXT NOT NULL,
+  choices TEXT NOT NULL, -- JSON 배열(4개)
+  answer TEXT NOT NULL, -- 정답 보기 텍스트
+  explanation TEXT NOT NULL,
+  uses INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_work_question_pool ON work_question_pool (job_id, uses);
 CREATE TABLE IF NOT EXISTS job_bans (
   user_id INTEGER NOT NULL REFERENCES users(id),
   job_id INTEGER NOT NULL REFERENCES jobs(id),

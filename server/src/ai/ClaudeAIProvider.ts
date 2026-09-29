@@ -21,6 +21,8 @@ import type {
   ColleagueContext,
   ColleagueProfile,
   ColleagueTurn,
+  WorkJobContext,
+  WorkScenario,
   ConversationMemory,
   ConversationTurn,
   ExamQuestion,
@@ -32,11 +34,16 @@ import { addAiCostUsd, getMonthlyAiCostUsd } from "../db.js";
 import { MockAIProvider } from "./MockAIProvider.js";
 import { parseLessonReplyJson, parseLessonStartJson } from "./lessonJson.js";
 import { parseColleagueTurn } from "./colleagueJson.js";
+import { parseWorkAnswers, parseWorkScenarios } from "./workJson.js";
 import {
   colleagueSummarySystemPrompt,
   colleagueSummaryUserPrompt,
   colleagueSystemPrompt,
   colleagueUserPrompt,
+  workScenarioSystemPrompt,
+  workScenarioUserPrompt,
+  workSolveSystemPrompt,
+  workSolveUserPrompt,
   lessonAnswerUserPrompt,
   lessonStartUserPrompt,
   lessonSystemPrompt,
@@ -156,6 +163,26 @@ export class ClaudeAIProvider implements AIProvider {
     } catch (err) {
       this.warnOnce("summarizeColleagueMemory", err);
       return this.fallback.summarizeColleagueMemory(colleague, previousSummary, turns);
+    }
+  }
+
+  async generateWorkScenarios(job: WorkJobContext, count: number, avoid: string[]): Promise<WorkScenario[]> {
+    try {
+      const text = await this.complete(workScenarioSystemPrompt(job), workScenarioUserPrompt(count, avoid), 1800);
+      return parseWorkScenarios(text);
+    } catch (err) {
+      this.warnOnce("generateWorkScenarios", err);
+      return [];
+    }
+  }
+
+  async solveWorkScenarios(job: WorkJobContext, items: { question: string; choices: string[] }[]): Promise<(number | null)[]> {
+    try {
+      const text = await this.complete(workSolveSystemPrompt(job), workSolveUserPrompt(items), 200);
+      return parseWorkAnswers(text, items.length);
+    } catch (err) {
+      this.warnOnce("solveWorkScenarios", err);
+      return items.map(() => null);
     }
   }
 

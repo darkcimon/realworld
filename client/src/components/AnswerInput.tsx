@@ -6,9 +6,11 @@ import { useState } from "react";
 export function AnswerInput({
   choices,
   onSubmit,
+  allowTyping = true,
 }: {
   choices?: string[];
   onSubmit: (answer: string) => Promise<void> | void;
+  allowTyping?: boolean; // false면 "직접 입력" 없이 보기만(상황 판단 문제)
 }) {
   const hasChoices = !!choices && choices.length >= 2;
   const [typing, setTyping] = useState(!hasChoices);
@@ -35,9 +37,11 @@ export function AnswerInput({
             {c}
           </button>
         ))}
-        <button type="button" className="ghost choice-toggle" onClick={() => setTyping(true)}>
-          ⌨️ 직접 입력하기
-        </button>
+        {allowTyping && (
+          <button type="button" className="ghost choice-toggle" onClick={() => setTyping(true)}>
+            ⌨️ 직접 입력하기
+          </button>
+        )}
       </div>
     );
   }

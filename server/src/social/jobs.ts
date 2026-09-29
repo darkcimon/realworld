@@ -4,6 +4,8 @@ import { aiProvider } from "../ai/index.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
 import { isSTier } from "../middleware/socialGate.js";
 import { buildChoices } from "../ai/choices.js";
+import type { ExamQuestion } from "../ai/AIProvider.js";
+import { drawWorkBatch } from "./workQuestions.js";
 import { notify } from "./notifications.js";
 import { rankPayMultiplier } from "./npcBoss.js";
 import { payCutMultiplier, rehireBannedUntil, suspendedUntil } from "./workplaceDiscipline.js";
@@ -65,12 +67,38 @@ function attemptsFor(sessionId: number): any[] {
     .all(sessionId) as any[];
 }
 
+// 진행 중인 배치: 메모리 캐시 + DB(work_sessions.pending_batch). 재시작 후에도 같은 문제로 채점한다.
+const pendingBatches = new Map<number, ExamQuestion[]>();
+
+function saveBatch(sessionId: number, batch: ExamQuestion[] | null): void {
+  if (batch) pendingBatches.set(sessionId, batch);
+  else pendingBatches.delete(sessionId);
+  db.prepare("UPDATE work_sessions SET pending_batch = ? WHERE id = ?").run(batch ? JSON.stringify(batch) : null, sessionId);
+}
+
+function loadBatch(sessionId: number): ExamQuestion[] | null {
+  const cached = pendingBatches.get(sessionId);
+  if (cached) return cached;
+  const row = db.prepare("SELECT pending_batch FROM work_sessions WHERE id = ?").get(sessionId) as
+    | { pending_batch: string | null }
+    | undefined;
+  if (!row?.pending_batch) return null;
+  const batch = JSON.parse(row.pending_batch) as ExamQuestion[];
+  pendingBatches.set(sessionId, batch);
+  return batch;
+}
+
+function view(q: ExamQuestion, batch: ExamQuestion[]) {
+  return { question: q.question, choices: buildChoices(q, batch), choiceOnly: !!q.choiceOnly };
+}
+
 export function startWork(userId: number): {
   sessionId: number;
   questionNo: number;
   batchNo: number;
   question: string;
   choices: string[];
+  choiceOnly: boolean;
 } {
   const assignment = activeAssignment(userId);
   if (!assignment) throw { status: 400, message: "먼저 직업을 배정받아야 합니다." };
@@ -93,40 +121,24 @@ export function startWork(userId: number): {
 
   const attempts = attemptsFor(session.id);
   if (attempts.length % BATCH_SIZE !== 0) {
-    // 배치 도중 재접속(서버 재시작 등으로 pendingBatches 캐시가 비었을 때):
-    // 남은 문제를 새로 뽑아 캐시에 채워 넣고, submitWorkAnswer가 동일한 문제를 채점하게 한다.
+    // 배치 도중 재접속: 저장해 둔 배치에서 이어서 낸다(없으면 예전 데이터이므로 새로 뽑는다).
     const last = attempts[attempts.length - 1];
     const batchNo = last.batch_no;
-    const batch = aiProvider.getWorkQuestions();
-    pendingBatches.set(session.id, batch);
+    let batch = loadBatch(session.id);
+    if (!batch) {
+      batch = drawWorkBatch(assignment.job_id);
+      saveBatch(session.id, batch);
+    }
     const indexInBatch = attempts.length % BATCH_SIZE;
-    return {
-      sessionId: session.id,
-      questionNo: indexInBatch + 1,
-      batchNo,
-      question: batch[indexInBatch].question,
-      choices: buildChoices(batch[indexInBatch], batch),
-    };
+    return { sessionId: session.id, questionNo: indexInBatch + 1, batchNo, ...view(batch[indexInBatch], batch) };
   }
 
-  // 새 배치를 뽑는다. work_attempts에는 answer 제출 시점에 기록하고, 그 전까지는
-  // 다음 submitWorkAnswer 호출이 참조할 수 있도록 pendingBatches에 임시로 들고 있는다.
+  // 새 배치: 직업별 계산형 문제 + 검증된 상황 판단 문제(workQuestions.ts). 답을 낼 때까지 세션에 저장해 둔다.
   const batchNo = Math.floor(attempts.length / BATCH_SIZE) + 1;
-  const questions = aiProvider.getWorkQuestions();
-  pendingBatches.set(session.id, questions);
-  return {
-    sessionId: session.id,
-    questionNo: 1,
-    batchNo,
-    question: questions[0].question,
-    choices: buildChoices(questions[0], questions),
-  };
+  const questions = drawWorkBatch(assignment.job_id);
+  saveBatch(session.id, questions);
+  return { sessionId: session.id, questionNo: 1, batchNo, ...view(questions[0], questions) };
 }
-
-// 진행 중인 배치의 문제 목록(질문+정답)을 세션 단위로 잠깐 들고 있는다.
-// work_sessions/work_attempts는 "정답 텍스트"까지 영구 보관하므로, 서버 재시작 시에는
-// 이 캐시가 비어도 마지막 저장된 문제로 이어갈 수 있게 startWork에서 재구성한다.
-const pendingBatches = new Map<number, ReturnType<typeof aiProvider.getWorkQuestions>>();
 
 export function submitWorkAnswer(
   userId: number,
@@ -137,8 +149,11 @@ export function submitWorkAnswer(
   questionNo: number;
   batchNo: number;
   batchComplete: boolean;
+  correctAnswer: string;
+  explanation: string;
   nextQuestion?: string;
   nextChoices?: string[];
+  nextChoiceOnly?: boolean;
 } {
   const session = db
     .prepare("SELECT * FROM work_sessions WHERE id = ? AND user_id = ?")
@@ -152,11 +167,11 @@ export function submitWorkAnswer(
   const indexInBatch = attempts.length % BATCH_SIZE;
   const batchNo = Math.floor(attempts.length / BATCH_SIZE) + 1;
 
-  let batch = pendingBatches.get(sessionId);
+  let batch = loadBatch(sessionId);
   if (!batch) {
-    // 서버 재시작 등으로 캐시가 비어 있으면 새 배치를 뽑아 이어간다(첫 문제인 경우에 한함).
-    batch = aiProvider.getWorkQuestions();
-    pendingBatches.set(sessionId, batch);
+    // 저장된 배치가 없는 예전 세션이면 새 배치를 뽑아 이어간다.
+    batch = drawWorkBatch(session.job_id);
+    saveBatch(sessionId, batch);
   }
   const question = batch[indexInBatch];
 
@@ -171,20 +186,28 @@ export function submitWorkAnswer(
     );
   }
 
-  const batchComplete = indexInBatch + 1 === BATCH_SIZE;
-  if (batchComplete) {
-    pendingBatches.delete(sessionId);
-    db.prepare("UPDATE work_sessions SET awaiting_decision = 1 WHERE id = ?").run(sessionId);
-    return { correct, questionNo: indexInBatch + 1, batchNo, batchComplete: true };
-  }
-
-  return {
+  // 틀려도 바로 정답과 이유를 보여준다(상황 판단 문제는 특히 "왜"를 알아야 다음에 맞힌다).
+  const feedback = {
     correct,
     questionNo: indexInBatch + 1,
     batchNo,
+    correctAnswer: question.answer,
+    explanation: question.explanation,
+  };
+  const batchComplete = indexInBatch + 1 === BATCH_SIZE;
+  if (batchComplete) {
+    saveBatch(sessionId, null);
+    db.prepare("UPDATE work_sessions SET awaiting_decision = 1 WHERE id = ?").run(sessionId);
+    return { ...feedback, batchComplete: true };
+  }
+
+  const next = view(batch[indexInBatch + 1], batch);
+  return {
+    ...feedback,
     batchComplete: false,
-    nextQuestion: batch[indexInBatch + 1].question,
-    nextChoices: buildChoices(batch[indexInBatch + 1], batch),
+    nextQuestion: next.question,
+    nextChoices: next.choices,
+    nextChoiceOnly: next.choiceOnly,
   };
 }
 

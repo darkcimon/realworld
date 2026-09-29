@@ -126,6 +126,7 @@ export interface WorkStartResp {
   batchNo: number;
   question: string;
   choices?: string[];
+  choiceOnly?: boolean; // 상황 판단 문제: 보기 중에서만 고른다
 }
 
 export interface WorkAnswerResp {
@@ -133,8 +134,11 @@ export interface WorkAnswerResp {
   questionNo: number;
   batchNo: number;
   batchComplete: boolean;
+  correctAnswer: string;
+  explanation: string;
   nextQuestion?: string;
   nextChoices?: string[];
+  nextChoiceOnly?: boolean;
 }
 
 export interface MartCartItem {

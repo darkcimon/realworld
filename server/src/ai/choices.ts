@@ -39,6 +39,9 @@ function numericDistractors(answer: string): string[] {
 export function buildChoices(question: ExamQuestion, pool: ExamQuestion[], count = 4): string[] {
   const answer = question.answer;
 
+  // 문제에 정해진 보기(상황 판단형, 실수 유형 오답)가 있으면 그대로 섞어서 쓴다.
+  if (question.choices && question.choices.length >= 2) return seededShuffle(question.choices, hash(question.question));
+
   const inline = question.question.match(/\(([^()/]+)\/([^()/]+)\)/);
   if (inline) {
     const opts = [inline[1].trim(), inline[2].trim()];
