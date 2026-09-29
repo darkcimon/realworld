@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
+import { MAX_CHAT_LEN } from "../constants";
 import type {
   ColleagueAction,
   ColleagueChatResp,
@@ -338,11 +339,16 @@ function ColleagueChat({
       >
         <input
           value={input}
-          maxLength={200}
+          maxLength={MAX_CHAT_LEN}
           placeholder={remaining > 0 ? `${colleague.name}에게 말하기` : "오늘 대화 횟수를 다 썼어요"}
           disabled={busy || remaining <= 0}
           onChange={(e) => setInput(e.target.value)}
         />
+        {input.length >= MAX_CHAT_LEN - 50 && (
+          <small className="char-count">
+            {input.length}/{MAX_CHAT_LEN}
+          </small>
+        )}
         <button type="submit" disabled={busy || remaining <= 0 || !input.trim()}>
           보내기
         </button>

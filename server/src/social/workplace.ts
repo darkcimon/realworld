@@ -17,6 +17,7 @@ import { aiProvider } from "../ai/index.js";
 import type { ColleagueChatTurn, ColleagueProfile } from "../ai/AIProvider.js";
 import { WORKPLACE } from "../economy.js";
 import { detectViolation } from "../util/moderation.js";
+import { chatLengthError } from "../util/chatLimit.js";
 import { checkSocialContent } from "./manner.js";
 import { notify } from "./notifications.js";
 import { todayKstDate } from "./lottery.js";
@@ -220,9 +221,8 @@ export async function chatWithColleague(userId: number, key: string, rawMessage:
   const { job, org, colleague } = requireColleague(userId, key);
   const message = String(rawMessage ?? "").trim();
   if (!message) throw { status: 400, message: "메시지를 입력해 주세요." };
-  if (message.length > WORKPLACE.maxMessageLen) {
-    throw { status: 400, message: `메시지는 ${WORKPLACE.maxMessageLen}자까지 보낼 수 있어요.` };
-  }
+  const tooLong = chatLengthError(message);
+  if (tooLong) throw { status: 400, message: tooLong };
   // 횟수 확인과 기록은 await 전에 동기로 끝내서, 동시 요청으로 상한을 넘기지 못하게 한다.
   if (messagesSentToday(userId) >= WORKPLACE.dailyMessagesPerUser) {
     throw { status: 429, message: "오늘은 동료들과 충분히 이야기했어요. 내일 다시 말을 걸어보세요." };

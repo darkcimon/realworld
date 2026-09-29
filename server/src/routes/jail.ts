@@ -4,6 +4,7 @@ import { db } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getActiveJail, recordViolation } from "../school/jail.js";
 import { detectViolation } from "../util/moderation.js";
+import { chatLengthError } from "../util/chatLimit.js";
 
 export const jailRouter = Router();
 jailRouter.use(requireAuth);
@@ -43,6 +44,11 @@ jailRouter.post("/message", (req, res) => {
     return;
   }
   const content = String(req.body?.content ?? "").trim();
+  const tooLong = chatLengthError(content);
+  if (tooLong) {
+    res.status(400).json({ error: tooLong });
+    return;
+  }
   if (!content) {
     res.status(400).json({ error: "내용을 입력해주세요." });
     return;

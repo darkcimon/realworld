@@ -1,4 +1,5 @@
 // 리텐션 루프(출석/일일 퀘스트) 보상 수치. 밸런스를 조정할 때는 이 파일만 수정하면 된다.
+import { MAX_CHAT_LEN } from "./util/chatLimit.js";
 
 // 연속 출석 1~7일차 보상(7일차 다음은 다시 1일차로 순환, 하루라도 빠지면 1일차부터 다시 시작).
 export const ATTENDANCE_REWARDS = [200_000, 200_000, 300_000, 300_000, 400_000, 500_000, 1_000_000];
@@ -128,7 +129,7 @@ export const NPC_VOICE = {
 // NPC가 쓸 수 있는 권한 자체가 이것뿐이라 경제가 흔들리지 않는다.
 export const WORKPLACE = {
   dailyMessagesPerUser: 20, // 유저당 하루 대화 상한(=LLM 호출 비용 상한)
-  maxMessageLen: 200,
+  maxMessageLen: MAX_CHAT_LEN, // 모든 채팅 공통 상한(util/chatLimit.ts)
   historyTurns: 12, // 프롬프트에 원문으로 싣는 최근 대화 수
   summarizeEvery: 20, // 요약 이후 원문이 이만큼 쌓이면 기억(요약)을 갱신
   praisePerDay: 2, // NPC 한 명이 하루에 남길 수 있는 칭찬 기록 수

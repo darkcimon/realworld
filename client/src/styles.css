@@ -197,6 +197,7 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 
 .chat-input { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
 .chat-input input { flex: 1; }
+.chat-input .char-count { align-self: center; font-size: 11px; color: var(--muted); white-space: nowrap; }
 
 /* 개인 수업(칠판) */
 .lesson-room .chat-messages { flex: 1; }

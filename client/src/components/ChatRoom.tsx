@@ -3,6 +3,7 @@ import { io, type Socket } from "socket.io-client";
 import { api, getToken } from "../api";
 import type { ChatMessage } from "../types";
 import { MiniProfileModal } from "./MiniProfileModal";
+import { MAX_CHAT_LEN } from "../constants";
 
 interface VoteState {
   candidates: string[];
@@ -258,8 +259,14 @@ export function ChatRoom({
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          maxLength={MAX_CHAT_LEN}
           placeholder="메시지를 입력하세요"
         />
+        {input.length >= MAX_CHAT_LEN - 50 && (
+          <small className="char-count">
+            {input.length}/{MAX_CHAT_LEN}
+          </small>
+        )}
         <button type="submit">보내기</button>
       </form>
     </div>

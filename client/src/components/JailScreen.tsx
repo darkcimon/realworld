@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { ChatMessage } from "../types";
+import { MAX_CHAT_LEN } from "../constants";
 
 interface JailStatus {
   type: "jail" | "solitary";
@@ -92,8 +93,14 @@ export function JailScreen({ onReleased }: { onReleased: () => void }) {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          maxLength={MAX_CHAT_LEN}
           placeholder="메시지를 입력하세요 (여기서도 3회 위반 시 독방행)"
         />
+        {input.length >= MAX_CHAT_LEN - 50 && (
+          <small className="char-count">
+            {input.length}/{MAX_CHAT_LEN}
+          </small>
+        )}
         <button type="submit">보내기</button>
       </form>
     </div>

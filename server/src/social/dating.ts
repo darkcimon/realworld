@@ -4,6 +4,7 @@ import { applyLedgerEntry } from "../wallet/ledger.js";
 import { listDisplayedItems } from "./catalog.js";
 import { checkSocialContent } from "./manner.js";
 import { nicknameOf, notify } from "./notifications.js";
+import { chatLengthError } from "../util/chatLimit.js";
 
 export const GIFT_COST = 1_000_000;
 // 하트 50만원 / 프로필 열람(=채팅 개시 조건) 300만원: 일급 상한(S등급 최대 30만원)을 받은 상태에서도
@@ -144,6 +145,8 @@ export function sendSocialMessage(
   assertCanChat(fromId, toId);
   const text = String(content ?? "").trim();
   if (!text) throw { status: 400, message: "내용을 입력해주세요." };
+  const tooLong = chatLengthError(text);
+  if (tooLong) throw { status: 400, message: tooLong };
 
   const result = db
     .prepare("INSERT INTO social_messages (from_id, to_id, content) VALUES (?, ?, ?)")

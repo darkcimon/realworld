@@ -3,6 +3,7 @@ import { io, type Socket } from "socket.io-client";
 import { api, getToken } from "../api";
 import type { DmMessage } from "../types";
 import { MiniProfileModal } from "./MiniProfileModal";
+import { MAX_CHAT_LEN } from "../constants";
 
 // README 11.3~11.5: 맞하트/열람권으로 열린 1:1 채팅. onJailed는 ref로만 참조해 부모 리렌더가
 // 소켓을 불필요하게 재연결하지 않게 한다("버튼 클릭이 소켓을 재연결시켜 상태를 리셋하는" 문제를 피한다).
@@ -112,8 +113,14 @@ export function DmChat({
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          maxLength={MAX_CHAT_LEN}
           placeholder="메시지를 입력하세요"
         />
+        {input.length >= MAX_CHAT_LEN - 50 && (
+          <small className="char-count">
+            {input.length}/{MAX_CHAT_LEN}
+          </small>
+        )}
         <button type="submit">보내기</button>
       </form>
     </div>

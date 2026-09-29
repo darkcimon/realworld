@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import type { BoardCommand, LessonAskResp, LessonMessage, LessonStartResp } from "../types";
 import { Blackboard } from "./Blackboard";
+import { MAX_CHAT_LEN } from "../constants";
 
 // 방에 입장하면 이 학생만을 위한 주제 + 칠판으로 개인 수업이 시작된다. 강의 시간 제한이나
 // 자유 토론 단계는 없다 — 원하는 만큼 질문하고, 준비되면 언제든 승급 시험에 응시하면 된다.
@@ -152,9 +153,15 @@ export function LessonRoom({
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          maxLength={MAX_CHAT_LEN}
           placeholder="궁금한 점을 질문해보세요"
           disabled={sending}
         />
+        {input.length >= MAX_CHAT_LEN - 50 && (
+          <small className="char-count">
+            {input.length}/{MAX_CHAT_LEN}
+          </small>
+        )}
         <button type="submit" disabled={sending || !input.trim()}>
           {sending ? "..." : "보내기"}
         </button>

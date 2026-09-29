@@ -8,6 +8,7 @@ import { requireNotJailed } from "../middleware/jailGate.js";
 import { aiProvider } from "../ai/index.js";
 import type { BoardCommand, ConversationMemory, ConversationTurn } from "../ai/AIProvider.js";
 import { assertRoomAccessible } from "./school.js";
+import { chatLengthError } from "../util/chatLimit.js";
 
 export const lessonRouter = Router();
 lessonRouter.use(requireAuth);
@@ -158,9 +159,14 @@ lessonRouter.post("/sessions/:id/ask", async (req, res) => {
       res.status(400).json({ error: "이미 종료된 수업 세션입니다." });
       return;
     }
-    const question = String(req.body?.question ?? "").trim().slice(0, 500);
+    const question = String(req.body?.question ?? "").trim();
     if (!question) {
       res.status(400).json({ error: "질문 내용이 비어 있습니다." });
+      return;
+    }
+    const tooLong = chatLengthError(question);
+    if (tooLong) {
+      res.status(400).json({ error: tooLong });
       return;
     }
 

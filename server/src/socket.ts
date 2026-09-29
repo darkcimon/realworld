@@ -15,6 +15,7 @@ import { JWT_SECRET } from "./middleware/auth.js";
 import { getActiveJail, recordViolation } from "./school/jail.js";
 import { loadRecentHistory, loadSummary, maybeCompactRoomMemory } from "./school/roomMemory.js";
 import { detectViolation } from "./util/moderation.js";
+import { chatLengthError } from "./util/chatLimit.js";
 import { aiProvider } from "./ai/index.js";
 import type { StudentUtterance } from "./ai/AIProvider.js";
 import { canChat, sendSocialMessage } from "./social/dating.js";
@@ -335,6 +336,11 @@ export function attachSocket(httpServer: HttpServer) {
       }
       const text = String(content ?? "").trim();
       if (!text) return;
+      const tooLong = chatLengthError(text);
+      if (tooLong) {
+        socket.emit("room:error", tooLong);
+        return;
+      }
 
       const sender = db
         .prepare("SELECT nickname, avatar_url AS avatarUrl FROM users WHERE id = ?")
