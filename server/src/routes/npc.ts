@@ -6,6 +6,7 @@ import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { chooseOption, getManagerPanel } from "../social/npcManager.js";
 import { voiceGreeting, voiceLine } from "../social/npcVoice.js";
 import { chooseBossOption, getBossPanel } from "../social/npcBoss.js";
+import { chatWithColleague, getColleagueMessages, getWorkplace } from "../social/workplace.js";
 
 export const npcRouter = Router();
 npcRouter.use(requireAuth);
@@ -42,6 +43,28 @@ npcRouter.post("/boss/choose", async (req, res) => {
     const result = chooseBossOption(req.userId!, Number(eventId), String(choiceKey ?? ""));
     result.reply = await voiceLine(req.userId!, "boss", "플레이어가 선택지를 골랐을 때의 직장 상사 반응", result.reply);
     res.json({ ...result, panel: getBossPanel(req.userId!) });
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+  }
+});
+
+// 직장 동료(LLM 자유 대화). 대사는 LLM이, 칭찬/경고/평가 가감점은 서버가 권한·상한 안에서만 실행한다.
+npcRouter.get("/colleagues", (req, res) => {
+  res.json(getWorkplace(req.userId!));
+});
+
+npcRouter.get("/colleagues/:key/messages", (req, res) => {
+  try {
+    res.json(getColleagueMessages(req.userId!, String(req.params.key)));
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+  }
+});
+
+npcRouter.post("/colleagues/:key/chat", async (req, res) => {
+  try {
+    const result = await chatWithColleague(req.userId!, String(req.params.key), String(req.body?.message ?? ""));
+    res.json(result);
   } catch (e: any) {
     res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
   }

@@ -116,6 +116,12 @@ export function BossPanel({
             {panel.reputation.adjust}점
           </small>
         )}
+        {panel.colleagueAdjust !== 0 && (
+          <small className={panel.colleagueAdjust > 0 ? "ok-text" : "error"}>
+            직장 동료 평가 {panel.colleagueAdjust > 0 ? "+" : ""}
+            {panel.colleagueAdjust}점
+          </small>
+        )}
         <small className="muted">
           이번 기간: 정답률 {pr.accuracy}% · 근무 {pr.workDays}일 · 잔업 {pr.overtime}회 · 문제 {pr.attempts}개
         </small>

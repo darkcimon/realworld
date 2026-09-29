@@ -6,7 +6,7 @@
 // 평가는 근무 패널을 열 때 "기한이 지났으면 그때 한 번" 계산된다(별도 스케줄러 없음).
 import { db } from "../db.js";
 import { applyLedgerEntry, getBalance } from "../wallet/ledger.js";
-import { BOSS, EVENTS, MANAGER } from "../economy.js";
+import { BOSS, EVENTS, MANAGER, WORKPLACE } from "../economy.js";
 import { notify } from "./notifications.js";
 import { todayKstDate } from "./lottery.js";
 import { claimDailyRoll, managerTrust, pickRandom } from "./npcShared.js";
@@ -34,6 +34,7 @@ interface BossStateRow {
   attitude: number;
   last_review_date: string;
   project_goal: number;
+  colleague_adjust: number;
 }
 
 interface EventRow {
@@ -311,7 +312,7 @@ export function maybeReview(
     project = stats.overtime >= state.project_goal ? EVENTS.projectSuccessBonus : -EVENTS.projectFailPenalty;
   }
 
-  const score = scoreOf(stats, state.attitude + reputation + project);
+  const score = scoreOf(stats, state.attitude + reputation + project + state.colleague_adjust);
   const grade = gradeOf(score);
   const meta: ReviewMeta = {
     score,
@@ -383,7 +384,7 @@ export function maybeReview(
   }
 
   db.prepare(
-    "UPDATE boss_state SET rank = ?, good_streak = ?, bad_streak = ?, attitude = 0, project_goal = 0, last_review_date = ? WHERE user_id = ? AND job_id = ?"
+    "UPDATE boss_state SET rank = ?, good_streak = ?, bad_streak = ?, attitude = 0, project_goal = 0, colleague_adjust = 0, last_review_date = ? WHERE user_id = ? AND job_id = ?"
   ).run(rank, good, bad, today, userId, jobId);
 
   createEvent(userId, kind, message, choiceKeys, meta);
@@ -532,6 +533,37 @@ function greeting(rank: number, lastGrade: Grade | null): string {
   return pick(["어서 와요. 오늘도 수고해요.", "좋은 아침이에요. 오늘 업무 시작해볼까요?"]);
 }
 
+// ── 직장 동료(workplace.ts)가 쓰는 조회/반영 함수 ─────────────────────
+/** 이번 평가 기간의 근무 사실 요약(동료 NPC 프롬프트에 넣는다 — 모델이 기록을 지어내지 않게). */
+export function workPeriodSummary(userId: number, jobId: number, today = todayKstDate()): { rankTitle: string; text: string } {
+  const state = getState(userId, jobId, today);
+  const stats = windowStats(userId, jobId, state.last_review_date);
+  const rankTitle = rankInfo(state.rank).title;
+  const text = stats.attempts
+    ? `직급 ${rankTitle}, ${state.last_review_date}부터 근무 ${stats.workDays}일, 문제 ${stats.attempts}개, 정답률 ${Math.round(
+        stats.accuracy * 100
+      )}%, 잔업 ${stats.overtime}회${state.bad_streak > 0 ? `, 최근 부진 평가 ${state.bad_streak}회 연속` : ""}${
+        state.good_streak > 0 ? `, 최근 좋은 평가 ${state.good_streak}회 연속` : ""
+      }`
+    : `직급 ${rankTitle}, 이번 평가 기간(${state.last_review_date}~)에는 아직 근무 기록이 없음`;
+  return { rankTitle, text };
+}
+
+/**
+ * 동료가 준 평가 가감점을 이번 기간 누적에 더한다. 누적은 ±WORKPLACE.evalAdjustPerPeriod로 잘리고,
+ * 실제로 반영된 만큼(잘렸으면 0일 수도 있음)을 돌려준다. 다음 주간 평가에서 1회 쓰이고 0으로 초기화된다.
+ */
+export function addColleagueAdjust(userId: number, jobId: number, delta: number, today = todayKstDate()): number {
+  const state = getState(userId, jobId, today);
+  const cap = WORKPLACE.evalAdjustPerPeriod;
+  const next = Math.max(-cap, Math.min(cap, state.colleague_adjust + delta));
+  const applied = next - state.colleague_adjust;
+  if (applied !== 0) {
+    db.prepare("UPDATE boss_state SET colleague_adjust = ? WHERE user_id = ? AND job_id = ?").run(next, userId, jobId);
+  }
+  return applied;
+}
+
 export function getBossPanel(userId: number, today = todayKstDate()) {
   const job = activeJob(userId);
   if (!job) return { assigned: false as const };
@@ -555,7 +587,7 @@ export function getBossPanel(userId: number, today = todayKstDate()) {
     trust >= MANAGER.trustedAt ? EVENTS.reputationAdjust : trust < MANAGER.watchBelow ? -EVENTS.reputationAdjust : 0;
   const projectAdj =
     state.project_goal > 0 ? (stats.overtime >= state.project_goal ? EVENTS.projectSuccessBonus : -EVENTS.projectFailPenalty) : 0;
-  const projected = scoreOf(stats, state.attitude + reputation + projectAdj);
+  const projected = scoreOf(stats, state.attitude + reputation + projectAdj + state.colleague_adjust);
   return {
     assigned: true as const,
     job,
@@ -578,11 +610,14 @@ export function getBossPanel(userId: number, today = todayKstDate()) {
     },
     // NPC 간 연결: 마트 점장 신뢰도가 이 직장 평가에 ±점수로 반영된다.
     reputation: { managerTrust: trust, adjust: reputation },
+    // 직장 동료와의 대화에서 받은 평가 가감점(누적, 다음 평가에 1회 반영)
+    colleagueAdjust: state.colleague_adjust,
     project: state.project_goal > 0 ? { goal: state.project_goal, overtime: stats.overtime } : null,
     rules: [
       `마트 점장 신뢰도 ${MANAGER.trustedAt}↑ 이면 평가 +${EVENTS.reputationAdjust}점, ${MANAGER.watchBelow} 미만이면 -${EVENTS.reputationAdjust}점(평판)`,
       `평가는 ${BOSS.reviewPeriodDays}일마다 · 최소 ${BOSS.minWorkDays}일 근무 + ${BOSS.minAttempts}문제 필요(미달 시 보류)`,
       "점수 = 정답률 60 + 근무일수 25(5일 만점) + 잔업 15(5회 만점) + 면담 태도(±5)",
+      `직장 동료와의 대화에서 받은 가감점(평가 기간 누적 ±${WORKPLACE.evalAdjustPerPeriod}점)도 반영`,
       `S ${BOSS.gradeS}점↑ / A ${BOSS.gradeA}점↑ / B ${BOSS.gradeB}점↑ / 그 미만 C`,
       `S·A가 ${BOSS.promotionStreak}회 연속이면 승진 심사 요청 가능(직급별 일급 ×${BOSS.ranks.map((r) => r.payMultiplier).join(" → ×")})`,
       `C가 ${BOSS.demotionStreak}회 연속이면 한 직급 강등`,

@@ -1,6 +1,10 @@
 import type {
   AIProvider,
   BoardCommand,
+  ColleagueChatTurn,
+  ColleagueContext,
+  ColleagueProfile,
+  ColleagueTurn,
   ConversationMemory,
   ConversationTurn,
   ExamQuestion,
@@ -300,6 +304,37 @@ export class MockAIProvider implements AIProvider {
 
   async npcLine(_npc: "manager" | "boss", _situation: string, baseLine: string): Promise<string> {
     return baseLine;
+  }
+
+  async colleagueReply(ctx: ColleagueContext): Promise<ColleagueTurn> {
+    // 규칙 기반 대체 응답: 대사만 돌려주고 권한(action/신뢰도 변화)은 절대 쓰지 않는다 —
+    // LLM이 없거나 예산을 넘었을 때 키워드만으로 칭찬/경고를 남기면 오판이 생기기 쉽다.
+    const m = ctx.message;
+    const pick = (lines: string[]) => lines[Math.floor(Math.random() * lines.length)];
+    let reply: string;
+    if (/보너스|돈|월급|연봉|급여|승진/.test(m)) {
+      reply = pick(["그런 건 평가 결과로 말하는 거예요. 기록부터 채워봅시다.", "보상은 성과가 쌓이면 자연스럽게 따라와요."]);
+    } else if (/죄송|잘못|실수/.test(m)) {
+      reply = pick(["알겠어요. 같은 실수만 반복하지 않으면 돼요.", "사과는 받을게요. 다음엔 결과로 보여줘요."]);
+    } else if (/보고|완료|끝냈|마쳤|했습니다/.test(m)) {
+      reply = pick(["보고 고마워요. 수고했어요.", "좋아요, 계속 그렇게 챙겨줘요."]);
+    } else if (/\?|어떻게|뭘|무엇|알려/.test(m)) {
+      reply = pick(["정답률이 제일 중요해요. 문제를 끝까지 읽고 푸세요.", "꾸준히 출근하는 게 평가에 제일 크게 반영돼요."]);
+    } else if (/안녕|좋은 아침|출근|반갑/.test(m)) {
+      reply = pick(["어, 왔어요? 오늘도 잘 부탁해요.", "좋은 아침이에요. 오늘 일정 확인했죠?"]);
+    } else {
+      reply = pick(["그래요, 일단 오늘 업무부터 챙겨봐요.", "음, 알겠어요. 나중에 다시 얘기합시다.", "네네, 들었어요."]);
+    }
+    return { reply, action: { type: "none" }, trustDelta: 0 };
+  }
+
+  async summarizeColleagueMemory(
+    colleague: ColleagueProfile,
+    previousSummary: string | null,
+    turns: ColleagueChatTurn[]
+  ): Promise<string> {
+    const note = `${colleague.name}(${colleague.title})와 ${turns.length}개의 대화를 더 나눴다.`;
+    return previousSummary ? `${previousSummary} ${note}`.slice(-600) : note;
   }
 
   async teacherReplyToBatch(

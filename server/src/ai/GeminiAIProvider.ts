@@ -31,6 +31,10 @@
 import type {
   AIProvider,
   BoardCommand,
+  ColleagueChatTurn,
+  ColleagueContext,
+  ColleagueProfile,
+  ColleagueTurn,
   ConversationMemory,
   ConversationTurn,
   ExamQuestion,
@@ -41,7 +45,12 @@ import type {
 import { addAiCostUsd, getMonthlyAiCostUsd } from "../db.js";
 import { MockAIProvider } from "./MockAIProvider.js";
 import { parseLessonReplyJson, parseLessonStartJson } from "./lessonJson.js";
+import { parseColleagueTurn } from "./colleagueJson.js";
 import {
+  colleagueSummarySystemPrompt,
+  colleagueSummaryUserPrompt,
+  colleagueSystemPrompt,
+  colleagueUserPrompt,
   lessonAnswerUserPrompt,
   lessonStartUserPrompt,
   lessonSystemPrompt,
@@ -181,6 +190,33 @@ export class GeminiAIProvider implements AIProvider {
     } catch (err) {
       this.warnOnce("npcLine", err);
       return baseLine;
+    }
+  }
+
+  async colleagueReply(ctx: ColleagueContext): Promise<ColleagueTurn> {
+    try {
+      const text = await this.complete(colleagueSystemPrompt(ctx), colleagueUserPrompt(ctx), 300);
+      return parseColleagueTurn(text);
+    } catch (err) {
+      this.warnOnce("colleagueReply", err);
+      return this.fallback.colleagueReply(ctx);
+    }
+  }
+
+  async summarizeColleagueMemory(
+    colleague: ColleagueProfile,
+    previousSummary: string | null,
+    turns: ColleagueChatTurn[]
+  ): Promise<string> {
+    try {
+      return await this.complete(
+        colleagueSummarySystemPrompt(colleague),
+        colleagueSummaryUserPrompt(colleague, previousSummary, turns),
+        400
+      );
+    } catch (err) {
+      this.warnOnce("summarizeColleagueMemory", err);
+      return this.fallback.summarizeColleagueMemory(colleague, previousSummary, turns);
     }
   }
 

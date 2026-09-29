@@ -121,3 +121,22 @@ export const NPC_VOICE = {
   maxLenRatio: 2, // 원문 길이의 2배까지만 허용
   minMaxLen: 80, // 원문이 아주 짧아도 최소 이만큼은 허용
 };
+
+// ── 직장 동료 NPC(LLM 자유 대화) ────────────────────────────────────────
+// 대사와 "판단 제안"은 LLM이 하지만, 실제로 게임에 반영되는 효과(칭찬/경고 기록, 평가 가감점,
+// 관계 변화)는 서버가 아래 상한 안에서만 실행한다. 유저가 대화로 "보너스 1억 주세요"라고 해도
+// NPC가 쓸 수 있는 권한 자체가 이것뿐이라 경제가 흔들리지 않는다.
+export const WORKPLACE = {
+  dailyMessagesPerUser: 20, // 유저당 하루 대화 상한(=LLM 호출 비용 상한)
+  maxMessageLen: 200,
+  historyTurns: 12, // 프롬프트에 원문으로 싣는 최근 대화 수
+  summarizeEvery: 20, // 요약 이후 원문이 이만큼 쌓이면 기억(요약)을 갱신
+  praisePerDay: 2, // NPC 한 명이 하루에 남길 수 있는 칭찬 기록 수
+  warningPerDay: 2, // NPC 한 명이 하루에 남길 수 있는 경고 기록 수
+  evalAdjustPerAction: 2, // 한 번에 줄 수 있는 평가 가감점(±)
+  evalAdjustPerPeriod: 5, // 평가 기간 누적 가감점 상한(±) — 다음 주간 평가에 1회 반영
+  trustDeltaMax: 3, // 대화 한 번에 바뀌는 관계(신뢰도) 상한(±)
+  praiseTrust: 2,
+  warningTrust: -3,
+  initialTrust: 50,
+};

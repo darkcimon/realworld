@@ -354,6 +354,7 @@ export type BossPanelState =
         };
       };
       reputation: { managerTrust: number; adjust: number };
+      colleagueAdjust: number;
       project: { goal: number; overtime: number } | null;
       rules: string[];
       greeting: string;
@@ -364,4 +365,59 @@ export interface BossChooseResp {
   reply: string;
   promoted: boolean;
   panel: BossPanelState;
+}
+
+// ── 직장 동료 NPC(LLM 자유 대화) ──────────────────────────────────
+export interface ColleagueAction {
+  type: "praise" | "warning" | "eval_adjust";
+  value: number;
+  reason: string;
+}
+
+export interface ColleagueSummary {
+  key: string;
+  name: string;
+  title: string;
+  avatar: string;
+  relation: string;
+  directBoss: boolean;
+  trust: number;
+  records: { praise: number; warning: number };
+  lastMessage: { sender: "player" | "npc"; content: string } | null;
+}
+
+export type WorkplaceState =
+  | { assigned: false }
+  | {
+      assigned: true;
+      job: { id: number; name: string };
+      company: string;
+      size: "small" | "medium" | "large" | "professional";
+      colleagues: ColleagueSummary[];
+      records: { praise: number; warning: number };
+      evalAdjust: { current: number; cap: number };
+      remainingToday: number;
+      dailyLimit: number;
+      rules: string[];
+    };
+
+export interface ColleagueMessage {
+  id: number;
+  sender: "player" | "npc";
+  content: string;
+  created_at: string;
+}
+
+export interface ColleagueMessagesResp {
+  colleague: { key: string; name: string; title: string; avatar: string };
+  trust: number;
+  messages: ColleagueMessage[];
+}
+
+export interface ColleagueChatResp {
+  reply: string;
+  action: ColleagueAction | null;
+  trust: number;
+  violation: { level: number; jailed: boolean } | null;
+  remainingToday: number;
 }

@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import type { Job, WorkAnswerResp, WorkStartResp } from "../types";
 import { AnswerInput } from "./AnswerInput";
 import { BossPanel } from "./BossPanel";
+import { ColleaguePanel } from "./ColleaguePanel";
 
 // README 6.1~6.2: 직업 배정 → 5문제 단위 근무 → 잔업/퇴근 선택 → 정산(일급 지급)
 export function JobsPanel({ onBalanceChange }: { onBalanceChange: () => void }) {
@@ -94,6 +95,7 @@ export function JobsPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
       <h3>직장</h3>
       {/* 새로고침 후에도 이미 배정된 직업이 있으면 상사 패널이 알려줘서 근무를 이어갈 수 있다 */}
       <BossPanel refreshKey={bossKey} onJob={(id) => setAssignedJobId((cur) => cur ?? id)} />
+      <ColleaguePanel refreshKey={bossKey} onChange={() => setBossKey((k) => k + 1)} />
       {error && <p className="error">{error}</p>}
       <ul className="job-list">
         {jobs.map((j) => (

@@ -89,7 +89,7 @@ export function sanitizeBoard(raw: unknown): BoardCommand[] {
   return out;
 }
 
-function extractJsonObject(raw: string): Record<string, unknown> {
+export function extractJsonObject(raw: string): Record<string, unknown> {
   // LLM이 JSON만 출력하라는 지시를 어기고 앞뒤에 설명이나 코드블록 표시(```json)를 붙일 수 있어
   // 텍스트 중 가장 바깥쪽 {...} 블록만 골라 파싱한다.
   const match = raw.match(/\{[\s\S]*\}/);

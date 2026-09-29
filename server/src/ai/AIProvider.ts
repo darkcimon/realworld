@@ -52,6 +52,44 @@ export interface LessonReply {
   board?: BoardCommand[];
 }
 
+// ── 직장 동료 NPC(LLM 자유 대화) ────────────────────────────────────
+// NPC는 대사와 함께 "하고 싶은 행동"을 제안할 뿐이고, 실제 반영 여부와 크기는 서버
+// (social/workplace.ts)가 economy.ts WORKPLACE 상한 안에서 결정한다.
+export interface ColleagueProfile {
+  name: string;
+  title: string; // 직함(사장/대리/과장…)
+  company: string;
+  persona: string; // 성격·말투·관심사
+  relation: string; // 플레이어와의 관계(직속 상사/사수/윗선…)
+}
+
+export interface ColleagueChatTurn {
+  speaker: "player" | "npc";
+  content: string;
+}
+
+export interface ColleagueContext {
+  colleague: ColleagueProfile;
+  player: { nickname: string; rankTitle: string; jobName: string };
+  trust: number; // 0~100, 이 동료가 플레이어를 얼마나 믿는지
+  workSummary: string; // 이번 평가 기간 근무 기록 요약(서버가 계산한 사실)
+  memory: string | null; // 지금까지의 관계/대화 요약
+  recentHistory: ColleagueChatTurn[];
+  message: string; // 이번 플레이어 발화
+  allowed: { praise: boolean; warning: boolean; evalAdjustMax: number }; // 지금 쓸 수 있는 권한
+}
+
+export type ColleagueAction =
+  | { type: "none" }
+  | { type: "praise" | "warning"; reason: string }
+  | { type: "eval_adjust"; value: number; reason: string };
+
+export interface ColleagueTurn {
+  reply: string;
+  action: ColleagueAction;
+  trustDelta: number;
+}
+
 export interface AIProvider {
   /**
    * 단체 수업(학년 채팅방)에서 다룰 학습 주제를 고른다 (README 4.2.4: AI 선정 또는 참여자
@@ -137,6 +175,19 @@ export interface AIProvider {
    * 바꿔야 한다. 호출 실패/예산 초과/키 없음이면 baseLine을 그대로 돌려준다(게임 진행에 영향 없음).
    */
   npcLine(npc: "manager" | "boss", situation: string, baseLine: string): Promise<string>;
+
+  /**
+   * 직장 동료 NPC가 플레이어 발화에 답한다. 반환한 action/trustDelta는 "제안"이며 서버가 상한으로
+   * 다시 자른다. 호출 실패/예산 초과/키 없음이면 규칙 기반 응답(행동 없음)을 돌려준다.
+   */
+  colleagueReply(ctx: ColleagueContext): Promise<ColleagueTurn>;
+
+  /** 직장 동료와의 오래된 대화를 이전 기억과 합쳐 짧은 관계 요약으로 압축한다. */
+  summarizeColleagueMemory(
+    colleague: ColleagueProfile,
+    previousSummary: string | null,
+    turns: ColleagueChatTurn[]
+  ): Promise<string>;
 
   /** 제출한 답이 정답인지 판정한다. */
   gradeAnswer(question: ExamQuestion, submittedAnswer: string): boolean;

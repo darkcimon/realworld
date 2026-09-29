@@ -533,6 +533,46 @@ if (!bossStateColumns.some((c) => c.name === "project_goal")) {
   db.exec("ALTER TABLE boss_state ADD COLUMN project_goal INTEGER NOT NULL DEFAULT 0");
 }
 
+// 직장 동료 대화로 쌓인 평가 가감점(다음 주간 평가에 1회 반영, 상한은 economy.ts WORKPLACE).
+if (!bossStateColumns.some((c) => c.name === "colleague_adjust")) {
+  db.exec("ALTER TABLE boss_state ADD COLUMN colleague_adjust INTEGER NOT NULL DEFAULT 0");
+}
+
+// ── 직장 동료 NPC(LLM 자유 대화) ─────────────────────────────────────
+// 관계(신뢰도)와 기억(대화 요약)은 직업(job_id)별 — 회사를 옮기면 새 동료들과 새로 시작한다.
+db.exec(`
+CREATE TABLE IF NOT EXISTS colleague_relations (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  colleague_key TEXT NOT NULL,
+  trust INTEGER NOT NULL DEFAULT 50,
+  memory TEXT, -- 오래된 대화를 압축한 요약(없으면 NULL)
+  summary_through_id INTEGER NOT NULL DEFAULT 0, -- 어디까지 요약에 반영됐는지(colleague_messages.id)
+  PRIMARY KEY (user_id, job_id, colleague_key)
+);
+CREATE TABLE IF NOT EXISTS colleague_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  colleague_key TEXT NOT NULL,
+  sender TEXT NOT NULL, -- 'player' | 'npc'
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_colleague_messages ON colleague_messages (user_id, job_id, colleague_key, id);
+-- NPC가 대화 중에 실행한 권한(칭찬/경고/평가 가감점). 2단계 징계(감봉/정직/강등)의 근거 기록이 된다.
+CREATE TABLE IF NOT EXISTS colleague_actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  colleague_key TEXT NOT NULL,
+  kind TEXT NOT NULL, -- 'praise' | 'warning' | 'eval_adjust'
+  value INTEGER NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
+
 // NPC 이벤트에 근거 자료(평가 점수 세부 등)를 함께 저장해 선택지 답변이 상황에 맞게 나오게 한다.
 const npcEventColumns = db.prepare("PRAGMA table_info(npc_events)").all() as { name: string }[];
 if (!npcEventColumns.some((c) => c.name === "meta")) {
