@@ -39,7 +39,7 @@ profileRouter.get("/", (req, res) => {
       levelLabel: LEVEL_LABEL[profile.school_level],
       grade: profile.grade,
       status: profile.status,
-      label: `${LEVEL_LABEL[profile.school_level]} ${profile.grade}학년`,
+      label: schoolLabel(profile),
     },
     graduations,
     // 다른 사람이 내 프로필을 열면 보이는 전시 물건 — 내 프로필 헤더에도 뱃지로 보여준다.
@@ -47,6 +47,14 @@ profileRouter.get("/", (req, res) => {
     jail: jail ? { type: jail.type, endsAt: jail.ends_at } : null,
   });
 });
+
+// 졸업생은 학년 대신 "고등학교 졸업"으로 보여준다. 배치고사로 졸업하면 grade가 1로 남고, 고3 승급 시험으로
+// 졸업해도 grade가 3으로 남아서 학년을 그대로 붙이면 "고등학교 1학년"처럼 재학생으로 보인다.
+function schoolLabel(profile: { school_level: string; grade: number; status: string }): string {
+  return profile.status === "graduated"
+    ? `${LEVEL_LABEL[profile.school_level]} 졸업`
+    : `${LEVEL_LABEL[profile.school_level]} ${profile.grade}학년`;
+}
 
 // 채팅(학교 단체 채팅/1:1 채팅) 메시지의 프로필 사진 아이콘을 눌렀을 때 조회하는 공개 프로필.
 // PersonPanel(11절, 300만원 열람권이 필요한 상세 프로필/소셜 콘텐츠)과 달리 비용이나 고3 졸업
@@ -78,7 +86,7 @@ profileRouter.get("/public/:userId", (req, res) => {
           levelLabel: LEVEL_LABEL[profile.school_level],
           grade: profile.grade,
           status: profile.status,
-          label: `${LEVEL_LABEL[profile.school_level]} ${profile.grade}학년`,
+          label: schoolLabel(profile),
         }
       : null,
     graduations,
