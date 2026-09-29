@@ -20,7 +20,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "lottery", label: "로또" },
   { key: "manner", label: "매너" },
   { key: "catalog", label: "자산" },
-  { key: "nearby", label: "주변사람" },
+  { key: "nearby", label: "인연찾기" },
 ];
 
 // README 6~11장(사회 생활/로또/자산/소셜): 고3 졸업 후 열리는 사회 콘텐츠 전체를 탭으로 묶는다.
@@ -65,7 +65,11 @@ export function SocialHub({
       {tab === "lottery" && <LotteryPanel onBalanceChange={refreshBalance} />}
       {tab === "manner" && <MannerPanel onBalanceChange={refreshBalance} />}
       {tab === "catalog" && (
-        <CatalogPanel onBalanceChange={refreshBalance} initialCategory={initialCatalogCategory} />
+        <CatalogPanel
+          onBalanceChange={refreshBalance}
+          onProfileChange={onProfileChange}
+          initialCategory={initialCatalogCategory}
+        />
       )}
       {tab === "nearby" && <NearbyPanel onOpenPerson={setPersonId} />}
 

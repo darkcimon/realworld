@@ -77,7 +77,7 @@ export function NearbyPanel({ onOpenPerson }: { onOpenPerson: (userId: number) =
 
   return (
     <div className="panel">
-      <h3>주변 사람 찾기</h3>
+      <h3>인연 찾기</h3>
       {error && <p className="error">{error}</p>}
       {message && <p className="ok-text">{message}</p>}
 
@@ -101,7 +101,7 @@ export function NearbyPanel({ onOpenPerson }: { onOpenPerson: (userId: number) =
           </button>
         </form>
         <button className="ghost" onClick={loadNearby}>
-          주변 사람 다시 찾기
+          내 주변 인연 찾기
         </button>
       </div>
 
@@ -154,7 +154,7 @@ export function NearbyPanel({ onOpenPerson }: { onOpenPerson: (userId: number) =
           </li>
         ))}
         {nearby.length === 0 && (
-          <p className="muted">위치를 설정하고 "주변 사람 다시 찾기"를 눌러보세요.</p>
+          <p className="muted">위치를 설정하고 "내 주변 인연 찾기"를 눌러보세요.</p>
         )}
       </ul>
     </div>

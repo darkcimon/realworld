@@ -45,7 +45,7 @@ export const QUESTS: {
 
   { key: "get_job", label: "직업 구하기", goal: 1, reward: 500_000, phase: "newbie", once: true },
   { key: "first_alba", label: "마트 알바에서 계산 1건 해보기", goal: 1, reward: 200_000, phase: "newbie" },
-  { key: "set_location", label: "내 위치 설정하고 주변 사람 찾아보기", goal: 1, reward: 100_000, phase: "newbie" },
+  { key: "set_location", label: "내 위치 설정하고 인연 찾아보기", goal: 1, reward: 100_000, phase: "newbie" },
 
   { key: "work_batch", label: "직장 근무 5문제 풀기", goal: 5, reward: 500_000, phase: "adult" },
   { key: "alba_tx", label: "마트 계산 10건 처리하기", goal: 10, reward: 300_000, phase: "adult" },

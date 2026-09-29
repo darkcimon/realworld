@@ -7,6 +7,7 @@ import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { getActiveJail } from "../school/jail.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
 import { addPhoto, purchasePhotoAlbum } from "../social/photos.js";
+import { listDisplayedItems } from "../social/catalog.js";
 
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
@@ -41,6 +42,8 @@ profileRouter.get("/", (req, res) => {
       label: `${LEVEL_LABEL[profile.school_level]} ${profile.grade}학년`,
     },
     graduations,
+    // 다른 사람이 내 프로필을 열면 보이는 전시 물건 — 내 프로필 헤더에도 뱃지로 보여준다.
+    displayedItems: listDisplayedItems(user.id),
     jail: jail ? { type: jail.type, endsAt: jail.ends_at } : null,
   });
 });

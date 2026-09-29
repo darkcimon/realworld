@@ -17,6 +17,7 @@ export interface Profile {
     tier: string;
     graduated_at: string;
   }>;
+  displayedItems: { id: number; category: string; brand: string | null; name: string }[];
   jail: { type: "jail" | "solitary"; endsAt: string } | null;
 }
 

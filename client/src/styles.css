@@ -100,7 +100,7 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 .profile-name { font-weight: 700; display: flex; align-items: center; gap: 6px; }
 .profile-grade { color: var(--muted); font-size: 13px; margin-top: 2px; }
-.profile-tiers { margin-top: 6px; display: flex; gap: 6px; }
+.profile-tiers { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
 
 .badge {
   font-size: 11px; padding: 2px 8px; border-radius: 999px;
@@ -253,7 +253,7 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .jail-screen { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; display: flex; flex-direction: column; height: 60vh; }
 .jail-header { display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 
-/* ── Phase 2~3: 사회 콘텐츠(직장/알바/로또/매너/자산/주변사람/채팅) ── */
+/* ── Phase 2~3: 사회 콘텐츠(직장/알바/로또/매너/자산/인연찾기/채팅) ── */
 .top-nav { margin-bottom: 0; }
 .sub-tabs { flex-wrap: wrap; }
 .sub-tabs button { flex: none; padding: 6px 12px; font-size: 13px; }
@@ -409,3 +409,14 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 /* 직장 상사 카드: 평가 기간 진행 상황 */
 .review-progress { display: flex; flex-direction: column; gap: 4px; }
 .review-line { display: flex; justify-content: space-between; align-items: center; }
+
+/* 자산 탭: "내 소유 자산" 제목 오른쪽에 프로필 미리보기 버튼 */
+.owned-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.owned-head button { padding: 6px 10px; font-size: 13px; }
+
+/* 자산(자동차/아파트/명품) 3D 전시장 */
+.asset-viewer-modal { width: 520px; max-width: 94vw; display: flex; flex-direction: column; gap: 10px; }
+.asset-viewer-stage { position: relative; width: 100%; height: min(60vh, 420px); border-radius: 12px; overflow: hidden; touch-action: none; background: #15171c; }
+.asset-viewer-stage canvas { display: block; }
+.asset-viewer-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; }
+.asset-viewer-hint { margin: 0; font-size: 12px; text-align: center; }

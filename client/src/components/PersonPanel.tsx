@@ -1,23 +1,29 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { PersonDetail } from "../types";
 import { DmChat } from "./DmChat";
+import { AssetViewer } from "./CatalogPanel";
+import type { AssetCategory } from "./AssetViewer";
 
 // README 11.2~11.5: 프로필 열람권 구매/상세 조회, 선물/하트/맞하트, 차단, 채팅 개시.
+// preview: 내 프로필을 다른 사람 시점으로 미리보기(하트/선물/채팅 등 상대용 버튼은 숨긴다).
 export function PersonPanel({
   targetId,
   onClose,
   onBalanceChange,
   onJailed,
+  preview = false,
 }: {
   targetId: number;
   onClose: () => void;
   onBalanceChange: () => void;
   onJailed: () => void;
+  preview?: boolean;
 }) {
   const [detail, setDetail] = useState<PersonDetail | null>(null);
   const [needsPass, setNeedsPass] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [viewAsset, setViewAsset] = useState<{ category: AssetCategory; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -118,7 +124,8 @@ export function PersonPanel({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal person-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>상대 프로필 (#{targetId})</h2>
+        <h2>{preview ? "내 프로필 미리보기" : `상대 프로필 (#${targetId})`}</h2>
+        {preview && <p className="muted">다른 사람이 내 프로필을 열면 이렇게 보여요.</p>}
         {error && <p className="error">{error}</p>}
         {message && <p className="ok-text">{message}</p>}
 
@@ -131,6 +138,9 @@ export function PersonPanel({
 
         {detail && (
           <>
+            {preview && detail.displayedItems.length === 0 && (
+              <p className="muted">아직 전시 중인 자산이 없어요. '전시하기'를 누르면 여기에 표시돼요.</p>
+            )}
             <div className="avatar" style={{ margin: "0 auto 12px" }}>
               {detail.avatarUrl ? (
                 <img src={detail.avatarUrl} alt="avatar" />
@@ -149,6 +159,12 @@ export function PersonPanel({
                       {it.brand ? `${it.brand} ` : ""}
                       {it.name}
                     </span>
+                    <button
+                      className="ghost"
+                      onClick={() => setViewAsset({ category: it.category as AssetCategory, name: it.name })}
+                    >
+                      3D로 보기
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -156,21 +172,23 @@ export function PersonPanel({
           </>
         )}
 
-        <div className="person-actions">
-          <button className="ghost" onClick={sendHeart}>
-            하트 보내기 (50만원)
-          </button>
-          <button className="ghost" onClick={sendGift}>
-            선물 보내기 (100만원)
-          </button>
-          <button onClick={openChat}>채팅 시작</button>
-          <button className="ghost" onClick={block}>
-            차단
-          </button>
-          <button className="ghost" onClick={unblock}>
-            차단 해제
-          </button>
-        </div>
+        {!preview && (
+          <div className="person-actions">
+            <button className="ghost" onClick={sendHeart}>
+              하트 보내기 (50만원)
+            </button>
+            <button className="ghost" onClick={sendGift}>
+              선물 보내기 (100만원)
+            </button>
+            <button onClick={openChat}>채팅 시작</button>
+            <button className="ghost" onClick={block}>
+              차단
+            </button>
+            <button className="ghost" onClick={unblock}>
+              차단 해제
+            </button>
+          </div>
+        )}
 
         {chatOpen && (
           <DmChat
@@ -184,6 +202,12 @@ export function PersonPanel({
           닫기
         </button>
       </div>
+
+      {viewAsset && (
+        <Suspense fallback={null}>
+          <AssetViewer {...viewAsset} onClose={() => setViewAsset(null)} />
+        </Suspense>
+      )}
     </div>
   );
 }

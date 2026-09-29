@@ -1,6 +1,10 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
-import type { CatalogItem, OwnedItem } from "../types";
+import type { CatalogItem, OwnedItem, Profile } from "../types";
+import { PersonPanel } from "./PersonPanel";
+
+// three.js가 무거워서 3D 창을 처음 열 때만 불러온다.
+export const AssetViewer = lazy(() => import("./AssetViewer"));
 
 const CATEGORIES: { key: CatalogItem["category"]; label: string }[] = [
   { key: "car", label: "자동차" },
@@ -11,11 +15,15 @@ const CATEGORIES: { key: CatalogItem["category"]; label: string }[] = [
 // README 8~10장: 자동차/아파트/명품 — 구매 → 소유 → 프로필 전시 토글. 명품은 선물도 가능.
 export function CatalogPanel({
   onBalanceChange,
+  onProfileChange,
   initialCategory,
 }: {
   onBalanceChange: () => void;
+  onProfileChange: () => void;
   initialCategory?: CatalogItem["category"];
 }) {
+  const [previewId, setPreviewId] = useState<number | null>(null);
+  const [viewAsset, setViewAsset] = useState<{ category: CatalogItem["category"]; name: string } | null>(null);
   const [category, setCategory] = useState<CatalogItem["category"]>(initialCategory ?? "car");
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [owned, setOwned] = useState<OwnedItem[]>([]);
@@ -53,6 +61,12 @@ export function CatalogPanel({
   async function toggleDisplay(ownedItemId: number, displayed: boolean) {
     await api.patch(`/owned-items/${ownedItemId}`, { displayed: !displayed });
     await loadOwned();
+    onProfileChange(); // 사이드바 내 프로필의 전시 뱃지도 갱신
+  }
+
+  async function openPreview() {
+    const me = await api.get<Profile>("/profile");
+    setPreviewId(me.id);
   }
 
   async function gift(itemId: number) {
@@ -110,6 +124,9 @@ export function CatalogPanel({
               <div className="muted">{it.price.toLocaleString()}원</div>
             </div>
             <div className="catalog-actions">
+              <button className="ghost" onClick={() => setViewAsset({ category: it.category, name: it.name })}>
+                3D
+              </button>
               <button className="ghost" onClick={() => buy(it.id)}>
                 구매
               </button>
@@ -123,7 +140,12 @@ export function CatalogPanel({
         ))}
       </ul>
 
-      <h4>내 소유 자산</h4>
+      <div className="owned-head">
+        <h4>내 소유 자산</h4>
+        <button className="ghost" onClick={openPreview}>
+          👁 내 프로필 미리보기
+        </button>
+      </div>
       <ul className="catalog-list">
         {owned.map((o) => (
           <li key={o.id}>
@@ -134,13 +156,34 @@ export function CatalogPanel({
               </strong>
               <div className="muted">{o.price.toLocaleString()}원</div>
             </div>
-            <button className={o.displayed ? "" : "ghost"} onClick={() => toggleDisplay(o.id, o.displayed)}>
-              {o.displayed ? "전시 중" : "전시하기"}
-            </button>
+            <div className="catalog-actions">
+              <button className="ghost" onClick={() => setViewAsset({ category: o.category, name: o.name })}>
+                3D
+              </button>
+              <button className={o.displayed ? "" : "ghost"} onClick={() => toggleDisplay(o.id, o.displayed)}>
+                {o.displayed ? "전시 중" : "전시하기"}
+              </button>
+            </div>
           </li>
         ))}
         {owned.length === 0 && <p className="muted">아직 소유한 자산이 없습니다.</p>}
       </ul>
+
+      {viewAsset && (
+        <Suspense fallback={null}>
+          <AssetViewer {...viewAsset} onClose={() => setViewAsset(null)} />
+        </Suspense>
+      )}
+
+      {previewId !== null && (
+        <PersonPanel
+          targetId={previewId}
+          preview
+          onClose={() => setPreviewId(null)}
+          onBalanceChange={onBalanceChange}
+          onJailed={onProfileChange}
+        />
+      )}
     </div>
   );
 }
