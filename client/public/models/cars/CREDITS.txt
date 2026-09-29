@@ -1,0 +1,15 @@
+Car models (compressed with gltf-transform: meshopt geometry, WebP textures at 1024px)
+
+compact-07.glb — "Compact '07 - Low poly model" by DanielZhabotinsky
+  https://sketchfab.com/3d-models/25c6874d173a4f6ca63e150bbd505686
+  License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/
+
+tozzo-98.glb — "Tozzo '98 - Low poly model" by DanielZhabotinsky
+  https://sketchfab.com/3d-models/d43bb748da364af2b3f0a9348365f0fb
+  License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/
+
+saba-v12.glb — "Saba V12 '95 - Low poly model" by DanielZhabotinsky
+  https://sketchfab.com/3d-models/3ab977050c334c13b6abb5de078b4957
+  License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/
+
+car-concept.glb — see CREDITS-car-concept.txt

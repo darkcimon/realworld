@@ -17,17 +17,17 @@ type ModelSpec = { file: string; icon?: string; credit?: string };
 
 const KHRONOS = "Khronos glTF Sample Assets";
 const MODELS: Record<AssetCategory, { dir: string; icon: string; byName: Record<string, ModelSpec>; fallback: ModelSpec }> = {
-  // Kenney Car Kit (CC0) + 슈퍼카만 실사 모델
+  // 실사 자동차: 가상 브랜드 모델(DanielZhabotinsky, Sketchfab) + 슈퍼카는 Khronos 컨셉카
   car: {
     dir: "cars",
     icon: "🚗",
     byName: {
-      경차: { file: "sedan.glb" }, // 키트에서 가장 짧고 각진 차
-      "준중형 세단": { file: "hatchback-sports.glb" },
-      스포츠카: { file: "sedan-sports.glb" },
+      경차: { file: "compact-07.glb", credit: `"Compact '07" by DanielZhabotinsky (Sketchfab, CC BY 4.0)` },
+      "준중형 세단": { file: "tozzo-98.glb", credit: `"Tozzo '98" by DanielZhabotinsky (Sketchfab, CC BY 4.0)` },
+      스포츠카: { file: "saba-v12.glb", credit: `"Saba V12 '95" by DanielZhabotinsky (Sketchfab, CC BY 4.0)` },
       슈퍼카: { file: "car-concept.glb", credit: `"Car Concept" © Darmstadt Graphics Group, Eric Chadwick (${KHRONOS}, CC BY 4.0)` },
     },
-    fallback: { file: "sedan.glb" },
+    fallback: { file: "compact-07.glb" },
   },
   // Kenney City Kit Commercial (CC0)
   apartment: {
