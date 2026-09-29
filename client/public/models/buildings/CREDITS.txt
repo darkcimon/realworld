@@ -1,0 +1,14 @@
+Building models (compressed with gltf-transform: meshopt geometry, WebP textures at 1024px)
+
+oneroom.glb — "Japanese Residential Home 01" by reckzilla
+  https://sketchfab.com/3d-models/d690f83d8e8d48e6a532bebe84901595
+  License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/
+
+apartment-84.glb — "residential complex modern apartment building" by Zigurat Architecture Studio (ziguratarchitecturestudio)
+  https://sketchfab.com/3d-models/d4959af16d8f4524844e8b97d3e9772b
+  License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/
+  Changes: materials converted from specular-glossiness to metal-roughness.
+
+penthouse-tower.glb — "Miami style condominium" by aitortilla01
+  https://sketchfab.com/3d-models/b3e16399830045a7b67ec8e02447fd27
+  License: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/

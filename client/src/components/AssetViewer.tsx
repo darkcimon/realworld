@@ -29,16 +29,24 @@ const MODELS: Record<AssetCategory, { dir: string; icon: string; byName: Record<
     },
     fallback: { file: "compact-07.glb" },
   },
-  // Kenney City Kit Commercial (CC0)
+  // 실사 건물(Sketchfab, CC BY 4.0): 작은 다가구 주택 → 판상형 아파트 동 → 수영장 딸린 초고층
   apartment: {
     dir: "buildings",
     icon: "🏠",
     byName: {
-      원룸: { file: "building-c.glb" },
-      "84㎡ 아파트": { file: "building-j.glb" },
-      펜트하우스: { file: "building-skyscraper-a.glb" },
+      원룸: { file: "oneroom.glb", credit: `"Japanese Residential Home 01" by reckzilla (Sketchfab, CC BY 4.0)` },
+      "84㎡ 아파트": {
+        file: "apartment-84.glb",
+        icon: "🏢",
+        credit: `"residential complex modern apartment building" by Zigurat Architecture Studio (Sketchfab, CC BY 4.0)`,
+      },
+      펜트하우스: {
+        file: "penthouse-tower.glb",
+        icon: "🏙️",
+        credit: `"Miami style condominium" by aitortilla01 (Sketchfab, CC BY 4.0)`,
+      },
     },
-    fallback: { file: "building-j.glb" },
+    fallback: { file: "apartment-84.glb" },
   },
   // 명품: 브랜드 로고가 없는 실사 모델(모두 Khronos glTF 샘플, CC BY 4.0)
   luxury: {
