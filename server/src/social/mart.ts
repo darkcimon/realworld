@@ -3,6 +3,8 @@
 // 지갑 잔액이 줄어드는" 체감을 만든다. 근무 자체는 매 거래를 1분으로 취급하는 단순 모델이다.
 import { db } from "../db.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
+import { VITALS } from "../economy.js";
+import { assertCanWork, spendWorkStamina } from "./vitals.js";
 import {
   activeScales,
   consumeModifiers,
@@ -64,6 +66,7 @@ export function startMartShift(userId: number): {
   if (activeShift(userId)) {
     throw { status: 409, message: "이미 진행 중인 근무가 있습니다." };
   }
+  assertCanWork(userId);
   const perMinuteWage = randomWage();
   const result = db
     .prepare("INSERT INTO mart_shifts (user_id, per_minute_wage) VALUES (?, ?)")
@@ -87,6 +90,7 @@ export function recordMartTransaction(
   rushRemaining: number | null;
   penaltyApplied: number;
   balance: number;
+  stamina: number;
 } {
   const shift = activeShift(userId);
   if (!shift) throw { status: 400, message: "진행 중인 마트 근무가 없습니다." };
@@ -94,6 +98,8 @@ export function recordMartTransaction(
   if (!Number.isFinite(enteredAmount) || enteredAmount < 0) {
     throw { status: 400, message: "올바른 금액을 입력하세요." };
   }
+  // 체력이 바닥나면 손님을 더 받을 수 없다 — 근무를 마치고 쉬어야 한다.
+  assertCanWork(userId);
   const correctAmount = (JSON.parse(shift.pending_cart) as CartItem[]).reduce(
     (sum, i) => sum + i.price,
     0
@@ -126,6 +132,9 @@ export function recordMartTransaction(
     { floorAtZero: true }
   );
 
+  // 손님 1명 = workMinutes.albaCustomer분 근무만큼 체력이 준다.
+  const stamina = spendWorkStamina(userId, VITALS.workMinutes.albaCustomer);
+
   const { rushRemaining } = onTransactionRecorded(userId);
   consumeModifiers(userId);
 
@@ -139,6 +148,7 @@ export function recordMartTransaction(
     rushRemaining,
     penaltyApplied: -amountApplied,
     balance: penalty > 0 ? afterPenalty : afterWage,
+    stamina: Math.floor(stamina),
   };
 }
 

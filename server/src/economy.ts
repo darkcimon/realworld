@@ -215,6 +215,10 @@ export const VITALS = {
   walkCost: 5, // 걸어서 한 번 이동할 때 드는 체력(100이면 20번)
   regenPerHour: 12, // 자연 회복(5분에 1)
   sleepCooldownHours: 6, // 내 집에서 자면 체력이 가득 차고, 이 시간 뒤에 다시 잘 수 있다
+  // 일하면 근무 시간에 비례해 체력이 준다. 직장 문제 1개 = 12분(5문제 배치 = 1시간), 알바 손님 1명 = 1분.
+  // 체력이 없으면 새 근무 배치를 시작하거나 다음 손님을 받을 수 없다(배치 도중이면 끝까지는 풀 수 있다).
+  staminaPerWorkHour: 15,
+  workMinutes: { jobQuestion: 12, albaCustomer: 1 },
   tankMoves: 20, // 연료 가득 = 이동 20번
   foods: [
     { key: "gimbap", name: "🍙 삼각김밥", price: 1_500, stamina: 15 },
@@ -225,4 +229,16 @@ export const VITALS = {
   // 가득 채우는 가격(차종별, 비싼 차일수록 비싸다). 부족한 칸만큼만 비례해서 낸다.
   fullTankPrice: { 경차: 20_000, "준중형 세단": 40_000, 스포츠카: 80_000, 슈퍼카: 150_000 } as Record<string, number>,
   defaultFullTankPrice: 40_000,
+};
+
+// ── 자산 되팔기 ─────────────────────────────────────────────────────────
+// 자동차: 산 날부터 하루마다 구매가의 carDepreciationPerDay만큼 값이 떨어지고, carFloorRatio 아래로는 안 내려간다(폐차가).
+// 아파트·명품: 하루 세 번(KST 9·12·18시) 시세가 바뀌어 정가의 minMultiplier~maxMultiplier배 사이에서 랜덤으로 정해진다.
+//   사는 가격과 파는 가격이 모두 그 시세를 따른다 — 같은 시간대에 사서 바로 팔면 손익 0, 쌀 때 사서 비쌀 때 팔아야 이익.
+export const ASSET_RESALE = {
+  carDepreciationPerDay: 0.02,
+  carFloorRatio: 0.1,
+  marketHours: [9, 12, 18],
+  minMultiplier: 0.5,
+  maxMultiplier: 3,
 };

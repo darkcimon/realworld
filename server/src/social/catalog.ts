@@ -1,5 +1,6 @@
-// README 8~10장: 자동차/아파트/명품샵. 구매 → 소유(owned_items) → 프로필 전시 토글.
+// README 8~10장: 자동차/아파트/명품샵. 구매 → 소유(owned_items) → 프로필 전시 토글 → 되팔기.
 import { db } from "../db.js";
+import { ASSET_RESALE } from "../economy.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
 
 export interface CatalogItem {
@@ -10,15 +11,96 @@ export interface CatalogItem {
   price: number;
 }
 
-export function listCatalog(category?: string): CatalogItem[] {
-  if (category) {
-    return db
-      .prepare("SELECT * FROM catalog_items WHERE category = ? ORDER BY price")
-      .all(category) as unknown as CatalogItem[];
+// ── 되팔기 시세 ─────────────────────────────────────────────────────────
+const KST_OFFSET = 9 * 60 * 60 * 1000;
+const DAY = 24 * 60 * 60 * 1000;
+
+function kstParts(ms: number): { date: string; hour: number } {
+  const k = new Date(ms + KST_OFFSET);
+  return { date: k.toISOString().slice(0, 10), hour: k.getUTCHours() };
+}
+
+function kstTime(date: string, hour: number): number {
+  const [y, m, d] = date.split("-").map(Number);
+  return Date.UTC(y, m - 1, d, hour) - KST_OFFSET;
+}
+
+/** 지금 적용 중인 시세 구간(KST 9·12·18시에 바뀜)과 다음에 바뀌는 시각. */
+export function currentMarketSlot(now = Date.now()): { key: string; nextChangeAt: string } {
+  const hours = ASSET_RESALE.marketHours;
+  const { date, hour } = kstParts(now);
+  const past = hours.filter((h) => h <= hour);
+  const slot = past.length
+    ? { date, hour: past[past.length - 1] }
+    : { date: kstParts(now - DAY).date, hour: hours[hours.length - 1] };
+  const nextHour = hours.find((h) => h > hour);
+  const next = nextHour !== undefined ? kstTime(date, nextHour) : kstTime(kstParts(now + DAY).date, hours[0]);
+  return {
+    key: `${slot.date} ${String(slot.hour).padStart(2, "0")}:00`,
+    nextChangeAt: new Date(next).toISOString(),
+  };
+}
+
+/** 이 시세 구간의 품목 배수. 처음 조회할 때 랜덤으로 정해 저장하므로 미리 알 수 없고, 같은 구간에선 모두에게 같다. */
+function marketMultiplier(itemId: number, slotKey: string): number {
+  const get = () =>
+    db.prepare("SELECT multiplier FROM market_prices WHERE slot_key = ? AND catalog_item_id = ?").get(slotKey, itemId) as
+      | { multiplier: number }
+      | undefined;
+  const found = get();
+  if (found) return found.multiplier;
+  const { minMultiplier: lo, maxMultiplier: hi } = ASSET_RESALE;
+  const m = Math.round((lo + Math.random() * (hi - lo)) * 100) / 100;
+  db.prepare("INSERT OR IGNORE INTO market_prices (slot_key, catalog_item_id, multiplier) VALUES (?, ?, ?)").run(
+    slotKey,
+    itemId,
+    m
+  );
+  return get()!.multiplier;
+}
+
+/** 지금 살 때 내는 금액: 자동차는 정가, 아파트·명품은 정가 × 지금 시세(1,000원 단위 내림 — 되팔 때와 같은 계산). */
+function currentBuyPrice(item: CatalogItem): number {
+  if (item.category === "car") return item.price;
+  const m = marketMultiplier(item.id, currentMarketSlot().key);
+  return Math.floor((item.price * m) / 1000) * 1000;
+}
+
+/** 되팔 때 받는 금액. 자동차는 보유 일수만큼 감가, 아파트·명품은 지금 시세 배수. 1,000원 단위 내림. */
+function resaleQuote(
+  o: { catalog_item_id: number; category: string; price: number; purchased_at: string },
+  now = Date.now()
+): { price: number; ratio: number; kind: "depreciation" | "market" } {
+  let ratio: number;
+  let kind: "depreciation" | "market";
+  if (o.category === "car") {
+    const days = Math.max(0, (now - Date.parse(o.purchased_at.replace(" ", "T") + "Z")) / DAY);
+    ratio = Math.max(ASSET_RESALE.carFloorRatio, 1 - ASSET_RESALE.carDepreciationPerDay * days);
+    kind = "depreciation";
+  } else {
+    ratio = marketMultiplier(o.catalog_item_id, currentMarketSlot(now).key);
+    kind = "market";
   }
-  return db
-    .prepare("SELECT * FROM catalog_items ORDER BY category, price")
-    .all() as unknown as CatalogItem[];
+  ratio = Math.round(ratio * 10000) / 10000; // 초 단위 자투리 때문에 0.8이 0.79999…가 되지 않게
+  return { price: Math.floor((o.price * ratio) / 1000) * 1000, ratio: Math.round(ratio * 100) / 100, kind };
+}
+
+export function listCatalog(
+  category?: string
+): (CatalogItem & { basePrice: number; marketMultiplier: number | null })[] {
+  const rows = (
+    category
+      ? db.prepare("SELECT * FROM catalog_items WHERE category = ? ORDER BY price").all(category)
+      : db.prepare("SELECT * FROM catalog_items ORDER BY category, price").all()
+  ) as unknown as CatalogItem[];
+  const slot = currentMarketSlot().key;
+  // price = 지금 살 때 내는 금액(아파트·명품은 시세 반영), basePrice = 정가.
+  return rows.map((r) => ({
+    ...r,
+    basePrice: r.price,
+    price: currentBuyPrice(r),
+    marketMultiplier: r.category === "car" ? null : marketMultiplier(r.id, slot),
+  }));
 }
 
 function getItem(itemId: number): CatalogItem | undefined {
@@ -31,11 +113,12 @@ function getItem(itemId: number): CatalogItem | undefined {
 export function purchaseItem(userId: number, itemId: number): { ownedItemId: number; item: CatalogItem } {
   const item = getItem(itemId);
   if (!item) throw { status: 404, message: "존재하지 않는 상품입니다." };
-  applyLedgerEntry(userId, "자산구매", -item.price, item.id);
+  const paid = currentBuyPrice(item);
+  applyLedgerEntry(userId, "자산구매", -paid, item.id);
   const result = db
-    .prepare("INSERT INTO owned_items (user_id, catalog_item_id) VALUES (?, ?)")
-    .run(userId, item.id);
-  return { ownedItemId: Number(result.lastInsertRowid), item };
+    .prepare("INSERT INTO owned_items (user_id, catalog_item_id, paid_price) VALUES (?, ?, ?)")
+    .run(userId, item.id, paid);
+  return { ownedItemId: Number(result.lastInsertRowid), item: { ...item, price: paid } };
 }
 
 export function setDisplayed(userId: number, ownedItemId: number, displayed: boolean): void {
@@ -47,11 +130,35 @@ export function setDisplayed(userId: number, ownedItemId: number, displayed: boo
 }
 
 export function listOwnedItems(userId: number) {
-  return db
+  const rows = db
     .prepare(
-      "SELECT oi.id, oi.displayed, oi.purchased_at, ci.category, ci.brand, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.user_id = ? ORDER BY oi.id DESC"
+      "SELECT oi.id, oi.displayed, oi.purchased_at, oi.catalog_item_id, oi.paid_price, ci.category, ci.brand, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.user_id = ? ORDER BY oi.id DESC"
     )
-    .all(userId);
+    .all(userId) as any[];
+  const now = Date.now();
+  // price는 정가(마을 지도에서 "가장 비싼 집/차"를 고르는 기준), paidPrice는 실제로 낸 금액(선물 받은 건 null).
+  return rows.map(({ paid_price, ...r }) => ({
+    ...r,
+    displayed: !!r.displayed,
+    paidPrice: paid_price as number | null,
+    resale: resaleQuote(r, now),
+  }));
+}
+
+/** 소유 자산을 지금 시세(자동차는 감가 반영)로 되판다. 판 자산은 목록·전시에서 사라진다. */
+export function sellOwnedItem(userId: number, ownedItemId: number): { soldFor: number; balance: number; name: string } {
+  const row = db
+    .prepare(
+      "SELECT oi.id, oi.user_id, oi.purchased_at, oi.catalog_item_id, ci.category, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.id = ?"
+    )
+    .get(ownedItemId) as any;
+  if (!row || row.user_id !== userId) throw { status: 404, message: "소유하지 않은 자산입니다." };
+  const quote = resaleQuote(row);
+  // 행 삭제가 성공해야 돈이 들어간다(같은 자산을 두 번 파는 것 방지).
+  const del = db.prepare("DELETE FROM owned_items WHERE id = ? AND user_id = ?").run(ownedItemId, userId);
+  if (Number(del.changes) !== 1) throw { status: 409, message: "이미 판 자산입니다." };
+  const { balance } = applyLedgerEntry(userId, "자산판매", quote.price, row.catalog_item_id);
+  return { soldFor: quote.price, balance, name: row.name };
 }
 
 /** 다른 유저의 프로필 조회 화면에 노출할, 전시 설정된 소유 아이템만. */
@@ -74,12 +181,14 @@ export function giftLuxuryItem(
   if (!item || item.category !== "luxury") {
     throw { status: 404, message: "존재하지 않는 명품입니다." };
   }
-  applyLedgerEntry(senderId, "명품선물구매", -item.price, item.id);
+  // 명품 선물도 지금 시세로 산다. 받은 사람은 낸 돈이 없으므로 paid_price는 비워 둔다.
+  const paid = currentBuyPrice(item);
+  applyLedgerEntry(senderId, "명품선물구매", -paid, item.id);
   const result = db
     .prepare("INSERT INTO owned_items (user_id, catalog_item_id) VALUES (?, ?)")
     .run(receiverId, item.id);
   db.prepare(
     "INSERT INTO gifts (sender_id, receiver_id, item_ref, amount) VALUES (?, ?, ?, ?)"
-  ).run(senderId, receiverId, item.id, item.price);
-  return { ownedItemId: Number(result.lastInsertRowid), item };
+  ).run(senderId, receiverId, item.id, paid);
+  return { ownedItemId: Number(result.lastInsertRowid), item: { ...item, price: paid } };
 }

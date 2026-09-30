@@ -9,7 +9,8 @@ import { drawWorkBatch } from "./workQuestions.js";
 import { notify } from "./notifications.js";
 import { rankPayMultiplier } from "./npcBoss.js";
 import { payCutMultiplier, rehireBannedUntil, suspendedUntil } from "./workplaceDiscipline.js";
-import { WORK_PAY } from "../economy.js";
+import { VITALS, WORK_PAY } from "../economy.js";
+import { assertCanWork, spendWorkStamina } from "./vitals.js";
 
 const BATCH_SIZE = 5;
 
@@ -134,6 +135,9 @@ export function startWork(userId: number): {
     return { sessionId: session.id, questionNo: indexInBatch + 1, batchNo, ...view(batch[indexInBatch], batch) };
   }
 
+  // 새 배치는 체력이 있어야 시작할 수 있다(배치 도중 재접속은 위에서 이어서 풀게 한다).
+  assertCanWork(userId);
+
   // 새 배치: 직업별 계산형 문제 + 검증된 상황 판단 문제(workQuestions.ts). 답을 낼 때까지 세션에 저장해 둔다.
   const batchNo = Math.floor(attempts.length / BATCH_SIZE) + 1;
   const questions = drawWorkBatch(assignment.job_id);
@@ -186,6 +190,8 @@ export function submitWorkAnswer(
       sessionId
     );
   }
+  // 근무 시간(문제 1개 = workMinutes.jobQuestion분)만큼 체력이 준다.
+  spendWorkStamina(userId, VITALS.workMinutes.jobQuestion);
 
   // 틀려도 바로 정답과 이유를 보여준다(상황 판단 문제는 특히 "왜"를 알아야 다음에 맞힌다).
   const feedback = {

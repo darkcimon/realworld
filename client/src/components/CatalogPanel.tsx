@@ -44,6 +44,32 @@ export function CatalogPanel({
   async function loadOwned() {
     setOwned(await api.get<OwnedItem[]>("/catalog/owned"));
   }
+  const [marketNext, setMarketNext] = useState<string | null>(null);
+  useEffect(() => {
+    api
+      .get<{ nextChangeAt: string }>("/catalog/market")
+      .then((m) => setMarketNext(m.nextChangeAt))
+      .catch(() => {});
+  }, []);
+
+  async function sell(o: OwnedItem) {
+    const how =
+      o.resale.kind === "depreciation"
+        ? `감가 반영 구매가의 ${Math.round(o.resale.ratio * 100)}%`
+        : `지금 시세 ×${o.resale.ratio}`;
+    if (!window.confirm(`${itemDisplayName(o)}을(를) ${o.resale.price.toLocaleString()}원에 팔까요? (${how})`)) return;
+    setError(null);
+    setMessage(null);
+    try {
+      const r = await api.post<{ soldFor: number }>(`/owned-items/${o.id}/sell`);
+      setMessage(`${itemDisplayName(o)}을(를) ${r.soldFor.toLocaleString()}원에 팔았어요.`);
+      onBalanceChange();
+      onProfileChange(); // 전시 중이던 자산이면 프로필에서도 빠진다
+      await loadOwned();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "판매에 실패했습니다.");
+    }
+  }
 
   useEffect(() => {
     if (!ownedOnly) loadItems();
@@ -133,7 +159,16 @@ export function CatalogPanel({
               <strong>
                 {itemDisplayName(it)}
               </strong>
-              <div className="muted">{it.price.toLocaleString()}원</div>
+              <div className="muted">
+                {it.price.toLocaleString()}원
+                {it.marketMultiplier != null && (
+                  <>
+                    {" "}
+                    <span className={it.marketMultiplier <= 1 ? "ok-text" : "error"}>(시세 ×{it.marketMultiplier})</span>
+                    {it.basePrice != null && ` · 정가 ${it.basePrice.toLocaleString()}원`}
+                  </>
+                )}
+              </div>
             </div>
             <div className="catalog-actions">
               <button className="ghost" onClick={() => setViewAsset({ category: it.category, name: it.name })}>
@@ -153,6 +188,16 @@ export function CatalogPanel({
       </ul>
       )}
 
+      {fixedCategory !== "luxury" && fixedCategory !== "apartment" && (
+        <p className="muted">🚗 자동차는 산 날부터 하루 2%씩 값이 떨어져요(최저 구매가의 10%).</p>
+      )}
+      {fixedCategory !== "car" && marketNext && (
+        <p className="muted">
+          🏠💎 집·명품은 시세대로 사고팔아요. 시세는 매일 9·12·18시에 정가의 0.5~3배 사이로 바뀌어요 — 쌀 때 사서
+          비쌀 때 팔면 이익! 다음 변경{" "}
+          {new Date(marketNext).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+        </p>
+      )}
       <div className="owned-head">
         <h4>내 소유 자산</h4>
         <button className="ghost" onClick={openPreview}>
@@ -166,7 +211,13 @@ export function CatalogPanel({
               <strong>
                 {itemDisplayName(o)}
               </strong>
-              <div className="muted">{o.price.toLocaleString()}원</div>
+              <div className="muted">
+                {o.paidPrice != null ? `구매 ${o.paidPrice.toLocaleString()}원` : "선물 받음"} → 지금 팔면{" "}
+                <b>{o.resale.price.toLocaleString()}원</b>
+                {o.resale.kind === "depreciation"
+                  ? ` (감가 ${Math.round((1 - o.resale.ratio) * 100)}%)`
+                  : ` (시세 ×${o.resale.ratio})`}
+              </div>
             </div>
             <div className="catalog-actions">
               <button className="ghost" onClick={() => setViewAsset({ category: o.category, name: o.name })}>
@@ -174,6 +225,9 @@ export function CatalogPanel({
               </button>
               <button className={o.displayed ? "" : "ghost"} onClick={() => toggleDisplay(o.id, o.displayed)}>
                 {o.displayed ? "전시 중" : "전시하기"}
+              </button>
+              <button className="ghost" onClick={() => sell(o)}>
+                팔기
               </button>
             </div>
           </li>

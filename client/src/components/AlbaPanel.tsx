@@ -109,7 +109,7 @@ export function AlbaPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
                 : "정확하게 계산했습니다!"}{" "}
               (분급 +{lastTx.wagePaid.toLocaleString()}원
               {lastTx.wageMultiplier !== 1 && ` (×${lastTx.wageMultiplier})`}, 잔액{" "}
-              {lastTx.balance.toLocaleString()}원)
+              {lastTx.balance.toLocaleString()}원) · 💪 체력 {lastTx.stamina}
             </p>
           )}
           <button className="ghost" onClick={endShift}>

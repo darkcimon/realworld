@@ -155,6 +155,7 @@ export interface MartTxResp {
   rushRemaining: number | null;
   penaltyApplied: number;
   balance: number;
+  stamina: number; // 손님 1명(1분 근무)만큼 줄어든 뒤 남은 체력
 }
 
 export interface LotteryTicket {
@@ -185,7 +186,9 @@ export interface CatalogItem {
   category: "car" | "apartment" | "luxury";
   brand: string | null;
   name: string;
-  price: number;
+  price: number; // 지금 살 때 내는 금액(아파트·명품은 시세 반영)
+  basePrice?: number; // 정가
+  marketMultiplier?: number | null; // 아파트·명품: 지금 시세 배수(사고팔 때 모두 적용, 자동차는 null)
 }
 
 export interface OwnedItem {
@@ -195,7 +198,10 @@ export interface OwnedItem {
   category: "car" | "apartment" | "luxury";
   brand: string | null;
   name: string;
-  price: number;
+  price: number; // 정가
+  paidPrice: number | null; // 실제로 낸 금액(선물 받은 건 null)
+  // 지금 되팔면 받는 금액. 자동차는 보유 기간만큼 감가(depreciation), 아파트·명품은 시세(market) 배수.
+  resale: { price: number; ratio: number; kind: "depreciation" | "market" };
 }
 
 export interface NearbyUser {

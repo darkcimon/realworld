@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS wallets (
 CREATE TABLE IF NOT EXISTS ledger_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id),
-  type TEXT NOT NULL, -- '장보기' | '주유' | '일급' | '알바정산' | '알바오차차감' | '로또구매' | '로또당첨' | '매너초기화' | '승진축하금' | '직장보너스' …
+  type TEXT NOT NULL, -- '자산판매' | '장보기' | '주유' | '일급' | '알바정산' | '알바오차차감' | '로또구매' | '로또당첨' | '매너초기화' | '승진축하금' | '직장보너스' …
   amount INTEGER NOT NULL, -- +(지급)/-(차감)
   ref_id INTEGER,
   balance_after INTEGER NOT NULL,
@@ -392,6 +392,14 @@ CREATE TABLE IF NOT EXISTS user_vitals (
   slept_at INTEGER -- 마지막으로 내 집에서 잔 시각(epoch ms)
 );
 
+-- 아파트·명품 되팔기 시세(economy.ts ASSET_RESALE). 시세 구간(하루 3회)마다 품목별 배수를 처음 조회할 때 정해 저장한다.
+CREATE TABLE IF NOT EXISTS market_prices (
+  slot_key TEXT NOT NULL, -- "YYYY-MM-DD HH:00"(KST, 시세가 바뀐 시각)
+  catalog_item_id INTEGER NOT NULL REFERENCES catalog_items(id),
+  multiplier REAL NOT NULL,
+  PRIMARY KEY (slot_key, catalog_item_id)
+);
+
 -- ── Phase 3: 프로필 사진첩 ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS profile_photos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -523,6 +531,12 @@ if (!roomColumns.some((c) => c.name === "conversation_summary")) {
 }
 if (!roomColumns.some((c) => c.name === "summary_through_id")) {
   db.exec("ALTER TABLE rooms ADD COLUMN summary_through_id INTEGER NOT NULL DEFAULT 0");
+}
+
+// 자산 되팔기: 아파트·명품은 시세대로 사므로 실제로 낸 금액을 따로 기록한다(예전 행은 NULL = 정가).
+const ownedItemColumns = db.prepare("PRAGMA table_info(owned_items)").all() as { name: string }[];
+if (!ownedItemColumns.some((c) => c.name === "paid_price")) {
+  db.exec("ALTER TABLE owned_items ADD COLUMN paid_price INTEGER");
 }
 
 // 마트 알바: 손님 카트(정답 금액)를 서버가 발급/보관해 클라이언트가 정답을 조작하지 못하게 한다.

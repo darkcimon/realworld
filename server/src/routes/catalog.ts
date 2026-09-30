@@ -8,7 +8,9 @@ import {
   listCatalog,
   listOwnedItems,
   purchaseItem,
+  sellOwnedItem,
   setDisplayed,
+  currentMarketSlot,
 } from "../social/catalog.js";
 
 function guard(router: Router) {
@@ -25,6 +27,11 @@ catalogRouter.get("/", (req, res) => {
 
 catalogRouter.get("/owned", (req, res) => {
   res.json(listOwnedItems(req.userId!));
+});
+
+// 아파트·명품 시세가 다음에 바뀌는 시각(KST 9·12·18시)
+catalogRouter.get("/market", (_req, res) => {
+  res.json(currentMarketSlot());
 });
 
 catalogRouter.post("/:itemId/purchase", (req, res) => {
@@ -46,6 +53,14 @@ ownedItemsRouter.patch("/:id", (req, res) => {
   try {
     setDisplayed(req.userId!, Number(req.params.id), !!req.body?.displayed);
     res.json({ ok: true });
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+  }
+});
+
+ownedItemsRouter.post("/:id/sell", (req, res) => {
+  try {
+    res.json(sellOwnedItem(req.userId!, Number(req.params.id)));
   } catch (e: any) {
     res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
   }

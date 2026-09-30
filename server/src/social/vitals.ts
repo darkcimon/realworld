@@ -69,11 +69,30 @@ function fullTankPrice(carName: string): number {
   return VITALS.fullTankPrice[carName] ?? VITALS.defaultFullTankPrice;
 }
 
+/** 근무 시간(분)만큼 체력을 쓴다(0 아래로는 안 내려감). 소수점 체력도 쌓였다가 화면엔 내림해서 보인다. */
+export function spendWorkStamina(userId: number, minutes: number): number {
+  const row = load(userId);
+  const wasFull = row.stamina >= VITALS.maxStamina;
+  row.stamina = Math.max(0, row.stamina - (VITALS.staminaPerWorkHour * minutes) / 60);
+  if (wasFull) row.stamina_at = Date.now();
+  save(row);
+  return row.stamina;
+}
+
+/** 체력이 남아 있어야 일할 수 있다. */
+export function assertCanWork(userId: number): void {
+  const row = load(userId);
+  save(row);
+  if (row.stamina < 1) {
+    throw { status: 409, message: "너무 지쳐서 일할 수 없어요 😵 마트에서 먹거나 내 집에서 쉬고 오세요." };
+  }
+}
+
 function view(row: VitalsRow, userId: number, now = Date.now()) {
   const car = bestCar(userId);
   const sleepAt = row.slept_at ? row.slept_at + VITALS.sleepCooldownHours * HOUR : null;
   return {
-    stamina: row.stamina,
+    stamina: Math.floor(row.stamina), // 근무로 소수점이 생길 수 있어 화면엔 내림
     maxStamina: VITALS.maxStamina,
     walkCost: VITALS.walkCost,
     regenPerHour: VITALS.regenPerHour,
@@ -152,13 +171,13 @@ export function eat(userId: number, foodKey: string): { vitals: Vitals; balance:
   const food = VITALS.foods.find((f) => f.key === foodKey);
   if (!food) throw { status: 400, message: "없는 메뉴예요." };
   const row = load(userId);
-  if (row.stamina >= VITALS.maxStamina) throw { status: 409, message: "배가 불러요. 체력이 이미 가득해요." };
+  if (row.stamina >= VITALS.maxStamina - 0.5) throw { status: 409, message: "배가 불러요. 체력이 이미 가득해요." };
   const { balance } = applyLedgerEntry(userId, "장보기", -food.price);
   const before = row.stamina;
   row.stamina = Math.min(VITALS.maxStamina, row.stamina + food.stamina);
   if (row.stamina >= VITALS.maxStamina) row.stamina_at = Date.now();
   save(row);
-  return { vitals: view(row, userId), balance, gained: row.stamina - before };
+  return { vitals: view(row, userId), balance, gained: Math.floor(row.stamina) - Math.floor(before) };
 }
 
 /** 마트에서 주유: 부족한 만큼 채우고 그만큼만 낸다. */
