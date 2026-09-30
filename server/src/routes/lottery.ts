@@ -4,7 +4,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
 import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
-import { buyTicket, drawRound, getRound, getTodayStatus, todayKstDate } from "../social/lottery.js";
+import { buyTicket, drawRound, getRound, getTodayStatus } from "../social/lottery.js";
 
 export const lotteryRouter = Router();
 lotteryRouter.use(requireAuth);
@@ -37,12 +37,11 @@ lotteryRouter.get("/rounds/:date", (req, res) => {
   res.json(round);
 });
 
-// 매일 19:00 자동 추첨을 실제로 기다리지 않고 검증할 수 있도록 하는 개발용 엔드포인트.
+// 09·12·18시 자동 추첨을 실제로 기다리지 않고 검증할 수 있도록 하는 개발용 엔드포인트.
 // (README 4.3의 dev/fast-forward와 동일한 취지)
-// ?date=YYYY-MM-DD로 특정 회차를 지정할 수 있다 — 저녁 7시 이후(KST)에 구매하면
-// buyTicket이 자동으로 "다음 회차"로 넘기므로(social/lottery.ts), 오늘 날짜만 추첨하면
-// 방금 산 티켓이 걸린 회차를 영영 확인할 수 없는 경우가 생겨서 넣었다.
+// 기본값은 "지금 사면 들어가는 회차"(방금 산 티켓이 걸린 회차)이고,
+// ?date=YYYY-MM-DD HH:00(또는 예전 회차 YYYY-MM-DD)로 특정 회차를 지정할 수 있다.
 lotteryRouter.post("/dev/draw-today", (req, res) => {
-  const date = typeof req.query.date === "string" ? req.query.date : todayKstDate();
+  const date = typeof req.query.date === "string" ? req.query.date : getTodayStatus(req.userId!).roundDate;
   res.json(drawRound(date));
 });

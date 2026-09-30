@@ -9,6 +9,7 @@ import { drawWorkBatch } from "./workQuestions.js";
 import { notify } from "./notifications.js";
 import { rankPayMultiplier } from "./npcBoss.js";
 import { payCutMultiplier, rehireBannedUntil, suspendedUntil } from "./workplaceDiscipline.js";
+import { WORK_PAY } from "../economy.js";
 
 const BATCH_SIZE = 5;
 
@@ -238,8 +239,40 @@ export function continueOrLeaveWork(
 /**
  * 자정 배치(cron)가 호출하는 정산 함수. "실제 근무 수행 여부"(문제를 실제로 풀었는지,
  * work_attempts가 1건 이상 있는지)를 확인한 뒤에만 일급을 지급한다.
- * 지급액은 job.pay_min ~ pay_max 사이를 정답률에 비례해 산정한다.
+ * 5문제 배치마다 job.pay_min ~ pay_max 사이를 그 배치 정답률에 비례해 산정하고,
+ * 첫 배치(기본 근무) 뒤의 배치는 잔업이라 WORK_PAY.overtimeMultiplier를 곱해 더한다.
+ * 5문제를 모두 맞힌 배치마다 pay_min을 보너스로 따로 지급한다.
  */
+function sessionPay(attempts: any[], job: JobRow): { base: number; overtime: number; bonus: number; overtimeBatches: number; perfectBatches: number } {
+  const byBatch = new Map<number, { total: number; correct: number }>();
+  for (const a of attempts) {
+    const b = byBatch.get(a.batch_no) ?? { total: 0, correct: 0 };
+    b.total += 1;
+    if (a.correct) b.correct += 1;
+    byBatch.set(a.batch_no, b);
+  }
+  let base = 0;
+  let overtime = 0;
+  let bonus = 0;
+  let overtimeBatches = 0;
+  let perfectBatches = 0;
+  const firstBatch = Math.min(...byBatch.keys());
+  for (const [batchNo, b] of byBatch) {
+    const wage = job.pay_min + (job.pay_max - job.pay_min) * (b.correct / b.total);
+    if (batchNo === firstBatch) {
+      base += wage;
+    } else {
+      overtime += wage * WORK_PAY.overtimeMultiplier;
+      overtimeBatches += 1;
+    }
+    if (WORK_PAY.perfectBonus && b.total === BATCH_SIZE && b.correct === BATCH_SIZE) {
+      bonus += job.pay_min;
+      perfectBatches += 1;
+    }
+  }
+  return { base, overtime, bonus, overtimeBatches, perfectBatches };
+}
+
 export function settleUnpaidWork(userId: number): {
   settledSessions: number;
   totalPaid: number;
@@ -254,20 +287,25 @@ export function settleUnpaidWork(userId: number): {
   let settledSessions = 0;
   let hadRankBonus = false;
   let hadPayCut = false;
+  let overtimeBatches = 0;
+  let perfectBatches = 0;
   for (const session of sessions) {
     const attempts = attemptsFor(session.id);
     const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(session.job_id) as unknown as JobRow;
     let pay = 0;
     if (attempts.length > 0) {
       // 실제 근무를 수행한 경우에만 지급
-      const ratio = session.correct_count / attempts.length;
+      const p = sessionPay(attempts, job);
+      overtimeBatches += p.overtimeBatches;
+      perfectBatches += p.perfectBatches;
       // 직급(직장 상사 승진)에 따른 일급 배수를 곱한다. 직급은 직업별로 따로 쌓인다.
       const rankMult = rankPayMultiplier(userId, session.job_id);
       if (rankMult !== 1) hadRankBonus = true;
       // 징계 "감봉" 기간이면 일급을 깎는다(정산 시점 기준).
+      // 만점 보너스에는 직급 배수만 곱하고 감봉은 적용하지 않는다.
       const cutMult = payCutMultiplier(userId, session.job_id);
       if (cutMult !== 1) hadPayCut = true;
-      pay = Math.round((job.pay_min + (job.pay_max - job.pay_min) * ratio) * rankMult * cutMult);
+      pay = Math.round((p.base + p.overtime) * rankMult * cutMult + p.bonus * rankMult);
       applyLedgerEntry(userId, "일급", pay, session.id);
     }
     db.prepare("UPDATE work_sessions SET paid = 1 WHERE id = ?").run(session.id);
@@ -275,7 +313,7 @@ export function settleUnpaidWork(userId: number): {
     settledSessions += 1;
   }
   if (totalPaid > 0) {
-    notify(userId, "salary", `💰 월급 ${totalPaid.toLocaleString()}원이 지급되었어요! (${settledSessions}건 정산${hadRankBonus ? ", 직급 배수 반영" : ""}${hadPayCut ? ", 감봉 반영" : ""})`);
+    notify(userId, "salary", `💰 월급 ${totalPaid.toLocaleString()}원이 지급되었어요! (${settledSessions}건 정산${overtimeBatches > 0 ? `, 잔업 ${overtimeBatches}회 ×${WORK_PAY.overtimeMultiplier}` : ""}${perfectBatches > 0 ? `, 만점 보너스 ${perfectBatches}회` : ""}${hadRankBonus ? ", 직급 배수 반영" : ""}${hadPayCut ? ", 감봉 반영" : ""})`);
   }
   return { settledSessions, totalPaid };
 }

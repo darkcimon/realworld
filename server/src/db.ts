@@ -327,9 +327,9 @@ CREATE TABLE IF NOT EXISTS mart_transactions (
 CREATE TABLE IF NOT EXISTS lottery_tickets (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id),
-  round_date TEXT NOT NULL, -- KST 날짜(YYYY-MM-DD)
+  round_date TEXT NOT NULL, -- 회차 키: "YYYY-MM-DD HH:00"(KST 추첨 시각). 예전 하루 1회 시절 회차는 "YYYY-MM-DD"
   amount INTEGER NOT NULL, -- 게임머니(원)
-  slot INTEGER NOT NULL, -- 해당 유저의 당일 몇 번째 구매인지(1~3)
+  slot INTEGER NOT NULL, -- 해당 유저의 그 회차 몇 번째 구매인지(1~3)
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

@@ -165,7 +165,9 @@ export interface LotteryTicket {
 }
 
 export interface LotteryToday {
-  roundDate: string;
+  roundDate: string; // 회차 키 "YYYY-MM-DD HH:00"
+  drawAt: string; // 추첨 시각(ISO)
+  drawHours: number[]; // 하루 추첨 시각(KST, 시)
   tickets: LotteryTicket[];
   remaining: number;
   round: { drawn_at: string | null; tier1_min: number | null; tier1_max: number | null } | null;

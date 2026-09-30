@@ -1,11 +1,15 @@
-// README 7장: 로또. 만원 단위 구매, 하루 3개 제한, 매일 19:00 KST 추첨.
+// README 7장: 로또. 만원 단위 구매, 회차당 3개 제한, 매일 09:00·12:00·18:00 KST 세 번 추첨.
 // 1~4등 상금표는 README에 정확한 금액이 나와 있지 않아 임의의 기본값을 두고,
 // "10명 단위마다 1등 당첨금 범위 2배 보정" 규칙만 문서 그대로 구현한다.
 import { db } from "../db.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
 import { notify } from "./notifications.js";
 
-export const DAILY_TICKET_LIMIT = 3;
+export const DAILY_TICKET_LIMIT = 3; // 회차당 구매 가능 수
+// 하루 추첨 시각(KST, 시). 회차 키는 "YYYY-MM-DD HH:00" 형식이다.
+// 예전 회차(하루 1회 시절)는 키가 "YYYY-MM-DD"이고 그날 19:00에 추첨된다.
+export const DRAW_HOURS = [9, 12, 18];
+const LEGACY_DRAW_HOUR = 19;
 const UNIT_AMOUNT = 10_000; // 만원
 
 const TIER1_BASE = { min: 1_000_000, max: 5_000_000 };
@@ -27,9 +31,16 @@ export function todayKstDate(): string {
   return kst.toISOString().slice(0, 10);
 }
 
-function kstHour(): number {
-  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  return kst.getUTCHours();
+function roundKey(date: string, hour: number): string {
+  return `${date} ${String(hour).padStart(2, "0")}:00`;
+}
+
+/** 회차 키의 추첨 시각(epoch ms). 예전 날짜형 키는 그날 19:00 KST. */
+function drawTimeOf(key: string): number {
+  const [date, time] = key.split(" ");
+  const hour = time ? Number(time.slice(0, 2)) : LEGACY_DRAW_HOUR;
+  const [y, m, d] = date.split("-").map(Number);
+  return Date.UTC(y, m - 1, d, hour) - 9 * 60 * 60 * 1000;
 }
 
 function ensureRound(roundDate: string): { id: number } {
@@ -54,18 +65,20 @@ function addDaysToKstDate(dateStr: string, days: number): string {
 }
 
 /**
- * 지금 구매하면 실제로 어느 회차에 들어갈지 정한다. 오늘 회차는 매일 저녁 7시(KST)에
- * 추첨되므로(README 7.1), 7시가 지났거나(스케줄러가 이미 돌았거나) 오늘 회차가 이미
- * 추첨 완료된 상태라면 오늘 것을 사려던 시도는 자동으로 "다음 회차" 구매로 넘어간다.
- * (수정 전에는 buyTicket이 이 여부를 확인하지 않아, 7시 이후 구매가 이미 추첨 끝난
- * 회차에 묶여버려 당첨 기회 없이 돈만 차감되는 문제가 있었다.)
+ * 지금 구매하면 실제로 어느 회차에 들어갈지 정한다. 하루 세 번(09·12·18시 KST) 추첨하므로
+ * 추첨 시각이 아직 오지 않았고 추첨 전인 가장 가까운 회차에 들어간다. 18시가 지나면
+ * 다음 날 09시 회차로 넘어간다. (추첨 끝난 회차에 묶여 당첨 기회 없이 돈만 차감되는 것을 막는다.)
  */
 function resolvePurchaseRoundDate(): string {
+  const now = Date.now();
   const today = todayKstDate();
-  if (kstHour() >= 19 || isRoundDrawn(today)) {
-    return addDaysToKstDate(today, 1);
+  for (const date of [today, addDaysToKstDate(today, 1)]) {
+    for (const hour of DRAW_HOURS) {
+      const key = roundKey(date, hour);
+      if (drawTimeOf(key) > now && !isRoundDrawn(key)) return key;
+    }
   }
-  return today;
+  return roundKey(addDaysToKstDate(today, 2), DRAW_HOURS[0]);
 }
 
 export function buyTicket(userId: number, units: number): {
@@ -87,7 +100,7 @@ export function buyTicket(userId: number, units: number): {
       .get(userId, roundDate) as { c: number }
   ).c;
   if (boughtToday >= DAILY_TICKET_LIMIT) {
-    throw { status: 403, message: `로또는 하루 ${DAILY_TICKET_LIMIT}개까지만 구매할 수 있습니다.` };
+    throw { status: 403, message: `로또는 회차당 ${DAILY_TICKET_LIMIT}개까지만 구매할 수 있습니다.` };
   }
 
   const amount = units * UNIT_AMOUNT;
@@ -117,7 +130,14 @@ export function getTodayStatus(userId: number) {
     )
     .all(userId, roundDate);
   const round = db.prepare("SELECT * FROM lottery_rounds WHERE round_date = ?").get(roundDate);
-  return { roundDate, tickets, remaining: DAILY_TICKET_LIMIT - tickets.length, round };
+  return {
+    roundDate,
+    drawAt: new Date(drawTimeOf(roundDate)).toISOString(),
+    drawHours: DRAW_HOURS,
+    tickets,
+    remaining: DAILY_TICKET_LIMIT - tickets.length,
+    round,
+  };
 }
 
 export function getRound(roundDate: string, userId?: number) {
@@ -204,8 +224,8 @@ export function drawRound(roundDate: string): {
       userId,
       "lottery",
       sum.prize > 0
-        ? `🎰 ${roundDate} 로또 결과: ${sum.bestTier}등 당첨! 총 ${sum.prize.toLocaleString()}원이 지급되었어요.`
-        : `🎰 ${roundDate} 로또 결과: 아쉽게도 낙첨이에요. 다음 회차를 노려보세요!`
+        ? `🎰 ${roundDate} 회차 로또 결과: ${sum.bestTier}등 당첨! 총 ${sum.prize.toLocaleString()}원이 지급되었어요.`
+        : `🎰 ${roundDate} 회차 로또 결과: 아쉽게도 낙첨이에요. 다음 회차를 노려보세요!`
     );
   }
 
@@ -216,12 +236,23 @@ export function drawRound(roundDate: string): {
   return { drawn: true, participantCount, tier1Min, tier1Max };
 }
 
-/** 매일 19:00 KST가 지났고 오늘 회차가 아직 추첨 전이면 추첨한다. 1분마다 폴링해 호출한다. */
+/**
+ * 추첨 시각이 지났는데 아직 추첨 전인 회차를 모두 추첨한다. 1분마다 폴링해 호출한다.
+ * 서버가 꺼져 있던 동안 지나간 회차(예전 날짜형 회차 포함)도 여기서 뒤늦게 추첨된다.
+ */
 export function drawTodayIfDue(): void {
-  if (kstHour() < 19) return;
-  const roundDate = todayKstDate();
-  ensureRound(roundDate);
-  drawRound(roundDate);
+  const now = Date.now();
+  const today = todayKstDate();
+  for (const hour of DRAW_HOURS) {
+    const key = roundKey(today, hour);
+    if (drawTimeOf(key) <= now) ensureRound(key);
+  }
+  const pending = db
+    .prepare("SELECT round_date FROM lottery_rounds WHERE drawn_at IS NULL")
+    .all() as { round_date: string }[];
+  for (const { round_date } of pending) {
+    if (drawTimeOf(round_date) <= now) drawRound(round_date);
+  }
 }
 
 let scheduler: NodeJS.Timeout | null = null;
