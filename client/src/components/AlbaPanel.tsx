@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { requestVitalsRefresh } from "../vitalsEvents";
 import { api, ApiError } from "../api";
 import type { MartCartItem, MartTxResp } from "../types";
 import { ManagerPanel } from "./ManagerPanel";
@@ -47,6 +48,7 @@ export function AlbaPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
         enteredAmount: Number(entered),
       });
       setLastTx(r);
+      requestVitalsRefresh(); // 손님 1명 = 1분 근무만큼 체력이 줄었다
       setEntered("");
       setCart(r.nextCart);
       // 특별 근무 중이면 점장 카드의 남은 건수/완료 상태를 갱신한다.

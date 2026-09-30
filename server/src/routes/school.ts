@@ -9,6 +9,8 @@ import { aiProvider } from "../ai/index.js";
 import type { ExamQuestion } from "../ai/AIProvider.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
 import { buildChoices } from "../ai/choices.js";
+import { SCHOOL_REPEAT_REWARD } from "../economy.js";
+import { todayKstDate } from "../social/lottery.js";
 
 export const schoolRouter = Router();
 schoolRouter.use(requireAuth);
@@ -29,6 +31,8 @@ const PROMOTION_REWARD: Record<string, number> = {
 // 배치고사 합격 보상(학교급 무관 고정 300만원).
 const PLACEMENT_REWARD = 3_000_000;
 const PROMOTION_REWARD_TYPE = "승급시험보상";
+// 두 번째 합격부터 주는 학년별 보상(economy.ts SCHOOL_REPEAT_REWARD, 방마다 하루 1회).
+const REPEAT_REWARD_TYPE = "재시험보상";
 const PLACEMENT_REWARD_TYPE = "배치고사보상";
 
 interface StudentProfileRow {
@@ -270,6 +274,7 @@ schoolRouter.post("/rooms/:roomId/exam/answer", (req, res) => {
   ).run(req.userId, roomId, correctCount, EXAM_TOTAL, passed ? 1 : 0);
 
   let reward = 0;
+  let rewardNote: string | null = null;
   if (passed) {
     const already = db
       .prepare("SELECT 1 FROM ledger_entries WHERE user_id = ? AND type = ? AND ref_id = ? LIMIT 1")
@@ -277,6 +282,20 @@ schoolRouter.post("/rooms/:roomId/exam/answer", (req, res) => {
     if (!already) {
       reward = PROMOTION_REWARD[room.school_level] ?? 0;
       if (reward > 0) applyLedgerEntry(req.userId!, PROMOTION_REWARD_TYPE, reward, roomId);
+    } else {
+      // 두 번째 합격부터: 학년별 차등 보상, 이 방에서 오늘(KST) 아직 안 받았을 때만.
+      const repeat = SCHOOL_REPEAT_REWARD[room.school_level]?.[room.grade - 1] ?? 0;
+      const today = db
+        .prepare(
+          "SELECT 1 FROM ledger_entries WHERE user_id = ? AND type = ? AND ref_id = ? AND date(created_at, '+9 hours') = ? LIMIT 1"
+        )
+        .get(req.userId, REPEAT_REWARD_TYPE, roomId, todayKstDate());
+      if (repeat > 0 && !today) {
+        reward = repeat;
+        applyLedgerEntry(req.userId!, REPEAT_REWARD_TYPE, reward, roomId);
+      } else if (repeat > 0) {
+        rewardNote = "이 학년 재시험 보상은 오늘 이미 받았어요. 내일 다시 도전하세요!";
+      }
     }
   }
 
@@ -303,6 +322,7 @@ schoolRouter.post("/rooms/:roomId/exam/answer", (req, res) => {
     total: EXAM_TOTAL,
     passed,
     reward,
+    rewardNote,
     wrongAnswers,
   });
 });

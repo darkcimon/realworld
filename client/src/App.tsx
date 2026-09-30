@@ -13,6 +13,7 @@ import { JailScreen } from "./components/JailScreen";
 import { SocialHub, type FacilityView } from "./components/SocialHub";
 import { TownHub, type FacilityKey, type OwnedAsset } from "./components/TownHub";
 import { HelpGuide } from "./components/HelpGuide";
+import { onVitalsRefresh } from "./vitalsEvents";
 
 type View = "hub" | "rooms" | "lesson" | "chat" | "social";
 
@@ -77,12 +78,25 @@ export default function App() {
       .catch(() => {
         /* 못 받아오면 박스집·걷기로 보일 뿐 */
       });
-    api
-      .get<Vitals>("/town/vitals")
-      .then(setVitals)
-      .catch(() => {
-        /* 체력 표시만 빠진다 */
-      });
+  }, [graduated, view]);
+
+  // 체력(오른쪽 위 배터리·마을 지도): 화면을 옮길 때, 근무로 체력이 줄었을 때, 그리고 자연 회복을 보여주려고 1분마다 새로 받는다.
+  useEffect(() => {
+    if (!graduated) return;
+    const load = () =>
+      api
+        .get<Vitals>("/town/vitals")
+        .then(setVitals)
+        .catch(() => {
+          /* 체력 표시만 빠진다 */
+        });
+    load();
+    const t = window.setInterval(load, 60_000);
+    const off = onVitalsRefresh(load);
+    return () => {
+      clearInterval(t);
+      off();
+    };
   }, [graduated, view]);
 
   // 마을에서 이동할 때마다 서버가 체력/연료를 깎고 이동 방식(걷기/차/지친 걸음)을 정해준다.
@@ -158,7 +172,7 @@ export default function App() {
     <div className="app">
       {/* 프로필/도움말/로그아웃/상단 탭은 화면을 항상 차지할 필요가 없다 — 특히 수업 중에는
           세로 공간이 귀하므로, 필요할 때만 여는 사이드바로 옮기고 평소엔 여는 버튼만 남긴다. */}
-      <RetentionBar refreshKey={view} />
+      <RetentionBar refreshKey={view} vitals={graduated ? vitals : null} />
 
       <button
         className="sidebar-toggle"

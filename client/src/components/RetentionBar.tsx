@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
-import type { DailyStatus, NotificationsResp } from "../types";
+import type { DailyStatus, NotificationsResp, Vitals } from "../types";
 
 // 리텐션 루프 UI: 우상단의 📅(출석/일일 퀘스트)와 🔔(알림) 버튼.
 // - 그날 첫 접속에 출석하지 않았다면 출석 패널을 자동으로 띄워 "오늘 할 일"을 바로 보여준다.
@@ -18,9 +18,11 @@ const TYPE_ICON: Record<string, string> = {
 export function RetentionBar({
   refreshKey,
   onBalanceChange,
+  vitals,
 }: {
   refreshKey: string;
   onBalanceChange?: () => void;
+  vitals?: Vitals | null; // 졸업 후에만 넘어온다 — 달력 옆에 체력 배터리로 표시
 }) {
   const [daily, setDaily] = useState<DailyStatus | null>(null);
   const [notif, setNotif] = useState<NotificationsResp | null>(null);
@@ -104,6 +106,7 @@ export function RetentionBar({
   return (
     <>
       <div className="retention-bar">
+        {vitals && <StaminaBattery vitals={vitals} />}
         <button
           className="retention-btn"
           onClick={() => {
@@ -205,5 +208,21 @@ export function RetentionBar({
         </div>
       )}
     </>
+  );
+}
+
+/** 달력 옆 체력 배터리: 남은 체력 비율만큼 채우고, 적을수록 노랑 → 빨강으로 바뀐다. */
+function StaminaBattery({ vitals: v }: { vitals: Vitals }) {
+  const pct = Math.max(0, Math.min(100, Math.round((v.stamina / v.maxStamina) * 100)));
+  const level = pct > 50 ? "ok" : pct > 20 ? "mid" : "low";
+  const label = `체력 ${v.stamina}/${v.maxStamina}`;
+  return (
+    <div className={`stamina-battery ${level}`} role="img" aria-label={label} title={label}>
+      <div className="stamina-battery-body">
+        <div className="stamina-battery-fill" style={{ width: `${pct}%` }} />
+        <span className="stamina-battery-text">{v.stamina}</span>
+      </div>
+      <div className="stamina-battery-tip" />
+    </div>
   );
 }

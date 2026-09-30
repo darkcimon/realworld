@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { requestVitalsRefresh } from "../vitalsEvents";
 import { api, ApiError } from "../api";
 import type { Job, WorkAnswerResp, WorkStartResp } from "../types";
 import { AnswerInput } from "./AnswerInput";
@@ -55,6 +56,7 @@ export function JobsPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
     if (!question || sessionId === null) return;
     try {
       const r = await api.post<WorkAnswerResp>("/work/answer", { sessionId, answer });
+      requestVitalsRefresh(); // 문제 1개 = 12분 근무만큼 체력이 줄었다
       setLastResult({ correct: r.correct, correctAnswer: r.correctAnswer, explanation: r.explanation });
       if (r.batchComplete) {
         setAwaitingDecision(true);

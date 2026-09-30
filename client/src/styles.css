@@ -397,6 +397,17 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 /* 리텐션 바(출석/퀘스트/알림) */
 .retention-bar { position: fixed; top: 14px; right: 14px; z-index: 900; display: flex; gap: 8px; }
 .retention-btn { position: relative; width: 40px; height: 40px; padding: 0; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); font-size: 18px; line-height: 1; }
+.stamina-battery { display: flex; align-items: center; height: 40px; padding: 0 4px; }
+.stamina-battery-body { position: relative; width: 44px; height: 22px; border: 2px solid var(--text); border-radius: 5px; padding: 2px; box-sizing: border-box; background: var(--panel-2); overflow: hidden; }
+.stamina-battery-fill { height: 100%; border-radius: 2px; transition: width .4s, background .4s; }
+.stamina-battery.ok .stamina-battery-fill { background: #4cc38a; }
+.stamina-battery.mid .stamina-battery-fill { background: #f0b429; }
+.stamina-battery.low .stamina-battery-fill { background: #e5534b; }
+.stamina-battery.low .stamina-battery-body { animation: battery-blink 1.2s ease-in-out infinite; }
+.stamina-battery-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; font-variant-numeric: tabular-nums; }
+.stamina-battery-tip { width: 3px; height: 9px; margin-left: 1px; border-radius: 0 2px 2px 0; background: var(--text); }
+@keyframes battery-blink { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .stamina-battery.low .stamina-battery-body { animation: none; } }
 .retention-badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger, #e5484d); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
 .notif-panel { position: fixed; top: 62px; right: 14px; z-index: 950; width: 320px; max-width: calc(100vw - 28px); max-height: 60vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
 .notif-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
