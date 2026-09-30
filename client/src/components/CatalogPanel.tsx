@@ -9,23 +9,29 @@ export const AssetViewer = lazy(() => import("./AssetViewer"));
 
 const CATEGORIES: { key: CatalogItem["category"]; label: string }[] = [
   { key: "car", label: "자동차" },
-  { key: "apartment", label: "아파트" },
+  { key: "apartment", label: "집" },
   { key: "luxury", label: "명품" },
 ];
 
 // README 8~10장: 자동차/아파트/명품 — 구매 → 소유 → 프로필 전시 토글. 명품은 선물도 가능.
+// fixedCategory: 그 매장 상품과 그 카테고리 소유 자산만 보여준다.
+// ownedOnly: 매장 목록 없이 소유 자산 전체만 보여준다(내 집).
 export function CatalogPanel({
   onBalanceChange,
   onProfileChange,
   initialCategory,
+  fixedCategory,
+  ownedOnly = false,
 }: {
   onBalanceChange: () => void;
   onProfileChange: () => void;
   initialCategory?: CatalogItem["category"];
+  fixedCategory?: CatalogItem["category"];
+  ownedOnly?: boolean;
 }) {
   const [previewId, setPreviewId] = useState<number | null>(null);
   const [viewAsset, setViewAsset] = useState<{ category: CatalogItem["category"]; name: string } | null>(null);
-  const [category, setCategory] = useState<CatalogItem["category"]>(initialCategory ?? "car");
+  const [category, setCategory] = useState<CatalogItem["category"]>(fixedCategory ?? initialCategory ?? "car");
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [owned, setOwned] = useState<OwnedItem[]>([]);
   const [giftTarget, setGiftTarget] = useState("");
@@ -40,8 +46,8 @@ export function CatalogPanel({
   }
 
   useEffect(() => {
-    loadItems();
-  }, [category]);
+    if (!ownedOnly) loadItems();
+  }, [category, ownedOnly]);
   useEffect(() => {
     loadOwned();
   }, []);
@@ -87,12 +93,16 @@ export function CatalogPanel({
     }
   }
 
+  const visibleOwned = fixedCategory ? owned.filter((o) => o.category === fixedCategory) : owned;
+
   return (
     <div className="panel">
-      <h3>자산</h3>
+      {/* 매장 이름은 시설 머리글(SocialHub)에 이미 나오므로 매장 모드에선 생략 */}
+      {!fixedCategory && <h3>{ownedOnly ? "🏠 내 자산" : "자산"}</h3>}
       {error && <p className="error">{error}</p>}
       {message && <p className="ok-text">{message}</p>}
 
+      {!ownedOnly && !fixedCategory && (
       <div className="tabs sub-tabs">
         {CATEGORIES.map((c) => (
           <button
@@ -104,8 +114,9 @@ export function CatalogPanel({
           </button>
         ))}
       </div>
+      )}
 
-      {category === "luxury" && (
+      {!ownedOnly && category === "luxury" && (
         <input
           className="gift-target-input"
           value={giftTarget}
@@ -114,6 +125,7 @@ export function CatalogPanel({
         />
       )}
 
+      {!ownedOnly && (
       <ul className="catalog-list">
         {items.map((it) => (
           <li key={it.id}>
@@ -139,6 +151,7 @@ export function CatalogPanel({
           </li>
         ))}
       </ul>
+      )}
 
       <div className="owned-head">
         <h4>내 소유 자산</h4>
@@ -147,7 +160,7 @@ export function CatalogPanel({
         </button>
       </div>
       <ul className="catalog-list">
-        {owned.map((o) => (
+        {visibleOwned.map((o) => (
           <li key={o.id}>
             <div>
               <strong>
@@ -165,7 +178,7 @@ export function CatalogPanel({
             </div>
           </li>
         ))}
-        {owned.length === 0 && <p className="muted">아직 소유한 자산이 없습니다.</p>}
+        {visibleOwned.length === 0 && <p className="muted">아직 소유한 자산이 없습니다.</p>}
       </ul>
 
       {viewAsset && (

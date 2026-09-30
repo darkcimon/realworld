@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, clearToken, getToken } from "./api";
-import type { CatalogItem, PlacementInfo, Profile, RoomSummary } from "./types";
+import type { MoveMode, PlacementInfo, Profile, RoomSummary, Vitals } from "./types";
 import { Login } from "./components/Login";
 import { ProfileHeader } from "./components/ProfileHeader";
 import { RoomList } from "./components/RoomList";
@@ -10,28 +10,25 @@ import { ExamModal } from "./components/ExamModal";
 import { PlacementModal } from "./components/PlacementModal";
 import { RetentionBar } from "./components/RetentionBar";
 import { JailScreen } from "./components/JailScreen";
-import { SocialHub, type SocialTab } from "./components/SocialHub";
-import { TownHub, type FacilityKey } from "./components/TownHub";
+import { SocialHub, type FacilityView } from "./components/SocialHub";
+import { TownHub, type FacilityKey, type OwnedAsset } from "./components/TownHub";
 import { HelpGuide } from "./components/HelpGuide";
 
 type View = "hub" | "rooms" | "lesson" | "chat" | "social";
 
-// TownHub의 시설 카드를 실제로 이미 구현돼 있는 SocialHub 탭으로 연결한다.
-// 자동차/아파트/명품샵은 모두 "자산(catalog)" 탭 안 카테고리라서 initialCatalogCategory로 구분하고,
-// 마트는 별도 화면이 없고 알바 안의 마트 계산원 업무로 구현돼 있어 alba 탭으로 보낸다.
-const FACILITY_TO_SOCIAL_TAB: Partial<Record<FacilityKey, SocialTab>> = {
-  jobs: "jobs",
-  alba: "alba",
-  lottery: "lottery",
-  mart: "alba",
-  car: "catalog",
-  apartment: "catalog",
-  luxury: "catalog",
-};
-const FACILITY_TO_CATALOG_CATEGORY: Partial<Record<FacilityKey, CatalogItem["category"]>> = {
-  car: "car",
-  apartment: "apartment",
-  luxury: "luxury",
+// 마을 시설 → SocialHub에서 보여줄 화면. 시설 안에서는 그 시설 기능만 쓸 수 있고, 다른 시설로 가려면
+// 마을로 나가 걸어가야(차가 있으면 타고) 한다 — 사이드바/탭으로 바로 넘어가는 지름길은 두지 않는다.
+// 마트는 별도 화면이 없고 알바 안의 마트 계산원 업무로 구현돼 있어 alba 탭을 쓴다.
+// 지갑·매너·인연찾기처럼 특정 건물이 없는 기능은 "내 집"에 모았다.
+const FACILITY_VIEWS: Partial<Record<FacilityKey, FacilityView>> = {
+  jobs: { title: "💼 직장", tabs: ["jobs"] },
+  alba: { title: "🧢 알바", tabs: ["alba"] },
+  mart: { title: "🛒 마트", tabs: ["shop", "alba"] },
+  lottery: { title: "🎰 로또", tabs: ["lottery"] },
+  car: { title: "🚗 자동차 매장", tabs: ["catalog"], catalogCategory: "car" },
+  apartment: { title: "🏡 모델하우스", tabs: ["catalog"], catalogCategory: "apartment" },
+  luxury: { title: "💎 명품샵", tabs: ["catalog"], catalogCategory: "luxury" },
+  home: { title: "🏠 내 집", tabs: ["rest", "wallet", "catalog", "manner", "nearby"], catalogOwnedOnly: true },
 };
 
 export default function App() {
@@ -44,8 +41,9 @@ export default function App() {
   const [placements, setPlacements] = useState<PlacementInfo[]>([]);
   const [placementOpen, setPlacementOpen] = useState<PlacementInfo | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [socialTab, setSocialTab] = useState<SocialTab | undefined>();
-  const [catalogCategory, setCatalogCategory] = useState<CatalogItem["category"] | undefined>();
+  const [facility, setFacility] = useState<FacilityView | null>(null);
+  const [owned, setOwned] = useState<OwnedAsset[]>([]);
+  const [vitals, setVitals] = useState<Vitals | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -68,6 +66,31 @@ export default function App() {
   useEffect(() => {
     if (authed) loadAll();
   }, [authed]);
+
+  // 마을 지도의 내 집/내 차 모습은 소유 자산으로 정해진다. 마을로 돌아올 때마다 새로 받는다(매장에서 샀을 수 있음).
+  const graduated = profile?.school.status === "graduated";
+  useEffect(() => {
+    if (!graduated || view !== "hub") return;
+    api
+      .get<OwnedAsset[]>("/catalog/owned")
+      .then(setOwned)
+      .catch(() => {
+        /* 못 받아오면 박스집·걷기로 보일 뿐 */
+      });
+    api
+      .get<Vitals>("/town/vitals")
+      .then(setVitals)
+      .catch(() => {
+        /* 체력 표시만 빠진다 */
+      });
+  }, [graduated, view]);
+
+  // 마을에서 이동할 때마다 서버가 체력/연료를 깎고 이동 방식(걷기/차/지친 걸음)을 정해준다.
+  async function moveInTown(): Promise<MoveMode> {
+    const r = await api.post<{ mode: MoveMode; vitals: Vitals }>("/town/move");
+    setVitals(r.vitals);
+    return r.mode;
+  }
 
   // 처음 접속한 브라우저라면 마을 홈 화면과 함께 도움말을 한 번 자동으로 띄워서
   // "학교밖에 없는 게임"으로 오해하지 않게 전체 진행 흐름을 먼저 보여준다.
@@ -120,9 +143,9 @@ export default function App() {
       setView("rooms");
       return;
     }
-    if (key === "jail") return; // 감옥은 선택해서 가는 곳이 아니라 규칙 위반 시 강제로 가는 곳
-    setSocialTab(FACILITY_TO_SOCIAL_TAB[key]);
-    setCatalogCategory(FACILITY_TO_CATALOG_CATEGORY[key]);
+    const next = FACILITY_VIEWS[key];
+    if (!next) return; // 감옥은 선택해서 가는 곳이 아니라 규칙 위반 시 강제로 가는 곳
+    setFacility(next);
     setView("social");
   }
 
@@ -166,21 +189,11 @@ export default function App() {
                 로그아웃
               </button>
             </div>
+            {/* 시설로 바로 가는 지름길은 두지 않는다 — 마을로 돌아가 걸어서(차로) 이동한다. */}
             <div className="tabs sidebar-nav">
               <button className={view === "hub" ? "active" : ""} onClick={() => goTo("hub")}>
-                🏠 홈
+                🗺️ 마을로
               </button>
-              <button
-                className={view === "rooms" || view === "lesson" || view === "chat" ? "active" : ""}
-                onClick={() => goTo("rooms")}
-              >
-                🏫 학교
-              </button>
-              {profile.school.status === "graduated" && (
-                <button className={view === "social" ? "active" : ""} onClick={() => goTo("social")}>
-                  🏙️ 사회
-                </button>
-              )}
             </div>
           </aside>
         </div>
@@ -190,12 +203,15 @@ export default function App() {
         <TownHub
           graduated={profile.school.status === "graduated"}
           avatarUrl={profile.avatarUrl}
+          owned={owned}
+          vitals={vitals}
+          onMove={moveInTown}
           onSelect={enterFacility}
         />
       )}
 
-      {view === "social" && (
-        <SocialHub onProfileChange={loadAll} initialTab={socialTab} initialCatalogCategory={catalogCategory} />
+      {view === "social" && facility && (
+        <SocialHub key={facility.title} onProfileChange={loadAll} facility={facility} onExit={() => setView("hub")} onVitalsChange={setVitals} />
       )}
 
       {view === "rooms" && (

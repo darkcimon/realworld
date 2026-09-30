@@ -466,3 +466,23 @@ export interface ColleagueChatResp {
   reportedTo: string | null;
   remainingToday: number;
 }
+
+// ── 마을 이동: 체력 / 연료 (서버 social/vitals.ts) ─────────────────────
+export type MoveMode = "walk" | "drive" | "tired";
+
+export interface Vitals {
+  stamina: number;
+  maxStamina: number;
+  walkCost: number;
+  regenPerHour: number;
+  fuel: number;
+  tankMoves: number;
+  car: { name: string; fullTankPrice: number } | null;
+  canSleepAt: string | null; // 다시 잘 수 있는 시각(ISO). null이면 지금 잘 수 있음
+}
+
+export interface ShopMenu {
+  foods: { key: string; name: string; price: number; stamina: number }[];
+  fuel: { missing: number; price: number } | null;
+  vitals: Vitals;
+}

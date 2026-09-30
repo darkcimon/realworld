@@ -19,6 +19,7 @@ import { dailyRouter, notificationsRouter } from "./routes/daily.js";
 import { npcRouter } from "./routes/npc.js";
 import { mannerRouter } from "./routes/manner.js";
 import { lotteryRouter } from "./routes/lottery.js";
+import { townRouter } from "./routes/town.js";
 import { catalogRouter, luxuryRouter, ownedItemsRouter } from "./routes/catalog.js";
 import { locationRouter, nearbyRouter } from "./routes/location.js";
 import {
@@ -50,6 +51,8 @@ app.use("/api/work", workRouter);
 app.use("/api/alba", albaRouter);
 app.use("/api/manner", mannerRouter);
 app.use("/api/lottery", lotteryRouter);
+// 마을 이동(체력/연료), 내 집 잠자기, 마트 장보기·주유
+app.use("/api/town", townRouter);
 // Phase 3: 소비/과시 자산 & 소셜(연애) 시스템
 app.use("/api/catalog", catalogRouter);
 app.use("/api/owned-items", ownedItemsRouter);

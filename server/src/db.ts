@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS wallets (
 CREATE TABLE IF NOT EXISTS ledger_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id),
-  type TEXT NOT NULL, -- '일급' | '알바정산' | '알바오차차감' | '로또구매' | '로또당첨' | '매너초기화' | '승진축하금' | '직장보너스' …
+  type TEXT NOT NULL, -- '장보기' | '주유' | '일급' | '알바정산' | '알바오차차감' | '로또구매' | '로또당첨' | '매너초기화' | '승진축하금' | '직장보너스' …
   amount INTEGER NOT NULL, -- +(지급)/-(차감)
   ref_id INTEGER,
   balance_after INTEGER NOT NULL,
@@ -381,6 +381,15 @@ CREATE TABLE IF NOT EXISTS owned_items (
   catalog_item_id INTEGER NOT NULL REFERENCES catalog_items(id),
   purchased_at TEXT NOT NULL DEFAULT (datetime('now')),
   displayed INTEGER NOT NULL DEFAULT 0
+);
+
+-- ── 마을 이동: 체력 / 연료 (economy.ts VITALS) ─────────────────────
+CREATE TABLE IF NOT EXISTS user_vitals (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id),
+  stamina INTEGER NOT NULL,
+  stamina_at INTEGER NOT NULL, -- 자연 회복 계산 기준 시각(epoch ms)
+  fuel INTEGER NOT NULL, -- 남은 이동 횟수(차가 있을 때만 쓰임)
+  slept_at INTEGER -- 마지막으로 내 집에서 잔 시각(epoch ms)
 );
 
 -- ── Phase 3: 프로필 사진첩 ────────────────────────────────────────

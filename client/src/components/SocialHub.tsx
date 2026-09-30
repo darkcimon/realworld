@@ -8,12 +8,16 @@ import { MannerPanel } from "./MannerPanel";
 import { CatalogPanel } from "./CatalogPanel";
 import { NearbyPanel } from "./NearbyPanel";
 import { PersonPanel } from "./PersonPanel";
-import type { CatalogItem } from "../types";
+import { MartShopPanel } from "./MartShopPanel";
+import { HomeRestPanel } from "./HomeRestPanel";
+import type { CatalogItem, Vitals } from "../types";
 
-export type SocialTab = "wallet" | "jobs" | "alba" | "lottery" | "manner" | "catalog" | "nearby";
+export type SocialTab = "rest" | "shop" | "wallet" | "jobs" | "alba" | "lottery" | "manner" | "catalog" | "nearby";
 type Tab = SocialTab;
 
 const TABS: { key: Tab; label: string }[] = [
+  { key: "rest", label: "쉬기" },
+  { key: "shop", label: "장보기" },
   { key: "wallet", label: "지갑" },
   { key: "jobs", label: "직장" },
   { key: "alba", label: "알바" },
@@ -23,17 +27,27 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "nearby", label: "인연찾기" },
 ];
 
-// README 6~11장(사회 생활/로또/자산/소셜): 고3 졸업 후 열리는 사회 콘텐츠 전체를 탭으로 묶는다.
+/** 마을 시설 하나에 들어왔을 때 보여줄 것. 다른 시설로 가려면 마을로 나가서 걸어가야 한다. */
+export interface FacilityView {
+  title: string;
+  tabs: SocialTab[]; // 이 시설 안에서 볼 수 있는 탭(1개면 탭 줄을 숨긴다)
+  catalogCategory?: CatalogItem["category"]; // 자산 매장이면 그 카테고리로 고정
+  catalogOwnedOnly?: boolean; // 내 집: 매장 없이 소유 자산만
+}
+
+// README 6~11장(사회 생활/로또/자산/소셜): 고3 졸업 후 열리는 사회 콘텐츠를 시설 단위로 보여준다.
 export function SocialHub({
   onProfileChange,
-  initialTab,
-  initialCatalogCategory,
+  facility,
+  onExit,
+  onVitalsChange,
 }: {
   onProfileChange: () => void;
-  initialTab?: SocialTab;
-  initialCatalogCategory?: CatalogItem["category"];
+  facility: FacilityView;
+  onExit: () => void;
+  onVitalsChange: (v: Vitals) => void;
 }) {
-  const [tab, setTab] = useState<Tab>(initialTab ?? "wallet");
+  const [tab, setTab] = useState<Tab>(facility.tabs[0]);
   const [balance, setBalance] = useState<number | null>(null);
   const [personId, setPersonId] = useState<number | null>(null);
 
@@ -48,17 +62,27 @@ export function SocialHub({
 
   return (
     <div className="social-hub">
+      <div className="facility-head">
+        <button className="ghost" onClick={onExit}>
+          ← 마을로
+        </button>
+        <strong>{facility.title}</strong>
+      </div>
       <div className="wallet-bar">
         💰 {balance === null ? "불러오는 중..." : `${balance.toLocaleString()}원`}
       </div>
+      {facility.tabs.length > 1 && (
       <div className="tabs sub-tabs">
-        {TABS.map((t) => (
+        {TABS.filter((t) => facility.tabs.includes(t.key)).map((t) => (
           <button key={t.key} className={tab === t.key ? "active" : ""} onClick={() => setTab(t.key)}>
             {t.label}
           </button>
         ))}
       </div>
+      )}
 
+      {tab === "rest" && <HomeRestPanel onVitalsChange={onVitalsChange} />}
+      {tab === "shop" && <MartShopPanel onBalanceChange={refreshBalance} onVitalsChange={onVitalsChange} />}
       {tab === "wallet" && <WalletPanel balance={balance} />}
       {tab === "jobs" && <JobsPanel onBalanceChange={refreshBalance} />}
       {tab === "alba" && <AlbaPanel onBalanceChange={refreshBalance} />}
@@ -68,7 +92,8 @@ export function SocialHub({
         <CatalogPanel
           onBalanceChange={refreshBalance}
           onProfileChange={onProfileChange}
-          initialCategory={initialCatalogCategory}
+          fixedCategory={facility.catalogCategory}
+          ownedOnly={facility.catalogOwnedOnly}
         />
       )}
       {tab === "nearby" && <NearbyPanel onOpenPerson={setPersonId} />}

@@ -1,0 +1,6 @@
+마을 지도용 스프라이트: public/models/ 의 3D 모델을 투명 배경 PNG로 렌더링한 이미지.
+원본 모델의 출처/라이선스는 public/models/buildings/CREDITS.txt, public/models/cars/CREDITS*.txt 를 따른다.
+- home-oneroom.png, home-apartment-84.png, home-penthouse.png ← models/buildings/*.glb (Sketchfab, CC BY 4.0)
+- car-compact.png, car-sedan.png, car-sports.png ← models/cars/*.glb (DanielZhabotinsky, Sketchfab, CC BY 4.0)
+- car-super.png ← models/cars/car-concept.glb (Khronos glTF Sample Assets, CC BY 4.0)
+- home-box.png ← 코드로 만든 박스집(자체 제작)

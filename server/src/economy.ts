@@ -205,3 +205,24 @@ export const WORKPLACE = {
   // 주간 평가의 "동료 평판": 동료들의 평균 신뢰도가 높으면 가산, 낮으면 감산(과장 → 차장 보고의 규칙화)
   peerReputation: { goodAt: 70, badBelow: 35, adjust: 3 },
 };
+
+// ── 마을 이동: 체력 / 연료 ───────────────────────────────────────────────
+// 걸어서 이동하면 체력이 줄고(0이면 아주 느리게 걷는다), 차가 있으면 연료로 빠르게 이동한다.
+// 체력은 시간이 지나면 조금씩 차고, 내 집에서 자거나 마트에서 음식을 사 먹으면 회복된다.
+// 연료는 한 번 가득 채우면 tankMoves번 이동할 수 있고, 마트에서 부족한 만큼 산다.
+export const VITALS = {
+  maxStamina: 100,
+  walkCost: 5, // 걸어서 한 번 이동할 때 드는 체력(100이면 20번)
+  regenPerHour: 12, // 자연 회복(5분에 1)
+  sleepCooldownHours: 6, // 내 집에서 자면 체력이 가득 차고, 이 시간 뒤에 다시 잘 수 있다
+  tankMoves: 20, // 연료 가득 = 이동 20번
+  foods: [
+    { key: "gimbap", name: "🍙 삼각김밥", price: 1_500, stamina: 15 },
+    { key: "ramen", name: "🍜 컵라면", price: 2_500, stamina: 25 },
+    { key: "lunchbox", name: "🍱 도시락", price: 5_000, stamina: 50 },
+    { key: "feast", name: "🍲 보양식 한 상", price: 12_000, stamina: 100 },
+  ],
+  // 가득 채우는 가격(차종별, 비싼 차일수록 비싸다). 부족한 칸만큼만 비례해서 낸다.
+  fullTankPrice: { 경차: 20_000, "준중형 세단": 40_000, 스포츠카: 80_000, 슈퍼카: 150_000 } as Record<string, number>,
+  defaultFullTankPrice: 40_000,
+};
