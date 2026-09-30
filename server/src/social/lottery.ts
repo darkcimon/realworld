@@ -1,4 +1,4 @@
-// README 7장: 로또. 만원 단위 구매, 회차당 3개 제한, 매일 09:00·12:00·18:00 KST 세 번 추첨.
+// README 7장: 로또. 만원 단위 구매, 회차당 3개 제한, 매일 09:00·12:00·15:00·18:00 KST 네 번 추첨.
 // 1~4등 상금표는 README에 정확한 금액이 나와 있지 않아 임의의 기본값을 두고,
 // "10명 단위마다 1등 당첨금 범위 2배 보정" 규칙만 문서 그대로 구현한다.
 import { db } from "../db.js";
@@ -8,7 +8,7 @@ import { notify } from "./notifications.js";
 export const DAILY_TICKET_LIMIT = 3; // 회차당 구매 가능 수
 // 하루 추첨 시각(KST, 시). 회차 키는 "YYYY-MM-DD HH:00" 형식이다.
 // 예전 회차(하루 1회 시절)는 키가 "YYYY-MM-DD"이고 그날 19:00에 추첨된다.
-export const DRAW_HOURS = [9, 12, 18];
+export const DRAW_HOURS = [9, 12, 15, 18];
 const LEGACY_DRAW_HOUR = 19;
 const UNIT_AMOUNT = 10_000; // 만원
 
@@ -65,7 +65,7 @@ function addDaysToKstDate(dateStr: string, days: number): string {
 }
 
 /**
- * 지금 구매하면 실제로 어느 회차에 들어갈지 정한다. 하루 세 번(09·12·18시 KST) 추첨하므로
+ * 지금 구매하면 실제로 어느 회차에 들어갈지 정한다. 하루 네 번(09·12·15·18시 KST) 추첨하므로
  * 추첨 시각이 아직 오지 않았고 추첨 전인 가장 가까운 회차에 들어간다. 18시가 지나면
  * 다음 날 09시 회차로 넘어간다. (추첨 끝난 회차에 묶여 당첨 기회 없이 돈만 차감되는 것을 막는다.)
  */

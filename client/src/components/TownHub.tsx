@@ -207,7 +207,8 @@ export function TownHub({
 }) {
   const graph = useMemo(buildGraph, []);
   const homeSprite = bestSprite(owned, "apartment", HOME_SPRITES) ?? HOME_SPRITES.box;
-  const carSprite = bestSprite(owned, "car", CAR_SPRITES);
+  // 사이드 메뉴에서 고른 운행 차(서버가 알려줌). 아직 못 받아왔으면 가장 비싼 차로 보여준다.
+  const carSprite = vitals?.car ? CAR_SPRITES[vitals.car.name] ?? null : bestSprite(owned, "car", CAR_SPRITES);
   // 지금 이동 방식: 차가 있고 연료가 남았으면 차, 아니면 걷기. 이동할 때마다 서버 결과로 갱신한다.
   const idleMode: MoveMode = carSprite && (vitals?.fuel ?? 1) > 0 ? "drive" : "walk";
   const [mode, setMode] = useState<MoveMode>(idleMode);

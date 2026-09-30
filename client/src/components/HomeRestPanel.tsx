@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Vitals } from "../types";
+import { CookingGame } from "./CookingGame";
 
 // 내 집 쉬기: 자면 체력이 가득 찬다(쿨타임은 서버 economy.ts VITALS.sleepCooldownHours).
 // 서버는 즉시 가득 채우지만, 화면에서는 SLEEP_MS 동안 체력(과 오른쪽 위 배터리)이 천천히 차오르게 보여준다.
@@ -10,6 +11,7 @@ export function HomeRestPanel({ onVitalsChange }: { onVitalsChange: (v: Vitals) 
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [sleeping, setSleeping] = useState(false);
+  const [cooking, setCooking] = useState(false);
   const raf = useRef<number | null>(null);
 
   // 화면을 떠나면 애니메이션을 멈춘다(서버 값은 이미 가득이라 다음에 불러오면 맞게 보인다).
@@ -69,6 +71,8 @@ export function HomeRestPanel({ onVitalsChange }: { onVitalsChange: (v: Vitals) 
   }
 
   const canSleepAt = vitals?.canSleepAt ? new Date(vitals.canSleepAt) : null;
+  const cookAt = vitals?.cookAvailableAt ? new Date(vitals.cookAvailableAt) : null;
+  const hhmm = (d: Date) => d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="panel">
@@ -86,6 +90,29 @@ export function HomeRestPanel({ onVitalsChange }: { onVitalsChange: (v: Vitals) 
               </>
             )}
           </p>
+          <p className="muted">
+            {vitals.home
+              ? `🏠 ${vitals.home} — 가만히 있어도 1시간에 체력이 ${vitals.regenPerHour}씩 차요.`
+              : `📦 박스집 — 1시간에 체력이 ${vitals.regenPerHour}씩 차요. 집을 사면 더 빨리 차요.`}
+          </p>
+          {!vitals.home && (
+            <div className="cook-entry">
+              <button
+                className="ghost"
+                onClick={() => setCooking(true)}
+                disabled={sleeping || !!cookAt || vitals.stamina >= vitals.maxStamina}
+              >
+                🍳 요리하기 (리듬게임, 체력 최대 +30)
+              </button>
+              <small className="muted">
+                {cookAt
+                  ? `${hhmm(cookAt)} 이후에 다시 요리할 수 있어요.`
+                  : vitals.stamina >= vitals.maxStamina
+                    ? "배가 불러서 지금은 요리할 필요가 없어요."
+                    : "재료가 선에 닿을 때 맞춰 누를수록 맛있게(체력 많이) 만들어져요. 15분마다 한 번."}
+              </small>
+            </div>
+          )}
           {sleeping && (
             <div className="sleep-progress" aria-live="polite">
               <span className="sleep-zzz">💤</span>
@@ -109,6 +136,12 @@ export function HomeRestPanel({ onVitalsChange }: { onVitalsChange: (v: Vitals) 
             {" "}연료는 마트에서 채워요.
           </p>
         </>
+      )}
+      {cooking && (
+        <CookingGame
+          onDone={(v) => update(v)}
+          onClose={() => setCooking(false)}
+        />
       )}
     </div>
   );

@@ -240,7 +240,9 @@ export const WORKPLACE = {
 export const VITALS = {
   maxStamina: 100,
   walkCost: 5, // 걸어서 한 번 이동할 때 드는 체력(100이면 20번)
-  regenPerHour: 12, // 자연 회복(5분에 1)
+  regenPerHour: 12, // 박스집(집 없음)의 자연 회복(5분에 1)
+  // 집을 사면 자연 회복이 빨라진다 — 비싼 집일수록(가진 집 중 가장 비싼 집 기준).
+  regenPerHourByHome: { 원룸: 18, "84㎡ 아파트": 30, 펜트하우스: 50 } as Record<string, number>,
   sleepCooldownHours: 6, // 내 집에서 자면 체력이 가득 차고, 이 시간 뒤에 다시 잘 수 있다
   // 차를 몰고 내 집에 도착하면 연료통의 homeRefuelRatio만큼 채운다. 집 근처를 오가며 연료를 무한히 불리지 못하게
   // homeRefuelCooldownHours마다 한 번만(경차 60칸이면 12칸 — 집과 가까운 건물 왕복보다 많다).
@@ -286,4 +288,18 @@ export const SCHOOL_REPEAT_REWARD: Record<string, number[]> = {
   elementary: [10_000, 12_000, 14_000, 16_000, 18_000, 20_000], // 초1~초6
   middle: [25_000, 28_000, 31_000], // 중1~중3
   high: [36_000, 40_000, 45_000], // 고1~고3
+};
+
+// ── 박스집 요리(리듬게임) ────────────────────────────────────────────────
+// 집이 없는(박스집) 사회인은 내 집에서 리듬게임으로 음식을 만들어 체력을 채울 수 있다.
+// 채보(노트)는 서버가 만들어 주고, 게임 시간이 실제로 지났는지·판정 수가 노트 수를 넘지 않는지 서버가 확인한다.
+// 점수를 속이더라도 한 판 최대 maxGain, cooldownMinutes마다 한 번이라 마트 음식보다 크게 이득 보지 못한다.
+export const COOKING = {
+  maxGain: 30, // 전부 퍼펙트일 때 체력 +30 (마트 삼각김밥 +15, 자연 회복 1시간 +12)
+  cooldownMinutes: 15,
+  songMs: 20_000, // 한 판 길이
+  notes: 28,
+  lanes: 3,
+  goodWeight: 0.5, // 굿은 퍼펙트의 절반으로 친다
+  dishes: ["🍳 계란볶음밥", "🍜 김치라면", "🥘 된장찌개", "🍙 참치주먹밥", "🥞 김치전", "🍝 토마토 파스타"],
 };

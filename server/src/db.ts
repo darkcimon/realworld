@@ -393,7 +393,7 @@ CREATE TABLE IF NOT EXISTS user_vitals (
   slept_at INTEGER -- 마지막으로 내 집에서 잔 시각(epoch ms)
 );
 
--- 아파트·명품 되팔기 시세(economy.ts ASSET_RESALE). 시세 구간(하루 3회)마다 품목별 배수를 처음 조회할 때 정해 저장한다.
+-- 아파트·명품 되팔기 시세(economy.ts ASSET_RESALE). 시세 구간(하루 4회)마다 품목별 배수를 처음 조회할 때 정해 저장한다.
 CREATE TABLE IF NOT EXISTS market_prices (
   slot_key TEXT NOT NULL, -- "YYYY-MM-DD HH:00"(KST, 시세가 바뀐 시각)
   catalog_item_id INTEGER NOT NULL REFERENCES catalog_items(id),
@@ -543,11 +543,23 @@ if (!vitalsColumns.some((c) => c.name === "location")) {
 if (!vitalsColumns.some((c) => c.name === "home_refuel_at")) {
   db.exec("ALTER TABLE user_vitals ADD COLUMN home_refuel_at INTEGER");
 }
+// 운행할 차 선택(owned_items.id). 없거나 팔았으면 가장 비싼 차를 탄다.
+if (!vitalsColumns.some((c) => c.name === "active_car_id")) {
+  db.exec("ALTER TABLE user_vitals ADD COLUMN active_car_id INTEGER");
+}
+// 박스집 요리(리듬게임) 쿨타임 기준 시각(epoch ms).
+if (!vitalsColumns.some((c) => c.name === "cooked_at")) {
+  db.exec("ALTER TABLE user_vitals ADD COLUMN cooked_at INTEGER");
+}
 
 // 자산 되팔기: 아파트·명품은 시세대로 사므로 실제로 낸 금액을 따로 기록한다(예전 행은 NULL = 정가).
 const ownedItemColumns = db.prepare("PRAGMA table_info(owned_items)").all() as { name: string }[];
 if (!ownedItemColumns.some((c) => c.name === "paid_price")) {
   db.exec("ALTER TABLE owned_items ADD COLUMN paid_price INTEGER");
+}
+// 차마다 따로 남은 연료(칸). NULL이면 아직 한 번도 안 탄 차 — 처음 탈 때 정해진다(social/vitals.ts).
+if (!ownedItemColumns.some((c) => c.name === "fuel")) {
+  db.exec("ALTER TABLE owned_items ADD COLUMN fuel INTEGER");
 }
 
 // 마트 알바: 손님 카트(정답 금액)를 서버가 발급/보관해 클라이언트가 정답을 조작하지 못하게 한다.

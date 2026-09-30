@@ -152,6 +152,19 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .sidebar-asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 8px; }
 .sidebar-asset { position: relative; height: 48px; padding: 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; }
 .sidebar-asset-icon { font-size: 26px; line-height: 1; }
+.sidebar-asset.driving { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.sidebar-car-list { display: flex; flex-direction: column; gap: 6px; }
+.sidebar-car { display: flex; align-items: center; gap: 10px; padding: 8px 10px; text-align: left; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); font-weight: 400; }
+.sidebar-car.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.sidebar-car:disabled { opacity: 1; cursor: default; }
+.sidebar-car-icon { font-size: 24px; line-height: 1; }
+.sidebar-car-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sidebar-car-info b { font-size: 14px; }
+.sidebar-car-fuel { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.sidebar-car-fuel-bar { flex: 1; height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.sidebar-car-fuel-bar > span { display: block; height: 100%; background: #f0b429; }
+.sidebar-car-state { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.sidebar-car.active .sidebar-car-state { color: var(--accent); }
 .sidebar-asset-count { position: absolute; right: 3px; bottom: 2px; font-size: 10px; color: var(--muted); font-weight: 700; }
 .sidebar-nav { flex-direction: column; margin-bottom: 0; }
 .sidebar-nav button { text-align: left; }
@@ -414,6 +427,27 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 /* 리텐션 바(출석/퀘스트/알림) */
 .retention-bar { position: fixed; top: 14px; right: 14px; z-index: 900; display: flex; gap: 8px; }
 .retention-btn { position: relative; width: 40px; height: 40px; padding: 0; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); font-size: 18px; line-height: 1; }
+.cook-entry { display: flex; flex-direction: column; gap: 4px; }
+.cook-modal { width: 380px; max-width: 94vw; display: flex; flex-direction: column; gap: 10px; }
+.cook-modal h3 { margin: 0; display: flex; align-items: baseline; gap: 8px; }
+.cook-dish { font-size: 14px; font-weight: 400; }
+.cook-hud { display: flex; justify-content: space-between; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cook-progress { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.cook-progress > div { height: 100%; background: var(--accent); }
+.cook-stage { position: relative; height: min(46vh, 340px); border-radius: 12px; overflow: hidden; background: linear-gradient(#2a1f14, #3b2a1a); border: 1px solid var(--border); }
+.cook-lane { position: absolute; top: 0; bottom: 0; width: 33.34%; border-right: 1px dashed rgba(255,255,255,.08); }
+.cook-note { position: absolute; transform: translate(-50%, -50%); font-size: 30px; line-height: 1; pointer-events: none; }
+.cook-note.miss { opacity: .3; filter: grayscale(1); }
+.cook-hitline { position: absolute; left: 0; right: 0; margin-top: -2px; height: 4px; background: #f0b429; box-shadow: 0 0 10px #f0b429; }
+.cook-judge { position: absolute; bottom: 20%; transform: translateX(-50%); font-weight: 800; font-size: 14px; pointer-events: none; }
+.cook-judge.perfect { color: #ffd84d; }
+.cook-judge.good { color: #8fd3ff; }
+.cook-pads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cook-pad { height: 64px; font-size: 30px; background: var(--panel-2); border: 1px solid var(--border); }
+.cook-pad:active { background: var(--accent); }
+.cook-hint { margin: 0; font-size: 12px; text-align: center; }
+.cook-result { text-align: center; }
+.cook-result-dish { font-size: 28px; margin: 8px 0; }
 .sleep-progress { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
 .sleep-progress-bar { flex: 1; height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
 .sleep-progress-bar > div { height: 100%; background: #4cc38a; }

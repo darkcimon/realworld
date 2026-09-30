@@ -1,21 +1,49 @@
 // 마을 이동의 체력/연료(economy.ts VITALS). 이동·식사·주유·잠자기는 모두 서버가 계산한다
 // (클라이언트는 결과로 받은 이동 방식에 맞춰 걷거나 차를 타는 연출만 한다).
 import { db } from "../db.js";
-import { VITALS } from "../economy.js";
+import { COOKING, VITALS } from "../economy.js";
+import { randomUUID } from "node:crypto";
 import { applyLedgerEntry } from "../wallet/ledger.js";
 import { cellsBetween, isFacility } from "./townMap.js";
 
-const MS_PER_POINT = (60 * 60 * 1000) / VITALS.regenPerHour;
 const HOUR = 60 * 60 * 1000;
+
+/** 가진 집 중 가장 비싼 집(없으면 null = 박스집). */
+function bestHome(userId: number): string | null {
+  const row = db
+    .prepare(
+      `SELECT c.name FROM owned_items o JOIN catalog_items c ON c.id = o.catalog_item_id
+       WHERE o.user_id = ? AND c.category = 'apartment' ORDER BY c.price DESC LIMIT 1`
+    )
+    .get(userId) as { name: string } | undefined;
+  return row?.name ?? null;
+}
+
+/** 자연 회복 속도(1시간당). 집이 비쌀수록 빠르다. */
+function regenPerHourOf(home: string | null): number {
+  return (home && VITALS.regenPerHourByHome[home]) || VITALS.regenPerHour;
+}
 
 interface VitalsRow {
   user_id: number;
   stamina: number;
   stamina_at: number;
-  fuel: number;
+  fuel: number; // load() 뒤에는 "지금 타는 차"의 남은 연료. save()가 그 차(owned_items.fuel)에 되돌려 쓴다
   slept_at: number | null;
   location: string | null;
   home_refuel_at: number | null;
+  active_car_id: number | null;
+  cooked_at: number | null;
+  home?: string | null; // load()가 채운다: 가장 비싼 집(없으면 박스집)
+  car?: { ownedId: number; name: string; tank: number } | null; // load()가 채운다(DB 컬럼 아님)
+  legacyFuel?: number; // 차별 연료 도입 전 공용 연료(user_vitals.fuel) — 한 번도 안 탄 차가 이어받는다
+}
+
+interface OwnedCar {
+  id: number;
+  name: string;
+  price: number;
+  fuel: number | null;
 }
 
 export type MoveMode = "walk" | "drive" | "tired";
@@ -27,16 +55,14 @@ function isGraduated(userId: number): boolean {
   return row?.status === "graduated";
 }
 
-/** 소유한 차 중 가장 비싼 차(연료 가격 기준). 없으면 null. */
-function bestCar(userId: number): { name: string } | null {
-  return (
-    (db
-      .prepare(
-        `SELECT c.name FROM owned_items o JOIN catalog_items c ON c.id = o.catalog_item_id
-         WHERE o.user_id = ? AND c.category = 'car' ORDER BY c.price DESC LIMIT 1`
-      )
-      .get(userId) as { name: string } | undefined) ?? null
-  );
+/** 소유한 차 전부(비싼 순). 같은 차종을 여러 대 가질 수 있고, 차마다 연료가 따로 있다. */
+function ownedCars(userId: number): OwnedCar[] {
+  return db
+    .prepare(
+      `SELECT o.id, c.name, c.price, o.fuel FROM owned_items o JOIN catalog_items c ON c.id = o.catalog_item_id
+       WHERE o.user_id = ? AND c.category = 'car' ORDER BY c.price DESC, o.id`
+    )
+    .all(userId) as unknown as OwnedCar[];
 }
 
 /** 행이 없으면 체력·연료 가득으로 만들고, 지난 시간만큼 자연 회복을 반영해 돌려준다. */
@@ -45,23 +71,38 @@ function load(userId: number, now = Date.now()): VitalsRow {
     "INSERT OR IGNORE INTO user_vitals (user_id, stamina, stamina_at, fuel) VALUES (?, ?, ?, ?)"
   ).run(userId, VITALS.maxStamina, now, VITALS.defaultTankCells);
   const row = db.prepare("SELECT * FROM user_vitals WHERE user_id = ?").get(userId) as unknown as VitalsRow;
+  row.home = bestHome(userId);
+  const msPerPoint = HOUR / regenPerHourOf(row.home);
   if (row.stamina >= VITALS.maxStamina) {
     row.stamina_at = now;
   } else {
-    const points = Math.floor((now - row.stamina_at) / MS_PER_POINT);
+    const points = Math.floor((now - row.stamina_at) / msPerPoint);
     if (points > 0) {
       row.stamina = Math.min(VITALS.maxStamina, row.stamina + points);
       // 남은 자투리 시간은 다음 회복에 이어서 쓴다(가득 찼으면 기준 시각을 지금으로).
-      row.stamina_at = row.stamina >= VITALS.maxStamina ? now : row.stamina_at + points * MS_PER_POINT;
+      row.stamina_at = row.stamina >= VITALS.maxStamina ? now : row.stamina_at + points * msPerPoint;
     }
+  }
+  // 지금 타는 차: 고른 차(팔았으면 무시) → 없으면 가장 비싼 차. 그 차의 연료를 row.fuel로 올려 둔다.
+  // 한 번도 안 탄 차(fuel NULL)는 예전에 하나로 쓰던 연료(user_vitals.fuel)를 이어받는다 — 차별 연료 도입 전 데이터 호환.
+  row.legacyFuel = row.fuel;
+  const cars = ownedCars(userId);
+  const pick = cars.find((c) => c.id === row.active_car_id) ?? cars[0];
+  if (pick) {
+    const tank = tankCells(pick.name);
+    row.car = { ownedId: pick.id, name: pick.name, tank };
+    row.fuel = Math.min(tank, pick.fuel ?? row.legacyFuel);
+  } else {
+    row.car = null;
   }
   return row;
 }
 
 function save(row: VitalsRow): void {
   db.prepare(
-    "UPDATE user_vitals SET stamina = ?, stamina_at = ?, fuel = ?, slept_at = ?, location = ?, home_refuel_at = ? WHERE user_id = ?"
-  ).run(row.stamina, row.stamina_at, row.fuel, row.slept_at, row.location, row.home_refuel_at, row.user_id);
+    "UPDATE user_vitals SET stamina = ?, stamina_at = ?, slept_at = ?, location = ?, home_refuel_at = ?, active_car_id = ?, cooked_at = ? WHERE user_id = ?"
+  ).run(row.stamina, row.stamina_at, row.slept_at, row.location, row.home_refuel_at, row.active_car_id, row.cooked_at, row.user_id);
+  if (row.car) db.prepare("UPDATE owned_items SET fuel = ? WHERE id = ?").run(row.fuel, row.car.ownedId);
 }
 
 function fullTankPrice(carName: string): number {
@@ -73,13 +114,9 @@ function tankCells(carName: string): number {
   return VITALS.tankCells[carName] ?? VITALS.defaultTankCells;
 }
 
-/** 지금 타는 차와 그 연료통. 연료통보다 많이 남아 있으면(작은 차로 바꿨거나 예전 데이터) 연료통 크기로 맞춘다. */
-function carAndTank(userId: number, row: VitalsRow): { name: string; tank: number } | null {
-  const car = bestCar(userId);
-  if (!car) return null;
-  const tank = tankCells(car.name);
-  if (row.fuel > tank) row.fuel = tank;
-  return { name: car.name, tank };
+/** 지금 타는 차와 그 연료통(load()가 정해 둔 것). */
+function carAndTank(_userId: number, row: VitalsRow): { ownedId: number; name: string; tank: number } | null {
+  return row.car ?? null;
 }
 
 /** 근무 시간(분)만큼 체력을 쓴다(0 아래로는 안 내려감). 소수점 체력도 쌓였다가 화면엔 내림해서 보인다. */
@@ -108,16 +145,42 @@ function view(row: VitalsRow, userId: number, now = Date.now()) {
     stamina: Math.floor(row.stamina), // 근무로 소수점이 생길 수 있어 화면엔 내림
     maxStamina: VITALS.maxStamina,
     walkCost: VITALS.walkCost,
-    regenPerHour: VITALS.regenPerHour,
+    regenPerHour: regenPerHourOf(row.home ?? null), // 집에 따라 다르다
+    home: row.home ?? null, // 가장 비싼 집(없으면 null = 박스집)
+    // 박스집 요리(리듬게임): 다시 할 수 있는 시각(null이면 지금 가능). 집이 있으면 요리 대신 빠른 자연 회복.
+    cookAvailableAt:
+      row.cooked_at && row.cooked_at + COOKING.cooldownMinutes * 60_000 > now
+        ? new Date(row.cooked_at + COOKING.cooldownMinutes * 60_000).toISOString()
+        : null,
     fuel: row.fuel, // 남은 연료(칸)
     fuelCapacity: car?.tank ?? 0, // 지금 차의 연료통(칸), 차가 없으면 0
     location: row.location ?? "school", // 마을에서 마지막으로 도착한 시설
-    car: car ? { name: car.name, fullTankPrice: fullTankPrice(car.name) } : null,
+    car: car ? { ownedItemId: car.ownedId, name: car.name, fullTankPrice: fullTankPrice(car.name) } : null,
+    // 운행할 차를 고를 수 있게 소유한 차 전부와 각자의 연료(안 타 본 차는 연료통 가득으로 보인다)
+    cars: ownedCars(userId).map((c) => {
+      const tank = tankCells(c.name);
+      const active = c.id === car?.ownedId;
+      const fuel = active ? row.fuel : Math.min(tank, c.fuel ?? row.legacyFuel ?? tank);
+      return { ownedItemId: c.id, name: c.name, tank, fuel, active };
+    }),
     canSleepAt: sleepAt && sleepAt > now ? new Date(sleepAt).toISOString() : null,
   };
 }
 
 export type Vitals = ReturnType<typeof view>;
+
+/** 운행할 차를 고른다(내가 가진 차만). 지금 차의 연료는 그 차에 그대로 남는다. */
+export function selectCar(userId: number, ownedItemId: number): Vitals {
+  const row = load(userId);
+  const target = ownedCars(userId).find((c) => c.id === ownedItemId);
+  if (!target) throw { status: 404, message: "내가 가진 차가 아니에요." };
+  save(row); // 지금 타던 차의 연료를 먼저 그 차에 저장
+  row.active_car_id = ownedItemId;
+  save(row);
+  const next = load(userId);
+  save(next);
+  return view(next, userId);
+}
 
 export function getVitals(userId: number): Vitals {
   const row = load(userId);
@@ -233,4 +296,69 @@ export function refuel(userId: number): { vitals: Vitals; balance: number; paid:
   row.fuel = car.tank;
   save(row);
   return { vitals: view(row, userId), balance, paid };
+}
+
+// ── 박스집 요리(리듬게임) ────────────────────────────────────────────────
+// 서버가 채보를 만들어 세션으로 들고 있다가, 끝났다고 알려오면 시간·판정 수를 확인하고 체력을 준다.
+interface CookSession {
+  userId: number;
+  startedAt: number;
+  notes: number;
+  dish: string;
+}
+const cookSessions = new Map<string, CookSession>();
+
+function assertCanCook(userId: number, row: VitalsRow, now: number): void {
+  if (!isGraduated(userId)) throw { status: 403, message: "졸업 후 내 집에서 요리할 수 있어요." };
+  if (row.home) throw { status: 409, message: "집이 생겨서 이제는 쉬기만 해도 체력이 빨리 차요." };
+  if (row.cooked_at && now - row.cooked_at < COOKING.cooldownMinutes * 60_000) {
+    throw { status: 409, message: "방금 요리했어요. 조금 있다가 다시 만들어요." };
+  }
+  if (row.stamina >= VITALS.maxStamina) throw { status: 409, message: "배가 불러요. 체력이 이미 가득해요." };
+}
+
+/** 요리 시작: 채보(노트 시각·줄)를 만들어 준다. 노트는 시작 1.5초 뒤부터 곡 끝 1초 전까지 흩어진다. */
+export function startCooking(userId: number) {
+  const now = Date.now();
+  const row = load(userId, now);
+  assertCanCook(userId, row, now);
+  const first = 1500;
+  const last = COOKING.songMs - 1000;
+  const gap = (last - first) / (COOKING.notes - 1);
+  const notes = Array.from({ length: COOKING.notes }, (_, i) => ({
+    t: Math.round(first + i * gap + (Math.random() - 0.5) * gap * 0.5),
+    lane: Math.floor(Math.random() * COOKING.lanes),
+  }));
+  const dish = COOKING.dishes[Math.floor(Math.random() * COOKING.dishes.length)];
+  const sessionId = randomUUID();
+  cookSessions.set(sessionId, { userId, startedAt: now, notes: notes.length, dish });
+  // 오래된 세션 정리
+  for (const [id, s] of cookSessions) if (now - s.startedAt > 10 * 60_000) cookSessions.delete(id);
+  return { sessionId, dish, songMs: COOKING.songMs, lanes: COOKING.lanes, notes, maxGain: COOKING.maxGain };
+}
+
+/** 요리 끝: 퍼펙트·굿 수로 점수를 매겨 체력을 채운다. 곡 길이만큼 시간이 지나야 인정한다. */
+export function finishCooking(
+  userId: number,
+  sessionId: string,
+  perfect: number,
+  good: number
+): { dish: string; score: number; gained: number; vitals: Vitals } {
+  const session = cookSessions.get(sessionId);
+  if (!session || session.userId !== userId) throw { status: 404, message: "요리 기록이 없어요. 다시 시작해 주세요." };
+  const now = Date.now();
+  if (now - session.startedAt < COOKING.songMs - 1500) throw { status: 400, message: "아직 요리가 끝나지 않았어요." };
+  cookSessions.delete(sessionId);
+  const p = Math.max(0, Math.floor(Number(perfect) || 0));
+  const g = Math.max(0, Math.floor(Number(good) || 0));
+  if (p + g > session.notes) throw { status: 400, message: "판정 기록이 이상해요." };
+  const score = Math.round(((p + g * COOKING.goodWeight) / session.notes) * 100);
+  const row = load(userId, now);
+  assertCanCook(userId, row, now);
+  const before = row.stamina;
+  row.stamina = Math.min(VITALS.maxStamina, row.stamina + Math.round((COOKING.maxGain * score) / 100));
+  if (row.stamina >= VITALS.maxStamina) row.stamina_at = now;
+  row.cooked_at = now;
+  save(row);
+  return { dish: session.dish, score, gained: Math.floor(row.stamina) - Math.floor(before), vitals: view(row, userId, now) };
 }

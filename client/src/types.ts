@@ -483,11 +483,14 @@ export interface Vitals {
   stamina: number;
   maxStamina: number;
   walkCost: number;
-  regenPerHour: number;
+  regenPerHour: number; // 자연 회복(1시간당) — 비싼 집일수록 빠르다
+  home: string | null; // 가진 집 중 가장 비싼 집(null = 박스집)
+  cookAvailableAt: string | null; // 박스집 요리(리듬게임)를 다시 할 수 있는 시각. null이면 지금 가능
   fuel: number;
   fuelCapacity: number; // 지금 차의 연료통(칸). 차종마다 다르고, 차가 없으면 0
   location: string; // 마을에서 마지막으로 도착한 시설(연료는 이동한 칸 수만큼 준다)
-  car: { name: string; fullTankPrice: number } | null;
+  car: { ownedItemId: number; name: string; fullTankPrice: number } | null; // 지금 운행 중인 차
+  cars: { ownedItemId: number; name: string; tank: number; fuel: number; active: boolean }[]; // 가진 차 전부(차마다 연료 따로)
   canSleepAt: string | null; // 다시 잘 수 있는 시각(ISO). null이면 지금 잘 수 있음
 }
 

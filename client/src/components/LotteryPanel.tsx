@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { LotteryToday } from "../types";
 
-// README 7장: 만원 단위, 회차당 3개 제한, 매일 09·12·18시 세 번 추첨.
+// README 7장: 만원 단위, 회차당 3개 제한, 매일 09·12·15·18시 네 번 추첨.
 export function LotteryPanel({ onBalanceChange }: { onBalanceChange: () => void }) {
   const [today, setToday] = useState<LotteryToday | null>(null);
   const [units, setUnits] = useState("1");
@@ -72,7 +72,7 @@ export function LotteryPanel({ onBalanceChange }: { onBalanceChange: () => void 
         </button>
       </form>
       <p className="muted">1등 5% / 2등 10% / 3등 20% / 4등(원금의 2배) 50% — 매일{" "}
-        {(today?.drawHours ?? [9, 12, 18]).map((h) => `${h}시`).join(" · ")} 추첨 (회차당 3개)
+        {(today?.drawHours ?? [9, 12, 15, 18]).map((h) => `${h}시`).join(" · ")} 추첨 (회차당 3개)
       </p>
     </div>
   );
