@@ -67,6 +67,14 @@ button {
   cursor: pointer;
   font-weight: 600;
 }
+/* 모바일에서 버튼을 톡톡 누르다 보면 글자가 선택돼 크롬 "탭하여 검색"(구글 검색 시트)이 뜨는 걸 막는다.
+   touch-action: manipulation은 더블탭 확대도 막아서 빠르게 연달아 눌러도 안전하다. */
+button, button * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 button.ghost { background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); font-weight: 400; }
 .error { color: var(--danger); font-size: 13px; }
@@ -136,6 +144,15 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
   background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
 }
 .sidebar-actions { display: flex; gap: 8px; }
+.sidebar-assets { display: flex; flex-direction: column; gap: 8px; }
+.sidebar-cash { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--border); }
+.sidebar-cash b { font-variant-numeric: tabular-nums; }
+.sidebar-assets-title { font-size: 13px; color: var(--muted); }
+.sidebar-assets-empty { margin: 0; font-size: 13px; }
+.sidebar-asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 8px; }
+.sidebar-asset { position: relative; height: 48px; padding: 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; }
+.sidebar-asset-icon { font-size: 26px; line-height: 1; }
+.sidebar-asset-count { position: absolute; right: 3px; bottom: 2px; font-size: 10px; color: var(--muted); font-weight: 700; }
 .sidebar-nav { flex-direction: column; margin-bottom: 0; }
 .sidebar-nav button { text-align: left; }
 
@@ -397,6 +414,12 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 /* 리텐션 바(출석/퀘스트/알림) */
 .retention-bar { position: fixed; top: 14px; right: 14px; z-index: 900; display: flex; gap: 8px; }
 .retention-btn { position: relative; width: 40px; height: 40px; padding: 0; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); font-size: 18px; line-height: 1; }
+.sleep-progress { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.sleep-progress-bar { flex: 1; height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
+.sleep-progress-bar > div { height: 100%; background: #4cc38a; }
+.sleep-zzz { display: inline-block; animation: sleep-float 1.4s ease-in-out infinite; }
+@keyframes sleep-float { 0%, 100% { transform: translateY(0); opacity: .7; } 50% { transform: translateY(-4px); opacity: 1; } }
+.quest-slot { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--border); font-size: 11px; color: var(--muted); }
 .stamina-battery { display: flex; align-items: center; height: 40px; padding: 0 4px; }
 .stamina-battery-body { position: relative; width: 44px; height: 22px; border: 2px solid var(--text); border-radius: 5px; padding: 2px; box-sizing: border-box; background: var(--panel-2); overflow: hidden; }
 .stamina-battery-fill { height: 100%; border-radius: 2px; transition: width .4s, background .4s; }

@@ -25,7 +25,7 @@ function kstTime(date: string, hour: number): number {
   return Date.UTC(y, m - 1, d, hour) - KST_OFFSET;
 }
 
-/** 지금 적용 중인 시세 구간(KST 9·12·18시에 바뀜)과 다음에 바뀌는 시각. */
+/** 지금 적용 중인 시세 구간(KST 9·12·15·18시에 바뀜)과 다음에 바뀌는 시각. */
 export function currentMarketSlot(now = Date.now()): { key: string; nextChangeAt: string } {
   const hours = ASSET_RESALE.marketHours;
   const { date, hour } = kstParts(now);

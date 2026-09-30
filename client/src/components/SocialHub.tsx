@@ -39,11 +39,13 @@ export interface FacilityView {
 export function SocialHub({
   onProfileChange,
   facility,
+  notice,
   onExit,
   onVitalsChange,
 }: {
   onProfileChange: () => void;
   facility: FacilityView;
+  notice?: string | null; // 시설에 들어올 때 한 번 보여줄 안내(예: 집 주차장 주유)
   onExit: () => void;
   onVitalsChange: (v: Vitals) => void;
 }) {
@@ -68,6 +70,7 @@ export function SocialHub({
         </button>
         <strong>{facility.title}</strong>
       </div>
+      {notice && <p className="ok-text">{notice}</p>}
       <div className="wallet-bar">
         💰 {balance === null ? "불러오는 중..." : `${balance.toLocaleString()}원`}
       </div>

@@ -13,6 +13,7 @@ import { JailScreen } from "./components/JailScreen";
 import { SocialHub, type FacilityView } from "./components/SocialHub";
 import { TownHub, type FacilityKey, type OwnedAsset } from "./components/TownHub";
 import { HelpGuide } from "./components/HelpGuide";
+import { SidebarAssets } from "./components/SidebarAssets";
 import { onVitalsRefresh } from "./vitalsEvents";
 
 type View = "hub" | "rooms" | "lesson" | "chat" | "social";
@@ -45,6 +46,7 @@ export default function App() {
   const [facility, setFacility] = useState<FacilityView | null>(null);
   const [owned, setOwned] = useState<OwnedAsset[]>([]);
   const [vitals, setVitals] = useState<Vitals | null>(null);
+  const [facilityNotice, setFacilityNotice] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -100,9 +102,11 @@ export default function App() {
   }, [graduated, view]);
 
   // 마을에서 이동할 때마다 서버가 체력/연료를 깎고 이동 방식(걷기/차/지친 걸음)을 정해준다.
-  async function moveInTown(): Promise<MoveMode> {
-    const r = await api.post<{ mode: MoveMode; vitals: Vitals }>("/town/move");
+  async function moveInTown(to: FacilityKey): Promise<MoveMode> {
+    const r = await api.post<{ mode: MoveMode; cells: number; homeRefuel: number; vitals: Vitals }>("/town/move", { to });
     setVitals(r.vitals);
+    // 차를 몰고 집에 오면 주차장에서 연료를 조금 채워 준다(서버, 쿨타임 있음) — 집 화면에 알려준다.
+    setFacilityNotice(r.homeRefuel > 0 ? `🅿️ 집 주차장에서 연료를 ${r.homeRefuel}칸 채웠어요.` : null);
     return r.mode;
   }
 
@@ -166,13 +170,18 @@ export default function App() {
   function goTo(next: View) {
     setView(next);
     setSidebarOpen(false);
+    window.scrollTo(0, 0); // 긴 화면 아래쪽에서 이동해도 지도 맨 위부터 보이게
   }
 
   return (
     <div className="app">
       {/* 프로필/도움말/로그아웃/상단 탭은 화면을 항상 차지할 필요가 없다 — 특히 수업 중에는
           세로 공간이 귀하므로, 필요할 때만 여는 사이드바로 옮기고 평소엔 여는 버튼만 남긴다. */}
-      <RetentionBar refreshKey={view} vitals={graduated ? vitals : null} />
+      <RetentionBar
+        refreshKey={view}
+        vitals={graduated ? vitals : null}
+        onGoTown={view === "hub" ? undefined : () => goTo("hub")}
+      />
 
       <button
         className="sidebar-toggle"
@@ -189,6 +198,7 @@ export default function App() {
               ✕
             </button>
             <ProfileHeader profile={profile} onRefresh={loadAll} />
+            <SidebarAssets graduated={graduated} />
             <div className="sidebar-actions">
               <button
                 className="ghost"
@@ -225,7 +235,7 @@ export default function App() {
       )}
 
       {view === "social" && facility && (
-        <SocialHub key={facility.title} onProfileChange={loadAll} facility={facility} onExit={() => setView("hub")} onVitalsChange={setVitals} />
+        <SocialHub key={facility.title} onProfileChange={loadAll} facility={facility} notice={facilityNotice} onExit={() => setView("hub")} onVitalsChange={setVitals} />
       )}
 
       {view === "rooms" && (

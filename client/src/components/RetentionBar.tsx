@@ -19,10 +19,12 @@ export function RetentionBar({
   refreshKey,
   onBalanceChange,
   vitals,
+  onGoTown,
 }: {
   refreshKey: string;
   onBalanceChange?: () => void;
   vitals?: Vitals | null; // 졸업 후에만 넘어온다 — 달력 옆에 체력 배터리로 표시
+  onGoTown?: () => void; // 마을 지도가 아닌 화면에서만 넘어온다 — 스크롤 위치와 상관없이 바로 마을로
 }) {
   const [daily, setDaily] = useState<DailyStatus | null>(null);
   const [notif, setNotif] = useState<NotificationsResp | null>(null);
@@ -106,6 +108,11 @@ export function RetentionBar({
   return (
     <>
       <div className="retention-bar">
+        {onGoTown && (
+          <button className="retention-btn" onClick={onGoTown} aria-label="마을로 가기" title="마을로">
+            🗺️
+          </button>
+        )}
         {vitals && <StaminaBattery vitals={vitals} />}
         <button
           className="retention-btn"
@@ -186,7 +193,10 @@ export function RetentionBar({
               {daily.quests.map((q) => (
                 <li key={q.key}>
                   <div className="quest-info">
-                    <span>{q.label}</span>
+                    <span>
+                      {q.slot && <span className="quest-slot">⏰ {q.slot}</span>}
+                      {q.label}
+                    </span>
                     <div className="quest-bar">
                       <div style={{ width: `${(q.progress / q.goal) * 100}%` }} />
                     </div>
@@ -200,7 +210,12 @@ export function RetentionBar({
                 </li>
               ))}
             </ul>
-            <p className="muted">매일 자정(KST)에 초기화돼요. 하루 빠지면 연속 출석이 1일차부터 다시 시작해요.</p>
+            <p className="muted">
+              {daily.nextQuestAt
+                ? `⏰ ${new Date(daily.nextQuestAt).toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" })}에 새 퀘스트가 열려요. `
+                : "오늘 시간대 퀘스트는 모두 열렸어요. "}
+              매일 9·12·15·18시에 퀘스트가 1~2개씩 추가되고, 자정(KST)에 초기화돼요. 하루 빠지면 연속 출석이 1일차부터 다시 시작해요.
+            </p>
             <button className="modal-close" onClick={() => setDailyOpen(false)}>
               닫기
             </button>

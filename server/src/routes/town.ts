@@ -22,7 +22,9 @@ function handle(res: any, fn: () => unknown) {
 }
 
 townRouter.get("/vitals", (req, res) => handle(res, () => getVitals(req.userId!)));
-townRouter.post("/move", requireNotJailed, (req, res) => handle(res, () => move(req.userId!)));
+townRouter.post("/move", requireNotJailed, (req, res) =>
+  handle(res, () => move(req.userId!, String(req.body?.to ?? "")))
+);
 townRouter.post("/sleep", requireGraduatedHighSchool, requireNotJailed, (req, res) =>
   handle(res, () => sleep(req.userId!))
 );

@@ -3,8 +3,7 @@ import { api } from "../api";
 import type { Profile } from "../types";
 import { AvatarPicker } from "./AvatarPicker";
 import { itemDisplayName } from "../itemName";
-
-const CATEGORY_ICON: Record<string, string> = { car: "🚗", apartment: "🏠", luxury: "💎" };
+import { assetIcon } from "../assetIcons";
 
 // README 4.4: 상단 프로필(아바타 클릭 시 기본 아바타/사진으로 교체, 현재 학년 표시) / 4.5: 졸업 등급 표시
 export function ProfileHeader({
@@ -53,7 +52,7 @@ export function ProfileHeader({
           <div className="profile-tiers" title="프로필에 전시 중인 자산">
             {profile.displayedItems.map((it) => (
               <span key={it.id} className="badge">
-                {CATEGORY_ICON[it.category] ?? "✨"} {itemDisplayName(it)}
+                {assetIcon(it.category, it.name)} {itemDisplayName(it)}
               </span>
             ))}
           </div>

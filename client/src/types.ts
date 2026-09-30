@@ -154,6 +154,7 @@ export interface MartTxResp {
   wageMultiplier: number;
   rushRemaining: number | null;
   penaltyApplied: number;
+  penaltyCapped: boolean; // 이번 근무 급여를 넘는 페널티라 깎였는지(근무 결과는 최소 0원)
   balance: number;
   stamina: number; // 손님 1명(1분 근무)만큼 줄어든 뒤 남은 체력
 }
@@ -262,6 +263,7 @@ export interface DailyQuest {
   label: string;
   goal: number;
   reward: number;
+  slot: string | null; // 시간대 퀘스트면 열린 시각("12:00"), 하루 퀘스트면 null
   progress: number;
   claimed: boolean;
   claimable: boolean;
@@ -277,6 +279,7 @@ export interface DailyStatus {
     rewards: number[];
   };
   quests: DailyQuest[];
+  nextQuestAt: string | null; // 다음 시간대 퀘스트가 열리는 시각(ISO)
   pendingCount: number;
 }
 
@@ -482,7 +485,8 @@ export interface Vitals {
   walkCost: number;
   regenPerHour: number;
   fuel: number;
-  tankMoves: number;
+  fuelCapacity: number; // 지금 차의 연료통(칸). 차종마다 다르고, 차가 없으면 0
+  location: string; // 마을에서 마지막으로 도착한 시설(연료는 이동한 칸 수만큼 준다)
   car: { name: string; fullTankPrice: number } | null;
   canSleepAt: string | null; // 다시 잘 수 있는 시각(ISO). null이면 지금 잘 수 있음
 }

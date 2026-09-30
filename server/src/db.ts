@@ -388,7 +388,8 @@ CREATE TABLE IF NOT EXISTS user_vitals (
   user_id INTEGER PRIMARY KEY REFERENCES users(id),
   stamina INTEGER NOT NULL,
   stamina_at INTEGER NOT NULL, -- 자연 회복 계산 기준 시각(epoch ms)
-  fuel INTEGER NOT NULL, -- 남은 이동 횟수(차가 있을 때만 쓰임)
+  fuel INTEGER NOT NULL, -- 남은 연료(칸). 차가 있을 때만 쓰임
+  location TEXT, -- 마을에서 마지막으로 도착한 시설(연료를 이동한 칸 수만큼 빼기 위해 서버가 기억)
   slept_at INTEGER -- 마지막으로 내 집에서 잔 시각(epoch ms)
 );
 
@@ -531,6 +532,16 @@ if (!roomColumns.some((c) => c.name === "conversation_summary")) {
 }
 if (!roomColumns.some((c) => c.name === "summary_through_id")) {
   db.exec("ALTER TABLE rooms ADD COLUMN summary_through_id INTEGER NOT NULL DEFAULT 0");
+}
+
+// 마을 이동: 연료를 이동 거리(칸)로 계산하려고 현재 위치를 서버에 둔다.
+const vitalsColumns = db.prepare("PRAGMA table_info(user_vitals)").all() as { name: string }[];
+if (!vitalsColumns.some((c) => c.name === "location")) {
+  db.exec("ALTER TABLE user_vitals ADD COLUMN location TEXT");
+}
+// 집에 도착하면 연료를 조금 채워 준다(쿨타임 기준 시각, epoch ms).
+if (!vitalsColumns.some((c) => c.name === "home_refuel_at")) {
+  db.exec("ALTER TABLE user_vitals ADD COLUMN home_refuel_at INTEGER");
 }
 
 // 자산 되팔기: 아파트·명품은 시세대로 사므로 실제로 낸 금액을 따로 기록한다(예전 행은 NULL = 정가).

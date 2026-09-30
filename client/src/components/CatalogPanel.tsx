@@ -193,7 +193,7 @@ export function CatalogPanel({
       )}
       {fixedCategory !== "car" && marketNext && (
         <p className="muted">
-          🏠💎 집·명품은 시세대로 사고팔아요. 시세는 매일 9·12·18시에 정가의 0.5~3배 사이로 바뀌어요 — 쌀 때 사서
+          🏠💎 집·명품은 시세대로 사고팔아요. 시세는 매일 9·12·15·18시에 정가의 0.5~3배 사이로 바뀌어요 — 쌀 때 사서
           비쌀 때 팔면 이익! 다음 변경{" "}
           {new Date(marketNext).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
         </p>

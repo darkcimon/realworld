@@ -29,7 +29,7 @@ catalogRouter.get("/owned", (req, res) => {
   res.json(listOwnedItems(req.userId!));
 });
 
-// 아파트·명품 시세가 다음에 바뀌는 시각(KST 9·12·18시)
+// 아파트·명품 시세가 다음에 바뀌는 시각(KST 9·12·15·18시)
 catalogRouter.get("/market", (_req, res) => {
   res.json(currentMarketSlot());
 });

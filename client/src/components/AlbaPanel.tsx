@@ -18,6 +18,7 @@ export function AlbaPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
     minutesWorked: number;
     totalWagePaid: number;
     totalPenalty: number;
+    netPay: number;
     managerReacted: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +68,7 @@ export function AlbaPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
         minutesWorked: number;
         totalWagePaid: number;
         totalPenalty: number;
+        netPay: number;
         managerReacted: boolean;
       }>("/alba/mart/shift/end");
       setSummary(r);
@@ -107,7 +109,9 @@ export function AlbaPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
           {lastTx && (
             <p className={lastTx.penalty > 0 ? "error" : "ok-text"}>
               {lastTx.penalty > 0
-                ? `오차 ${lastTx.errorAmount.toLocaleString()}원 → 페널티 ${lastTx.penaltyApplied.toLocaleString()}원`
+                ? `오차 ${lastTx.errorAmount.toLocaleString()}원 → 페널티 ${lastTx.penaltyApplied.toLocaleString()}원${
+                    lastTx.penaltyCapped ? " (이번 근무 급여까지만 차감)" : ""
+                  }`
                 : "정확하게 계산했습니다!"}{" "}
               (분급 +{lastTx.wagePaid.toLocaleString()}원
               {lastTx.wageMultiplier !== 1 && ` (×${lastTx.wageMultiplier})`}, 잔액{" "}
@@ -123,7 +127,8 @@ export function AlbaPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
       {summary && (
         <p className="muted">
           {summary.minutesWorked}분 근무, 분급 총 {summary.totalWagePaid.toLocaleString()}원, 페널티
-          총 {summary.totalPenalty.toLocaleString()}원
+          총 {summary.totalPenalty.toLocaleString()}원 → 실수령 <b>{summary.netPay.toLocaleString()}원</b>
+          {summary.netPay === 0 && summary.totalWagePaid > 0 && " (페널티가 급여를 넘어 0원으로 정산)"}
           {summary.managerReacted && " — 점장님이 근무 결과를 보고 한마디 남겼어요!"}
         </p>
       )}

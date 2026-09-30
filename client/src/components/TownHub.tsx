@@ -312,6 +312,21 @@ export function TownHub({
     [arrive, graph, reducedMotion]
   );
 
+  // 처음 체력/위치를 받아오면, 서버가 기억하는 마지막 도착 장소에 캐릭터를 세운다
+  // (연료는 서버가 그 장소에서부터 잰 칸 수만큼 빼므로 화면 위치도 맞춰 둔다 — 다른 기기에서 이어서 할 때 등).
+  const syncedLocation = useRef(false);
+  useEffect(() => {
+    const loc = vitals?.location as FacilityKey | undefined;
+    if (!loc || syncedLocation.current || walk.current || requesting.current) return;
+    syncedLocation.current = true;
+    const id = attachId(loc);
+    const pt = graph.nodes.get(id);
+    if (!pt || here.current === id || here.current === doorId(loc)) return;
+    here.current = id;
+    setPos(pt);
+    saveLastSpot(id);
+  }, [vitals?.location, graph]);
+
   // 서 있을 때 소유 차/연료가 바뀌면(주유, 차 구매) 모습도 맞춘다.
   useEffect(() => {
     if (walk.current || requesting.current) return;
@@ -323,7 +338,7 @@ export function TownHub({
     setMode(m);
     speedRef.current = SPEED[m];
     if (m === "tired") setBubble("너무 지쳤어요… 마트에서 뭘 좀 먹거나 집에서 쉬어요 😵");
-    else if (m === "walk" && carSprite) setBubble("기름이 떨어졌어요! 마트에서 주유해요 ⛽");
+    else if (m === "walk" && carSprite) setBubble("연료가 모자라 걸어가요! 마트에서 주유해요 ⛽");
   }
 
   async function requestMove(key: FacilityKey): Promise<MoveMode> {
@@ -642,10 +657,10 @@ function VitalsBar({ vitals: v }: { vitals: Vitals }) {
         <div className="town-vital">
           <span>⛽ 연료</span>
           <div className={`town-vital-bar fuel${v.fuel === 0 ? " low" : ""}`}>
-            <div style={{ width: `${Math.round((v.fuel / v.tankMoves) * 100)}%` }} />
+            <div style={{ width: `${Math.round((v.fuel / Math.max(1, v.fuelCapacity)) * 100)}%` }} />
           </div>
           <b>
-            {v.fuel}/{v.tankMoves}회
+            {v.fuel}/{v.fuelCapacity}칸
           </b>
         </div>
       )}

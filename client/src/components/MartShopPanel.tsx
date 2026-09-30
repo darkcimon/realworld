@@ -96,8 +96,8 @@ export function MartShopPanel({
             <div>
               <strong>⛽ {v.car.name} 가득 채우기</strong>
               <div className="muted">
-                남은 연료 {v.fuel}/{v.tankMoves}회
-                {menu?.fuel && menu.fuel.missing > 0 && ` · ${menu.fuel.price.toLocaleString()}원 (부족한 ${menu.fuel.missing}회분)`}
+                남은 연료 {v.fuel}/{v.fuelCapacity}칸
+                {menu?.fuel && menu.fuel.missing > 0 && ` · ${menu.fuel.price.toLocaleString()}원 (부족한 ${menu.fuel.missing}칸분)`}
               </div>
             </div>
             <div className="catalog-actions">

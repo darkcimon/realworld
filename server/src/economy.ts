@@ -12,7 +12,9 @@ export type QuestKey =
   | "first_alba"
   | "set_location"
   | "work_batch"
-  | "alba_tx";
+  | "alba_tx"
+  | "lottery_buy"
+  | "shop_food";
 
 // 퀘스트 단계는 유저 상태로 정해진다(social/daily.ts의 questPhase).
 // - elementary/middle/high: 졸업 전 학생(학교급이 오를수록 목표·보상이 커진다)
@@ -51,6 +53,31 @@ export const QUESTS: {
   { key: "work_batch", label: "직장 근무 5문제 풀기", goal: 5, reward: 500_000, phase: "adult" },
   { key: "alba_tx", label: "마트 계산 10건 처리하기", goal: 10, reward: 300_000, phase: "adult" },
 ];
+
+// ── 시간대 퀘스트 ─────────────────────────────────────────────────────────
+// 매일 아래 시각(KST)마다 퀘스트가 1~2개씩 새로 열린다(그날 자정까지). 진행도는 열린 시각 이후의 활동만 센다.
+// 어떤 퀘스트가 열릴지는 유저·날짜·시간대로 정해져서 새로고침해도 바뀌지 않는다(social/daily.ts).
+export const TIMED_QUEST_HOURS = [9, 12, 15, 18];
+export const TIMED_QUESTS: { key: QuestKey; label: string; goal: number; reward: number; phases: QuestPhase[] }[] = [
+  // 학생
+  { key: "lesson_ask", label: "AI 선생님께 질문 2번 하기", goal: 2, reward: 80_000, phases: ["elementary", "middle", "high"] },
+  { key: "group_chat", label: "단체 수업방에서 한마디 하기", goal: 1, reward: 60_000, phases: ["elementary", "middle", "high"] },
+  { key: "exam_try", label: "시험 1회 끝까지 응시하기", goal: 1, reward: 120_000, phases: ["elementary", "middle", "high"] },
+  // 사회인(졸업 후)
+  { key: "work_batch", label: "직장 근무 5문제 풀기", goal: 5, reward: 200_000, phases: ["newbie", "adult"] },
+  { key: "alba_tx", label: "마트 계산 5건 처리하기", goal: 5, reward: 150_000, phases: ["newbie", "adult"] },
+  { key: "lottery_buy", label: "로또 한 장 사기", goal: 1, reward: 50_000, phases: ["newbie", "adult"] },
+  { key: "shop_food", label: "마트에서 음식 사 먹기", goal: 1, reward: 50_000, phases: ["newbie", "adult"] },
+  { key: "exam_try", label: "학교에 가서 시험 다시 보기", goal: 1, reward: 150_000, phases: ["newbie", "adult"] },
+];
+// 학교급이 오를수록 학생 시간대 퀘스트 보상을 키운다.
+export const TIMED_QUEST_REWARD_SCALE: Record<QuestPhase, number> = {
+  elementary: 1,
+  middle: 1.5,
+  high: 2,
+  newbie: 1,
+  adult: 1,
+};
 
 // ── 점장 NPC(마트 알바) ────────────────────────────────────────────────
 // 점장은 근무 기록(정확도)을 보고 신뢰도를 올리거나 내리고, 신뢰도 등급에 따라 시급 배수와
@@ -209,17 +236,24 @@ export const WORKPLACE = {
 // ── 마을 이동: 체력 / 연료 ───────────────────────────────────────────────
 // 걸어서 이동하면 체력이 줄고(0이면 아주 느리게 걷는다), 차가 있으면 연료로 빠르게 이동한다.
 // 체력은 시간이 지나면 조금씩 차고, 내 집에서 자거나 마트에서 음식을 사 먹으면 회복된다.
-// 연료는 한 번 가득 채우면 tankMoves번 이동할 수 있고, 마트에서 부족한 만큼 산다.
+// 연료는 이동한 칸 수(지도 블록, social/townMap.ts)만큼 줄고, 차종마다 연료통 크기(칸)가 다르다. 마트에서 부족한 만큼 산다.
 export const VITALS = {
   maxStamina: 100,
   walkCost: 5, // 걸어서 한 번 이동할 때 드는 체력(100이면 20번)
   regenPerHour: 12, // 자연 회복(5분에 1)
   sleepCooldownHours: 6, // 내 집에서 자면 체력이 가득 차고, 이 시간 뒤에 다시 잘 수 있다
+  // 차를 몰고 내 집에 도착하면 연료통의 homeRefuelRatio만큼 채운다. 집 근처를 오가며 연료를 무한히 불리지 못하게
+  // homeRefuelCooldownHours마다 한 번만(경차 60칸이면 12칸 — 집과 가까운 건물 왕복보다 많다).
+  homeRefuelRatio: 0.2,
+  homeRefuelCooldownHours: 3,
   // 일하면 근무 시간에 비례해 체력이 준다. 직장 문제 1개 = 12분(5문제 배치 = 1시간), 알바 손님 1명 = 1분.
   // 체력이 없으면 새 근무 배치를 시작하거나 다음 손님을 받을 수 없다(배치 도중이면 끝까지는 풀 수 있다).
   staminaPerWorkHour: 15,
   workMinutes: { jobQuestion: 12, albaCustomer: 1 },
-  tankMoves: 20, // 연료 가득 = 이동 20번
+  // 차종별 연료통(가득 채웠을 때 달릴 수 있는 칸 수). 시설 사이 이동은 1~5칸(평균 약 2.5칸).
+  // 작은 차일수록 연비가 좋아 오래 가고, 빠르고 비싼 차일수록 연료통이 금방 빈다.
+  tankCells: { 경차: 60, "준중형 세단": 50, 스포츠카: 40, 슈퍼카: 30 } as Record<string, number>,
+  defaultTankCells: 50,
   foods: [
     { key: "gimbap", name: "🍙 삼각김밥", price: 1_500, stamina: 15 },
     { key: "ramen", name: "🍜 컵라면", price: 2_500, stamina: 25 },
@@ -233,12 +267,12 @@ export const VITALS = {
 
 // ── 자산 되팔기 ─────────────────────────────────────────────────────────
 // 자동차: 산 날부터 하루마다 구매가의 carDepreciationPerDay만큼 값이 떨어지고, carFloorRatio 아래로는 안 내려간다(폐차가).
-// 아파트·명품: 하루 세 번(KST 9·12·18시) 시세가 바뀌어 정가의 minMultiplier~maxMultiplier배 사이에서 랜덤으로 정해진다.
+// 아파트·명품: 하루 네 번(KST 9·12·15·18시) 시세가 바뀌어 정가의 minMultiplier~maxMultiplier배 사이에서 랜덤으로 정해진다.
 //   사는 가격과 파는 가격이 모두 그 시세를 따른다 — 같은 시간대에 사서 바로 팔면 손익 0, 쌀 때 사서 비쌀 때 팔아야 이익.
 export const ASSET_RESALE = {
   carDepreciationPerDay: 0.02,
   carFloorRatio: 0.1,
-  marketHours: [9, 12, 18],
+  marketHours: [9, 12, 15, 18],
   minMultiplier: 0.5,
   maxMultiplier: 3,
 };

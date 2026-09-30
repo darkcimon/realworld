@@ -52,6 +52,14 @@ function issueCart(shiftId: number, big = false): CartItem[] {
   return cart;
 }
 
+/** 이번 근무에서 실제로 차감된 오차 페널티 합계(원장 기준, 양수). */
+function penaltyAppliedTotal(shiftId: number): number {
+  const row = db
+    .prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM ledger_entries WHERE type = '알바오차차감' AND ref_id = ?")
+    .get(shiftId) as { s: number };
+  return -row.s;
+}
+
 function activeShift(userId: number): any {
   return db
     .prepare("SELECT * FROM mart_shifts WHERE user_id = ? AND active = 1 ORDER BY id DESC LIMIT 1")
@@ -89,6 +97,7 @@ export function recordMartTransaction(
   penaltyScale: number;
   rushRemaining: number | null;
   penaltyApplied: number;
+  penaltyCapped: boolean;
   balance: number;
   stamina: number;
 } {
@@ -124,10 +133,14 @@ export function recordMartTransaction(
   const wage = Math.round(shift.per_minute_wage * mult.total * scales.wageScale);
   db.prepare("UPDATE mart_shifts SET wage_total = wage_total + ? WHERE id = ?").run(wage, shift.id);
   const { balance: afterWage } = applyLedgerEntry(userId, "알바정산", wage, shift.id);
+  // 일하고 적자가 나지 않게: 이번 근무의 누적 차감액이 누적 분급을 넘지 않도록 페널티를 깎는다
+  // (근무 결과는 최소 0원 — 잘 계산해서 번 분급에서 실수만큼 빠진다).
+  const room = Math.max(0, shift.wage_total + wage - penaltyAppliedTotal(shift.id));
+  const penaltyCharged = Math.min(penalty, room);
   const { balance: afterPenalty, amountApplied } = applyLedgerEntry(
     userId,
     "알바오차차감",
-    -penalty,
+    -penaltyCharged,
     shift.id,
     { floorAtZero: true }
   );
@@ -147,6 +160,7 @@ export function recordMartTransaction(
     penaltyScale: scales.penaltyScale,
     rushRemaining,
     penaltyApplied: -amountApplied,
+    penaltyCapped: penaltyCharged < penalty, // 급여를 넘는 페널티라 깎였는지
     balance: penalty > 0 ? afterPenalty : afterWage,
     stamina: Math.floor(stamina),
   };
@@ -156,6 +170,7 @@ export function endMartShift(userId: number): {
   minutesWorked: number;
   totalWagePaid: number;
   totalPenalty: number;
+  netPay: number;
   managerReacted: boolean;
 } {
   const shift = activeShift(userId);
@@ -174,10 +189,13 @@ export function endMartShift(userId: number): {
   // 근무 종료 시 점장이 이번 근무 기록을 보고 반응한다(칭찬/보너스/경고/면담).
   const reaction = evaluateShift(userId, shift.id);
 
+  // 실제로 차감된 페널티(급여 한도로 깎인 뒤)와 실수령액(최소 0원)을 알려준다.
+  const applied = penaltyAppliedTotal(shift.id);
   return {
     minutesWorked: txCount,
     totalWagePaid: shift.wage_total,
-    totalPenalty: shift.penalty_total,
+    totalPenalty: applied,
+    netPay: Math.max(0, shift.wage_total - applied),
     managerReacted: reaction !== null,
   };
 }

@@ -3,7 +3,16 @@
 // 마트 계산)에서 바로 계산한다 — 기존 라우트를 건드리지 않아도 되고 값이 어긋날 일이 없다.
 import { db } from "../db.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
-import { ATTENDANCE_REWARDS, NEWBIE_DAYS, QUESTS, type QuestKey, type QuestPhase } from "../economy.js";
+import {
+  ATTENDANCE_REWARDS,
+  NEWBIE_DAYS,
+  QUESTS,
+  TIMED_QUEST_HOURS,
+  TIMED_QUEST_REWARD_SCALE,
+  TIMED_QUESTS,
+  type QuestKey,
+  type QuestPhase,
+} from "../economy.js";
 import { todayKstDate } from "./lottery.js";
 
 function addDays(dateStr: string, days: number): string {
@@ -17,62 +26,97 @@ function count(sql: string, ...params: (string | number)[]): number {
   return (db.prepare(sql).get(...params) as { c: number }).c;
 }
 
-// created_at은 UTC(datetime('now'))로 저장되므로 +9시간을 더해 KST 날짜와 비교한다.
-function questProgress(userId: number, key: QuestKey, today: string): number {
+const KST_OFFSET = 9 * 60 * 60 * 1000;
+
+/** KST 날짜의 hour시 정각을 DB의 UTC datetime 문자열("YYYY-MM-DD HH:MM:SS")로. */
+function kstToDb(date: string, hour = 0): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d, hour) - KST_OFFSET).toISOString().slice(0, 19).replace("T", " ");
+}
+
+function nowDb(now = Date.now()): string {
+  return new Date(now).toISOString().slice(0, 19).replace("T", " ");
+}
+
+// created_at 등은 UTC(datetime('now'))로 저장되므로 [from, to) UTC 구간으로 센다.
+// 하루 퀘스트는 오늘 KST 0시부터, 시간대 퀘스트는 열린 시각부터 오늘 자정까지.
+function questProgress(userId: number, key: QuestKey, from: string, to: string): number {
   switch (key) {
     case "lesson_ask":
       return count(
         `SELECT COUNT(*) AS c FROM lesson_messages m JOIN lesson_sessions s ON s.id = m.session_id
-         WHERE s.user_id = ? AND m.sender_type = 'student' AND date(m.created_at, '+9 hours') = ?`,
+         WHERE s.user_id = ? AND m.sender_type = 'student' AND m.created_at >= ? AND m.created_at < ?`,
         userId,
-        today
+        from,
+        to
       );
     case "group_chat":
       return count(
         `SELECT COUNT(*) AS c FROM chat_messages
-         WHERE user_id = ? AND sender_type = 'user' AND date(created_at, '+9 hours') = ?`,
+         WHERE user_id = ? AND sender_type = 'user' AND created_at >= ? AND created_at < ?`,
         userId,
-        today
+        from,
+        to
       );
     case "exam_try":
       return (
         count(
-          "SELECT COUNT(*) AS c FROM exam_results WHERE user_id = ? AND date(created_at, '+9 hours') = ?",
+          "SELECT COUNT(*) AS c FROM exam_results WHERE user_id = ? AND created_at >= ? AND created_at < ?",
           userId,
-          today
+          from,
+          to
         ) +
         count(
-          "SELECT COUNT(*) AS c FROM placement_results WHERE user_id = ? AND date(created_at, '+9 hours') = ?",
+          "SELECT COUNT(*) AS c FROM placement_results WHERE user_id = ? AND created_at >= ? AND created_at < ?",
           userId,
-          today
+          from,
+          to
         )
       );
     case "get_job":
       return count(
-        "SELECT COUNT(*) AS c FROM job_assignments WHERE user_id = ? AND date(assigned_at, '+9 hours') = ?",
+        "SELECT COUNT(*) AS c FROM job_assignments WHERE user_id = ? AND assigned_at >= ? AND assigned_at < ?",
         userId,
-        today
+        from,
+        to
       );
     case "set_location":
       return count(
-        "SELECT COUNT(*) AS c FROM user_locations WHERE user_id = ? AND date(updated_at, '+9 hours') = ?",
+        "SELECT COUNT(*) AS c FROM user_locations WHERE user_id = ? AND updated_at >= ? AND updated_at < ?",
         userId,
-        today
+        from,
+        to
       );
     case "work_batch":
       return count(
         `SELECT COUNT(*) AS c FROM work_attempts a JOIN work_sessions s ON s.id = a.session_id
-         WHERE s.user_id = ? AND date(a.created_at, '+9 hours') = ?`,
+         WHERE s.user_id = ? AND a.created_at >= ? AND a.created_at < ?`,
         userId,
-        today
+        from,
+        to
       );
     case "first_alba":
     case "alba_tx":
       return count(
         `SELECT COUNT(*) AS c FROM mart_transactions t JOIN mart_shifts s ON s.id = t.shift_id
-         WHERE s.user_id = ? AND date(t.created_at, '+9 hours') = ?`,
+         WHERE s.user_id = ? AND t.created_at >= ? AND t.created_at < ?`,
         userId,
-        today
+        from,
+        to
+      );
+    case "lottery_buy":
+      return count(
+        "SELECT COUNT(*) AS c FROM lottery_tickets WHERE user_id = ? AND created_at >= ? AND created_at < ?",
+        userId,
+        from,
+        to
+      );
+    case "shop_food":
+      return count(
+        "SELECT COUNT(*) AS c FROM ledger_entries WHERE user_id = ? AND type = '장보기' AND created_at >= ? AND created_at < ?",
+        userId,
+        from,
+        to
       );
   }
 }
@@ -91,6 +135,101 @@ function questPhase(userId: number, today: string): QuestPhase {
     )
     .get(userId) as { d: string | null };
   return grad.d && grad.d > addDays(today, -NEWBIE_DAYS) ? "newbie" : "adult";
+}
+
+/** 문자열 → 0~1 사이 고정 난수(같은 입력이면 항상 같은 값). */
+function seeded(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
+
+interface ActiveQuest {
+  key: string; // 수령 기록용 키: 하루 퀘스트는 QuestKey, 시간대 퀘스트는 "t12:work_batch"
+  kind: QuestKey; // 진행도를 세는 방법
+  label: string;
+  goal: number;
+  reward: number;
+  from: string; // 진행도를 세기 시작하는 시각(UTC DB 문자열)
+  slot: string | null; // 시간대 퀘스트면 "12:00"
+  once?: boolean;
+}
+
+/** 오늘 받을 수 있는 퀘스트 전체: 단계별 하루 퀘스트 + 이미 열린 시간대 퀘스트(시간대마다 1~2개). */
+function activeQuests(userId: number, today: string, phase: QuestPhase, now = Date.now()): ActiveQuest[] {
+  const list: ActiveQuest[] = QUESTS.filter((q) => q.phase === phase).map((q) => ({
+    key: q.key,
+    kind: q.key,
+    label: q.label,
+    goal: q.goal,
+    reward: q.reward,
+    from: kstToDb(today),
+    slot: null,
+    once: q.once,
+  }));
+  const pool = TIMED_QUESTS.filter((q) => q.phases.includes(phase));
+  const scale = TIMED_QUEST_REWARD_SCALE[phase];
+  const current = nowDb(now);
+  for (const hour of TIMED_QUEST_HOURS) {
+    const from = kstToDb(today, hour);
+    if (from > current || !pool.length) continue; // 아직 안 열린 시간대
+    const seed = `${userId}|${today}|${hour}`;
+    const howMany = seeded(seed + "|n") < 0.5 ? 1 : 2;
+    // 풀에서 겹치지 않게 뽑는다(같은 시간대 안에서만 — 시간대가 다르면 같은 종류가 또 나올 수 있다).
+    const picks = [...pool].sort(
+      (a, b) => seeded(`${seed}|${a.key}|${a.label}`) - seeded(`${seed}|${b.key}|${b.label}`)
+    );
+    const hh = String(hour).padStart(2, "0");
+    for (const q of picks.slice(0, howMany)) {
+      list.push({
+        key: `t${hh}:${q.key}`,
+        kind: q.key,
+        label: q.label,
+        goal: q.goal,
+        reward: Math.round((q.reward * scale) / 10_000) * 10_000,
+        from,
+        slot: `${hh}:00`,
+      });
+    }
+  }
+  return list;
+}
+
+/**
+ * 퀘스트별 진행도. 하루 퀘스트는 오늘 0시부터 센다. 시간대 퀘스트는 열린 시각부터 세되, 같은 종류가 여러 번
+ * 열렸으면 활동 한 건이 한 퀘스트에만 쓰이게 나눈다(로또 한 장으로 로또 퀘스트 여러 개를 채우지 못하게):
+ * 늦게 열린 퀘스트부터 그 이후 활동을 가져가고, 남는 만큼 앞 퀘스트에 채운다.
+ */
+function progressMap(userId: number, quests: ActiveQuest[], dayEnd: string): Map<string, number> {
+  const result = new Map<string, number>();
+  const byKind = new Map<QuestKey, ActiveQuest[]>();
+  for (const q of quests) {
+    if (!q.slot) {
+      result.set(q.key, Math.min(questProgress(userId, q.kind, q.from, dayEnd), q.goal));
+      continue;
+    }
+    byKind.set(q.kind, [...(byKind.get(q.kind) ?? []), q]);
+  }
+  for (const [kind, list] of byKind) {
+    let used = 0;
+    for (const q of [...list].sort((a, b) => (a.from < b.from ? 1 : -1))) {
+      const available = questProgress(userId, kind, q.from, dayEnd) - used;
+      const progress = Math.max(0, Math.min(q.goal, available));
+      result.set(q.key, progress);
+      used += progress;
+    }
+  }
+  return result;
+}
+
+/** 다음 시간대 퀘스트가 열리는 시각(ISO). 오늘 마지막 시간대가 지났으면 null. */
+function nextTimedQuestAt(today: string, now = Date.now()): string | null {
+  const current = nowDb(now);
+  const next = TIMED_QUEST_HOURS.map((h) => kstToDb(today, h)).find((t) => t > current);
+  return next ? next.replace(" ", "T") + ".000Z" : null;
 }
 
 function claimedEver(userId: number, key: QuestKey): boolean {
@@ -119,16 +258,18 @@ export function getDailyStatus(userId: number) {
     ).map((r) => r.quest_key)
   );
   // 평생 1회 퀘스트는 이전 날짜에 이미 받았으면 목록에서 뺀다(오늘 받은 건 "받음"으로 남겨둔다).
-  const visible = QUESTS.filter(
-    (q) => q.phase === phase && !(q.once && !claimed.has(q.key) && claimedEver(userId, q.key))
+  const visible = activeQuests(userId, today, phase).filter(
+    (q) => !(q.once && !claimed.has(q.key) && claimedEver(userId, q.kind))
   );
+  const progressOf = progressMap(userId, visible, kstToDb(addDays(today, 1)));
   const quests = visible.map((q) => {
-    const progress = Math.min(questProgress(userId, q.key, today), q.goal);
+    const progress = progressOf.get(q.key) ?? 0;
     return {
       key: q.key,
       label: q.label,
       goal: q.goal,
       reward: q.reward,
+      slot: q.slot,
       progress,
       claimed: claimed.has(q.key),
       claimable: progress >= q.goal && !claimed.has(q.key),
@@ -145,6 +286,7 @@ export function getDailyStatus(userId: number) {
       rewards: ATTENDANCE_REWARDS,
     },
     quests,
+    nextQuestAt: nextTimedQuestAt(today), // 다음 시간대 퀘스트가 열리는 시각(오늘 마지막이 지났으면 null)
     // 사이드바 뱃지용: 아직 받을 수 있는 보상 개수(출석 + 완료한 퀘스트)
     pendingCount: (checkedInToday ? 0 : 1) + quests.filter((q) => q.claimable).length,
   };
@@ -168,9 +310,10 @@ export function checkIn(userId: number): { streak: number; reward: number; balan
 
 export function claimQuest(userId: number, key: string): { reward: number; balance: number } {
   const today = todayKstDate();
-  const quest = QUESTS.find((q) => q.key === key && q.phase === questPhase(userId, today));
+  const all = activeQuests(userId, today, questPhase(userId, today));
+  const quest = all.find((q) => q.key === key);
   if (!quest) throw { status: 404, message: "존재하지 않는 퀘스트입니다." };
-  if (quest.once && claimedEver(userId, quest.key)) {
+  if (quest.once && claimedEver(userId, quest.kind)) {
     throw { status: 409, message: "이미 보상을 받은 퀘스트입니다." };
   }
 
@@ -178,7 +321,7 @@ export function claimQuest(userId: number, key: string): { reward: number; balan
     .prepare("SELECT 1 FROM quest_claims WHERE user_id = ? AND date = ? AND quest_key = ?")
     .get(userId, today, key);
   if (done) throw { status: 409, message: "이미 보상을 받은 퀘스트입니다." };
-  if (questProgress(userId, quest.key, today) < quest.goal) {
+  if ((progressMap(userId, all, kstToDb(addDays(today, 1))).get(quest.key) ?? 0) < quest.goal) {
     throw { status: 400, message: "아직 퀘스트를 완료하지 않았습니다." };
   }
 
