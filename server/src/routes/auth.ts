@@ -38,7 +38,7 @@ authRouter.post("/guest", (req, res) => {
   // 최초 게임 시작 시 고른 기본 아바타 또는 잘라낸 사진(데이터 URL)을 그대로 avatar_url에 저장한다.
   const avatarUrl = req.body?.avatarUrl ? String(req.body.avatarUrl) : null;
   const result = db
-    .prepare("INSERT INTO users (nickname, avatar_url, is_guest) VALUES (?, ?, 1)")
+    .prepare("INSERT INTO users (nickname, avatar_url, is_guest, last_seen_at) VALUES (?, ?, 1, datetime('now'))")
     .run(nickname, avatarUrl);
   const userId = Number(result.lastInsertRowid);
   db.prepare("INSERT INTO student_profile (user_id) VALUES (?)").run(userId);

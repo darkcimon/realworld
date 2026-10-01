@@ -3,6 +3,9 @@ import { api, clearToken, getToken } from "./api";
 import type { MoveMode, PlacementInfo, Profile, RoomSummary, Vitals } from "./types";
 import { Login } from "./components/Login";
 import { ProfileHeader } from "./components/ProfileHeader";
+import { SaveAccountModal } from "./components/SaveAccountModal";
+import { CharacterStudio } from "./character/CharacterStudio";
+import { confirmDialog } from "./components/ConfirmDialog";
 import { RoomList } from "./components/RoomList";
 import { LessonRoom } from "./components/LessonRoom";
 import { ChatRoom } from "./components/ChatRoom";
@@ -33,6 +36,9 @@ const FACILITY_VIEWS: Partial<Record<FacilityKey, FacilityView>> = {
   home: { title: "🏠 내 집", tabs: ["rest", "wallet", "catalog", "manner", "nearby"], catalogOwnedOnly: true },
 };
 
+const SAVE_NUDGE_KEY = "rw_save_nudge_at";
+const CHARACTER_SKIP_KEY = "rw_character_skipped";
+
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken());
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -49,6 +55,8 @@ export default function App() {
   const [facilityNotice, setFacilityNotice] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [saveNudge, setSaveNudge] = useState(false);
+  const [firstStudio, setFirstStudio] = useState(false);
 
   async function loadAll() {
     try {
@@ -58,6 +66,9 @@ export default function App() {
         api.get<PlacementInfo[]>("/school/placement"),
       ]);
       setProfile(p);
+      // 캐릭터가 없으면 처음 한 번 "나만의 캐릭터 만들기"를 띄운다(그때는 저장 권유를 미룬다).
+      if (!p.character && !characterSkipped()) setFirstStudio(true);
+      else maybeNudgeSave(p);
       setRooms(r);
       setPlacements(pl);
       setLoadError(null);
@@ -150,7 +161,38 @@ export default function App() {
     );
   }
 
-  function logout() {
+  function characterSkipped(): boolean {
+    try {
+      return !!localStorage.getItem(CHARACTER_SKIP_KEY);
+    } catch {
+      return true; // 저장소를 못 쓰면 매번 뜰 수 있으니 자동으로 띄우지 않는다
+    }
+  }
+
+  // 진행이 쌓인 비회원(졸업장이 하나라도 있으면)에게 하루 한 번 계정 저장을 권한다.
+  function maybeNudgeSave(p: Profile) {
+    if (!p.isGuest || p.graduations.length === 0) return;
+    try {
+      const last = Number(localStorage.getItem(SAVE_NUDGE_KEY) ?? 0);
+      if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+      localStorage.setItem(SAVE_NUDGE_KEY, String(Date.now()));
+    } catch {
+      return; // 저장소를 못 쓰면 매번 뜰 수 있으니 띄우지 않는다.
+    }
+    setSaveNudge(true);
+  }
+
+  async function logout() {
+    // 비회원은 토큰이 계정의 유일한 열쇠라 로그아웃하면 다시 들어올 수 없다.
+    if (
+      profile?.isGuest &&
+      !(await confirmDialog(
+        "비회원은 로그아웃하면 지금까지의 진행(학년·돈·자산)을 다시 찾을 수 없어요.\n먼저 사이드 메뉴의 '계정 저장하기'로 저장하는 걸 추천해요.",
+        { title: "정말 로그아웃할까요?", confirmText: "그래도 로그아웃" }
+      ))
+    ) {
+      return;
+    }
     clearToken();
     setAuthed(false);
     setProfile(null);
@@ -310,6 +352,35 @@ export default function App() {
       )}
 
       {helpOpen && <HelpGuide onClose={closeHelp} />}
+      {firstStudio && profile && (
+        <CharacterStudio
+          firstTime
+          initial={null}
+          photoUrl={profile.avatarUrl}
+          onClose={() => {
+            setFirstStudio(false);
+            try {
+              localStorage.setItem(CHARACTER_SKIP_KEY, "1");
+            } catch {
+              // 다음 접속 때 다시 뜰 수 있지만 문제는 없다
+            }
+          }}
+          onSaved={() => {
+            setFirstStudio(false);
+            loadAll();
+          }}
+        />
+      )}
+      {saveNudge && (
+        <SaveAccountModal
+          reason="🎓 졸업장까지 땄네요! 지금까지의 진행을 잃지 않게 저장해 두세요."
+          onClose={() => setSaveNudge(false)}
+          onSaved={() => {
+            setSaveNudge(false);
+            loadAll();
+          }}
+        />
+      )}
     </div>
   );
 }

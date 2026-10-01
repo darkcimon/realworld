@@ -32,6 +32,9 @@ async function request<T>(
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+  // 서버가 토큰을 연장해 주면(발급 하루 경과 후) 새 토큰으로 바꿔 둔다 — 자주 들어오면 만료되지 않는다.
+  const refreshed = res.headers.get("X-Refresh-Token");
+  if (refreshed && token) setToken(refreshed);
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     throw new ApiError(res.status, data?.error ?? `요청 실패 (${res.status})`);

@@ -32,9 +32,11 @@ import {
 } from "./routes/dating.js";
 import { attachSocket } from "./socket.js";
 import { startLotteryScheduler } from "./social/lottery.js";
+import { startGuestCleanupScheduler } from "./social/guestCleanup.js";
 
 const app = express();
-app.use(cors());
+// 토큰 자동 연장 헤더(middleware/auth.ts)를 브라우저 JS가 읽을 수 있게 노출한다.
+app.use(cors({ exposedHeaders: ["X-Refresh-Token"] }));
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
@@ -83,6 +85,7 @@ if (fs.existsSync(clientDist)) {
 const httpServer = createServer(app);
 attachSocket(httpServer);
 startLotteryScheduler();
+startGuestCleanupScheduler();
 
 const PORT = Number(process.env.PORT ?? 4000);
 httpServer.listen(PORT, () => {

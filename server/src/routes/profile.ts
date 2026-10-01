@@ -8,6 +8,7 @@ import { getActiveJail } from "../school/jail.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
 import { addPhoto, purchasePhotoAlbum } from "../social/photos.js";
 import { listDisplayedItems } from "../social/catalog.js";
+import { getCharacter, saveCharacter } from "../social/character.js";
 
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
@@ -48,6 +49,7 @@ profileRouter.get("/", (req, res) => {
     graduations,
     // 다른 사람이 내 프로필을 열면 보이는 전시 물건 — 내 프로필 헤더에도 뱃지로 보여준다.
     displayedItems: listDisplayedItems(user.id),
+    character: getCharacter(user.id), // 아직 안 만들었으면 null → 첫 시작 때 꾸미기 창을 띄운다
     jail: jail ? { type: jail.type, endsAt: jail.ends_at } : null,
   });
 });
@@ -95,6 +97,14 @@ profileRouter.get("/public/:userId", (req, res) => {
       : null,
     graduations,
   });
+});
+
+profileRouter.put("/character", (req, res) => {
+  try {
+    res.json({ character: saveCharacter(req.userId!, req.body?.character) });
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+  }
 });
 
 profileRouter.patch("/", (req, res) => {

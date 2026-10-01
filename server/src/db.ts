@@ -711,6 +711,23 @@ if (!npcEventColumns.some((c) => c.name === "meta")) {
   db.exec("ALTER TABLE npc_events ADD COLUMN meta TEXT");
 }
 
+// 3D 캐릭터 꾸미기 설정(JSON, social/character.ts가 검증). 유저당 1행.
+db.exec(`
+CREATE TABLE IF NOT EXISTS user_characters (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id),
+  config TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
+
+// 마지막 접속 시각(토큰 자동 연장 때 갱신, 하루 1회 정도). 오래 버려진 비회원 정리 기준이다.
+// 컬럼을 처음 만들 때는 기존 유저 모두 "지금"으로 채워 정리 유예 기간을 처음부터 다시 준다.
+const userColumns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+if (!userColumns.some((c) => c.name === "last_seen_at")) {
+  db.exec("ALTER TABLE users ADD COLUMN last_seen_at TEXT");
+  db.exec("UPDATE users SET last_seen_at = datetime('now')");
+}
+
 // 졸업 기록은 학교급당 1건(재응시하면 최근 결과로 갱신). 예전에는 졸업할 때마다 행이 쌓여 프로필에
 // "초졸S 초졸A …"처럼 중복 표시됐으므로 학교급별 가장 최근 행만 남기고 유니크 인덱스를 건다.
 db.exec(`

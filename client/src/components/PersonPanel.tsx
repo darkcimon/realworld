@@ -5,6 +5,7 @@ import { DmChat } from "./DmChat";
 import { AssetViewer } from "./CatalogPanel";
 import type { AssetCategory } from "./AssetViewer";
 import { groupSameItems, itemDisplayName } from "../itemName";
+import { CharacterStage } from "../character/characterLazy";
 
 // README 11.2~11.5: 프로필 열람권 구매/상세 조회, 선물/하트/맞하트, 차단, 채팅 개시.
 // preview: 내 프로필을 다른 사람 시점으로 미리보기(하트/선물/채팅 등 상대용 버튼은 숨긴다).
@@ -152,6 +153,11 @@ export function PersonPanel({
             <p className="profile-name" style={{ justifyContent: "center" }}>
               {detail.nickname}
             </p>
+            {detail.character && (
+              <Suspense fallback={<div className="character-stage" />}>
+                <CharacterStage config={detail.character} photoUrl={detail.avatarUrl} showActions />
+              </Suspense>
+            )}
             {detail.displayedItems.length > 0 && (
               <ul className="catalog-list">
                 {groupSameItems(detail.displayedItems).map(({ item: it, count }) => (

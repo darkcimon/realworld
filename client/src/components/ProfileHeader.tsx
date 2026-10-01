@@ -2,6 +2,8 @@ import { useState } from "react";
 import { api } from "../api";
 import type { Profile } from "../types";
 import { AvatarPicker } from "./AvatarPicker";
+import { SaveAccountModal } from "./SaveAccountModal";
+import { CharacterStudio } from "../character/CharacterStudio";
 import { groupSameItems, itemDisplayName } from "../itemName";
 import { assetIcon } from "../assetIcons";
 
@@ -14,6 +16,8 @@ export function ProfileHeader({
   onRefresh: () => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [studioOpen, setStudioOpen] = useState(false);
 
   async function onAvatarSelected(dataUrl: string) {
     setPickerOpen(false);
@@ -35,6 +39,14 @@ export function ProfileHeader({
           {profile.nickname}
           {profile.isGuest && <span className="badge guest">비회원</span>}
         </div>
+        <button className="character-edit-btn" onClick={() => setStudioOpen(true)}>
+          🧍 {profile.character ? "캐릭터 꾸미기" : "캐릭터 만들기"}
+        </button>
+        {profile.isGuest && (
+          <button className="save-account-btn" onClick={() => setSaveOpen(true)}>
+            💾 계정 저장하기
+          </button>
+        )}
         <div className="profile-grade">{profile.school.label}</div>
         <div className="profile-tiers">
           {profile.graduations.map((g) => (
@@ -59,6 +71,28 @@ export function ProfileHeader({
           </div>
         )}
       </div>
+
+      {studioOpen && (
+        <CharacterStudio
+          initial={profile.character}
+          photoUrl={profile.avatarUrl}
+          onClose={() => setStudioOpen(false)}
+          onSaved={() => {
+            setStudioOpen(false);
+            onRefresh();
+          }}
+        />
+      )}
+
+      {saveOpen && (
+        <SaveAccountModal
+          onClose={() => setSaveOpen(false)}
+          onSaved={() => {
+            setSaveOpen(false);
+            onRefresh();
+          }}
+        />
+      )}
 
       {pickerOpen && (
         <AvatarPicker onSelect={onAvatarSelected} onClose={() => setPickerOpen(false)} />

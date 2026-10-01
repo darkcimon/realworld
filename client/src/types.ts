@@ -1,3 +1,5 @@
+import type { CharacterConfig } from "./character/options";
+
 export interface Profile {
   id: number;
   nickname: string;
@@ -18,6 +20,7 @@ export interface Profile {
     graduated_at: string;
   }>;
   displayedItems: { id: number; category: string; brand: string | null; name: string }[];
+  character: CharacterConfig | null; // 아직 안 만들었으면 null
   jail: { type: "jail" | "solitary"; endsAt: string } | null;
 }
 
@@ -226,6 +229,7 @@ export interface PersonDetail {
   avatarUrl: string | null;
   photos: { url: string; sort_order: number }[];
   displayedItems: { id: number; category: string; brand: string | null; name: string }[];
+  character: CharacterConfig | null;
 }
 
 export interface IncomingHeart {

@@ -2,6 +2,7 @@
 import { db } from "../db.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
 import { listDisplayedItems } from "./catalog.js";
+import { getCharacter } from "./character.js";
 import { checkSocialContent } from "./manner.js";
 import { nicknameOf, notify } from "./notifications.js";
 import { chatLengthError } from "../util/chatLimit.js";
@@ -100,6 +101,7 @@ export function getProfileDetail(viewerId: number, targetId: number) {
     avatarUrl: user.avatar_url,
     photos,
     displayedItems: listDisplayedItems(targetId),
+    character: getCharacter(targetId),
   };
 }
 
