@@ -24,8 +24,20 @@ export function JobsPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
   // 배정/정산/퇴근 때마다 올려서 상사 카드가 최신 평가 상태를 다시 불러오게 한다.
   const [bossKey, setBossKey] = useState(0);
 
+  // 서버에 남아 있는 "잔업/퇴근 선택 대기" 상태를 화면에 복원한다(새로고침·패널 재진입 대비).
+  async function restoreWorkStatus() {
+    const s = await api.get<{ sessionId: number | null; awaitingDecision: boolean }>("/work/status");
+    if (s.sessionId !== null) setSessionId(s.sessionId);
+    if (s.awaitingDecision) {
+      setQuestion(null);
+      setAwaitingDecision(true);
+    }
+    return s.awaitingDecision;
+  }
+
   useEffect(() => {
     api.get<Job[]>("/jobs").then(setJobs);
+    restoreWorkStatus().catch(() => {});
   }, []);
 
   async function assign(jobId: number) {
@@ -46,8 +58,9 @@ export function JobsPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
     try {
       const r = await api.post<WorkStartResp>("/work/start");
       setSessionId(r.sessionId);
-      setQuestion({ no: 1, text: r.question, choices: r.choices, choiceOnly: r.choiceOnly });
+      setQuestion({ no: r.questionNo, text: r.question, choices: r.choices, choiceOnly: r.choiceOnly });
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && (await restoreWorkStatus().catch(() => false))) return;
       setError(e instanceof ApiError ? e.message : "근무를 시작할 수 없습니다.");
     }
   }

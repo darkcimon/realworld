@@ -10,6 +10,7 @@ import {
   settleUnpaidWork,
   startWork,
   submitWorkAnswer,
+  workStatus,
 } from "../social/jobs.js";
 
 function guard(router: Router) {
@@ -36,6 +37,10 @@ jobsRouter.post("/:jobId/assign", (req, res) => {
 
 export const workRouter = Router();
 guard(workRouter);
+
+workRouter.get("/status", (req, res) => {
+  res.json(workStatus(req.userId!));
+});
 
 workRouter.post("/start", (req, res) => {
   try {

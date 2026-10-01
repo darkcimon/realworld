@@ -218,6 +218,12 @@ export function submitWorkAnswer(
   };
 }
 
+/** 새로고침 후에도 화면이 잔업/퇴근 선택 대기 상태를 복원할 수 있게 현재 근무 상태를 알려준다. */
+export function workStatus(userId: number): { sessionId: number | null; awaitingDecision: boolean } {
+  const session = openSession(userId);
+  return { sessionId: session?.id ?? null, awaitingDecision: !!session?.awaiting_decision };
+}
+
 export function continueOrLeaveWork(
   userId: number,
   sessionId: number,
