@@ -573,6 +573,11 @@ if (!martShiftColumns.some((c) => c.name === "wage_total")) {
   db.exec("ALTER TABLE mart_shifts ADD COLUMN wage_total INTEGER NOT NULL DEFAULT 0");
 }
 
+// 마트 알바 스피드 보너스: 지금 손님 카트를 낸 시각(ms). 계산 속도는 서버가 이 값으로 잰다.
+if (!martShiftColumns.some((c) => c.name === "cart_issued_at")) {
+  db.exec("ALTER TABLE mart_shifts ADD COLUMN cart_issued_at INTEGER");
+}
+
 // 직장 상사 "긴급 프로젝트": 이번 평가 기간에 달성해야 할 잔업 배치 수(0이면 없음).
 const bossStateColumns = db.prepare("PRAGMA table_info(boss_state)").all() as { name: string }[];
 if (!bossStateColumns.some((c) => c.name === "project_goal")) {
@@ -704,6 +709,36 @@ CREATE TABLE IF NOT EXISTS job_bans (
 const npcEventColumns = db.prepare("PRAGMA table_info(npc_events)").all() as { name: string }[];
 if (!npcEventColumns.some((c) => c.name === "meta")) {
   db.exec("ALTER TABLE npc_events ADD COLUMN meta TEXT");
+}
+
+// 졸업 기록은 학교급당 1건(재응시하면 최근 결과로 갱신). 예전에는 졸업할 때마다 행이 쌓여 프로필에
+// "초졸S 초졸A …"처럼 중복 표시됐으므로 학교급별 가장 최근 행만 남기고 유니크 인덱스를 건다.
+db.exec(`
+DELETE FROM graduations WHERE id NOT IN (
+  SELECT MAX(id) FROM graduations GROUP BY user_id, school_level
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_graduations_user_level ON graduations(user_id, school_level);
+`);
+// 고졸 후 낮은 학년 시험을 다시 보고 승급을 누르면 학교급이 뒤로 돌아가던 버그로 망가진 프로필 복구:
+// 졸업생은 고등학교 졸업으로, 재학생은 최소한 "가장 높은 졸업 학교급의 다음 학교급"으로 되돌린다.
+db.exec(`
+UPDATE student_profile SET school_level = 'high', grade = 3
+  WHERE status = 'graduated' AND school_level <> 'high';
+UPDATE student_profile SET school_level = 'high', grade = 1
+  WHERE status <> 'graduated' AND school_level IN ('elementary', 'middle')
+    AND EXISTS (SELECT 1 FROM graduations g WHERE g.user_id = student_profile.user_id AND g.school_level = 'middle');
+UPDATE student_profile SET school_level = 'middle', grade = 1
+  WHERE status <> 'graduated' AND school_level = 'elementary'
+    AND EXISTS (SELECT 1 FROM graduations g WHERE g.user_id = student_profile.user_id AND g.school_level = 'elementary');
+`);
+
+/** 학교급 졸업 기록을 남기거나, 이미 있으면 가장 최근 응시 결과로 갱신한다. */
+export function recordGraduation(userId: number, schoolLevel: string, averageScore: number, tier: string): void {
+  db.prepare(
+    `INSERT INTO graduations (user_id, school_level, average_score, tier) VALUES (?, ?, ?, ?)
+     ON CONFLICT(user_id, school_level) DO UPDATE SET
+       average_score = excluded.average_score, tier = excluded.tier, graduated_at = datetime('now')`
+  ).run(userId, schoolLevel, averageScore, tier);
 }
 
 // 12개 학년 방 시드 데이터 (초1~초6, 중1~3, 고1~3) — README 4.1

@@ -12,6 +12,10 @@ import { listDisplayedItems } from "../social/catalog.js";
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
 
+// 학교급당 1건(최근 응시 결과)을 초 → 중 → 고 순서로 보여준다.
+const GRADUATIONS_SQL =
+  "SELECT * FROM graduations WHERE user_id = ? ORDER BY CASE school_level WHEN 'elementary' THEN 0 WHEN 'middle' THEN 1 ELSE 2 END";
+
 const LEVEL_LABEL: Record<string, string> = {
   elementary: "초등학교",
   middle: "중학교",
@@ -24,7 +28,7 @@ profileRouter.get("/", (req, res) => {
     .prepare("SELECT * FROM student_profile WHERE user_id = ?")
     .get(req.userId) as any;
   const graduations = db
-    .prepare("SELECT * FROM graduations WHERE user_id = ? ORDER BY graduated_at")
+    .prepare(GRADUATIONS_SQL)
     .all(req.userId);
   const jail = getActiveJail(req.userId!);
 
@@ -52,7 +56,7 @@ profileRouter.get("/", (req, res) => {
 // 졸업해도 grade가 3으로 남아서 학년을 그대로 붙이면 "고등학교 1학년"처럼 재학생으로 보인다.
 function schoolLabel(profile: { school_level: string; grade: number; status: string }): string {
   return profile.status === "graduated"
-    ? `${LEVEL_LABEL[profile.school_level]} 졸업`
+    ? `${LEVEL_LABEL.high} 졸업` // 졸업(status)은 고등학교 졸업으로만 생긴다 — 재응시로 school_level이 바뀌어도 최종 학력 기준
     : `${LEVEL_LABEL[profile.school_level]} ${profile.grade}학년`;
 }
 
@@ -72,7 +76,7 @@ profileRouter.get("/public/:userId", (req, res) => {
     .prepare("SELECT * FROM student_profile WHERE user_id = ?")
     .get(userId) as any;
   const graduations = db
-    .prepare("SELECT * FROM graduations WHERE user_id = ? ORDER BY graduated_at")
+    .prepare(GRADUATIONS_SQL)
     .all(userId);
 
   res.json({

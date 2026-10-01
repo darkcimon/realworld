@@ -2,7 +2,7 @@
 // 게임을 단순하게 유지하기 위해 진급은 승급 시험 결과만으로 결정한다 — 참여 시간을 채워야
 // 시험 자격이 생기는 규칙은 없고, 방이 잠겨 있지 않은 한 언제든 응시할 수 있다.
 import { Router } from "express";
-import { db, recentTopics, roomOrderIndex, setRoomTopic } from "../db.js";
+import { db, recentTopics, recordGraduation, roomOrderIndex, setRoomTopic } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
 import { aiProvider } from "../ai/index.js";
@@ -370,6 +370,8 @@ schoolRouter.post("/rooms/:roomId/promote", (req, res) => {
 
   const profile = getProfile(req.userId!);
   const isLastGradeOfLevel = room.grade === LEVEL_LAST_GRADE[room.school_level];
+  // 이미 지나온 학년(또는 졸업 후) 재응시: 성적만 갱신하고 학교급/학년은 절대 뒤로 돌리지 않는다.
+  const isRetake = profile.status === "graduated" || room.order_index < unlockedOrder(profile);
 
   if (isLastGradeOfLevel) {
     // 레벨 졸업 처리 — 해당 레벨의 각 학년 마지막 합격 시험 점수 평균으로 등급 산정
@@ -387,9 +389,11 @@ schoolRouter.post("/rooms/:roomId/promote", (req, res) => {
     }
     const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
     const tier = computeTier(avg);
-    db.prepare(
-      "INSERT INTO graduations (user_id, school_level, average_score, tier) VALUES (?, ?, ?, ?)"
-    ).run(req.userId, room.school_level, avg, tier);
+    recordGraduation(req.userId!, room.school_level, avg, tier);
+    if (isRetake) {
+      res.json({ ok: true, decision: "advance", graduated: room.school_level, tier, averageScore: avg, retake: true });
+      return;
+    }
 
     const levelIdx = LEVEL_ORDER.indexOf(room.school_level);
     if (levelIdx === LEVEL_ORDER.length - 1) {
@@ -415,6 +419,10 @@ schoolRouter.post("/rooms/:roomId/promote", (req, res) => {
     return;
   }
 
+  if (isRetake) {
+    res.json({ ok: true, decision: "advance", retake: true });
+    return;
+  }
   db.prepare("UPDATE student_profile SET grade = grade + 1 WHERE user_id = ?").run(
     req.userId
   );
@@ -575,9 +583,7 @@ schoolRouter.post("/placement/:level/answer", (req, res) => {
     // 배치고사에 다시 응시할 수 없으므로(assertPlacementAvailable) 보상은 학교급당 1회만 지급된다.
     const averageScore = (correctCount / EXAM_TOTAL) * 100;
     const tier = computeTier(averageScore);
-    db.prepare(
-      "INSERT INTO graduations (user_id, school_level, average_score, tier) VALUES (?, ?, ?, ?)"
-    ).run(req.userId, level, averageScore, tier);
+    recordGraduation(req.userId!, level, averageScore, tier);
     applyLedgerEntry(
       req.userId!,
       PLACEMENT_REWARD_TYPE,

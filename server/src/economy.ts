@@ -79,6 +79,23 @@ export const TIMED_QUEST_REWARD_SCALE: Record<QuestPhase, number> = {
   adult: 1,
 };
 
+// ── 마트 알바 스피드 보너스 ─────────────────────────────────────────────
+// 손님이 온 뒤(서버가 카트를 낸 시각부터) 빨리 정확하게 계산할수록 그 손님의 분급에 배수를 곱한다.
+// 시간은 서버가 잰다(클라이언트 시계는 조작 가능). graceMs는 네트워크 왕복 지연 보정분.
+// timeLimitSec이 지나면 손님이 떠난다 — 분급·페널티·체력 변화 없이 다음 손님.
+export const ALBA_SPEED = {
+  timeLimitSec: 20,
+  graceMs: 300,
+  // 정답일 때만 적용, 위에서부터 먼저 맞는 구간. 10초 넘게 걸린 정답은 1배.
+  tiers: [
+    { withinSec: 2, multiplier: 100 },
+    { withinSec: 3, multiplier: 50 },
+    { withinSec: 5, multiplier: 30 },
+    { withinSec: 7, multiplier: 10 },
+    { withinSec: 10, multiplier: 3 },
+  ],
+};
+
 // ── 점장 NPC(마트 알바) ────────────────────────────────────────────────
 // 점장은 근무 기록(정확도)을 보고 신뢰도를 올리거나 내리고, 신뢰도 등급에 따라 시급 배수와
 // 제안(특별 근무)이 달라진다. 점장이 줄 수 있는 돈/효과의 상한은 전부 여기서 정해지며,

@@ -30,6 +30,11 @@ function formatTurns(turns: ConversationTurn[]): string {
     .join("\n");
 }
 
+// 채팅창·칠판은 수식 렌더러가 없어 LaTeX/마크다운 기호가 그대로 보인다 — 수식은 일반 글자로 쓰게 한다.
+// (그래도 섞여 나오면 ai/plainMath.ts가 후처리로 바꾼다.)
+const PLAIN_MATH_RULE = `- 수식은 LaTeX($...$, \frac, a_n)나 마크다운(**굵게**)을 쓰지 말고 화면에 그대로 읽히는 일반 글자로 쓰세요.
+  예: aₙ = a₁ + (n−1)×d, x², 3/4, √2, ×, ÷, ≤, ≥, π`;
+
 // ── 단체 수업: 채팅 배치에 대한 답변 ────────────────────────────────
 export function teacherSystemPrompt(schoolLevel: string, grade: number): string {
   const levelLabel = LEVEL_LABEL[schoolLevel] ?? schoolLevel;
@@ -47,6 +52,7 @@ export function teacherSystemPrompt(schoolLevel: string, grade: number): string 
   정해지지 않은 주제라면, 옳고 그름을 단정짓지 말고 다양한 관점이 있을 수 있음을 알려주세요.
 - 채팅창에 어울리게 2~4문장으로, 존댓말로 답하고 이모지는 가끔만 사용하세요.
 - 욕설·음담패설처럼 부적절한 발화가 섞여 있으면 그 발화는 무시하고 나머지 정상적인 대화에만 반응하세요.
+${PLAIN_MATH_RULE}
 - 답변 텍스트만 출력하세요. 따옴표나 "AI 선생님:" 같은 접두사는 붙이지 마세요.`;
 }
 
@@ -166,6 +172,7 @@ export function lessonSystemPrompt(schoolLevel: string, grade: number): string {
   const levelLabel = LEVEL_LABEL[schoolLevel] ?? schoolLevel;
   return `당신은 대한민국의 "${levelLabel} ${grade}학년" 학생 한 명을 1:1로 가르치는 AI 선생님입니다.
 지금부터 이 학생과의 개인 수업을 진행합니다. 학생 수준에 맞는 쉬운 어휘로, 친절하고 다정하게 설명하세요.
+${PLAIN_MATH_RULE.replace("- ", "")}
 
 먼저 이 학년 수준에 맞는 핵심 개념 주제를 하나 골라 칠판을 활용해 쉽게 설명합니다. 학생이
 질문하면 그 자리에서 바로 답하세요. 학생은 이 수업과 별개로 언제든 승급 시험에 응시할 수 있습니다.

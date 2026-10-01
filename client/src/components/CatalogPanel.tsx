@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import type { CatalogItem, OwnedItem, Profile } from "../types";
 import { PersonPanel } from "./PersonPanel";
 import { itemDisplayName } from "../itemName";
+import { confirmDialog } from "./ConfirmDialog";
 
 // three.js가 무거워서 3D 창을 처음 열 때만 불러온다.
 export const AssetViewer = lazy(() => import("./AssetViewer"));
@@ -57,7 +58,7 @@ export function CatalogPanel({
       o.resale.kind === "depreciation"
         ? `감가 반영 구매가의 ${Math.round(o.resale.ratio * 100)}%`
         : `지금 시세 ×${o.resale.ratio}`;
-    if (!window.confirm(`${itemDisplayName(o)}을(를) ${o.resale.price.toLocaleString()}원에 팔까요? (${how})`)) return;
+    if (!(await confirmDialog(`${itemDisplayName(o)}을(를) ${o.resale.price.toLocaleString()}원에 팔까요?\n(${how})`, { title: "판매 확인", confirmText: "팔기" }))) return;
     setError(null);
     setMessage(null);
     try {

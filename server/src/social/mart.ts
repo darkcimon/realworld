@@ -3,7 +3,7 @@
 // 지갑 잔액이 줄어드는" 체감을 만든다. 근무 자체는 매 거래를 1분으로 취급하는 단순 모델이다.
 import { db } from "../db.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
-import { VITALS } from "../economy.js";
+import { ALBA_SPEED, VITALS } from "../economy.js";
 import { assertCanWork, spendWorkStamina } from "./vitals.js";
 import {
   activeScales,
@@ -48,8 +48,34 @@ function randomCart(big = false): CartItem[] {
 /** 다음 손님 카트를 서버가 만들어 근무(shift)에 저장한다 — 정답 금액은 서버만 알고 있다. */
 function issueCart(shiftId: number, big = false): CartItem[] {
   const cart = randomCart(big);
-  db.prepare("UPDATE mart_shifts SET pending_cart = ? WHERE id = ?").run(JSON.stringify(cart), shiftId);
+  db.prepare("UPDATE mart_shifts SET pending_cart = ?, cart_issued_at = ? WHERE id = ?").run(
+    JSON.stringify(cart),
+    Date.now(),
+    shiftId
+  );
   return cart;
+}
+
+/** 손님이 온 뒤 걸린 시간(초)에 따른 스피드 배수. 정답일 때만 호출한다. */
+function speedMultiplier(elapsedSec: number): number {
+  return ALBA_SPEED.tiers.find((t) => elapsedSec <= t.withinSec)?.multiplier ?? 1;
+}
+
+/** 카트를 낸 뒤 지난 시간(초) — 네트워크 지연 보정(graceMs)을 뺀다. 예전 근무라 시각이 없으면 제한 없음(0초 취급 안 함). */
+function elapsedSecSinceCart(shift: any): number | null {
+  if (!shift.cart_issued_at) return null;
+  return Math.max(0, Date.now() - shift.cart_issued_at - ALBA_SPEED.graceMs) / 1000;
+}
+
+/** 20초가 지나 손님이 떠났을 때 다음 손님을 부른다(분급·페널티·체력 변화 없음). */
+export function skipTimedOutCustomer(userId: number): { nextCart: CartItem[]; timeLimitSec: number } {
+  const shift = activeShift(userId);
+  if (!shift) throw { status: 400, message: "진행 중인 마트 근무가 없습니다." };
+  const elapsed = elapsedSecSinceCart(shift);
+  if (elapsed !== null && elapsed < ALBA_SPEED.timeLimitSec - 1) {
+    throw { status: 400, message: "아직 손님이 기다리고 있어요." };
+  }
+  return { nextCart: issueCart(shift.id, wageMultiplier(userId).rush), timeLimitSec: ALBA_SPEED.timeLimitSec };
 }
 
 /** 이번 근무에서 실제로 차감된 오차 페널티 합계(원장 기준, 양수). */
@@ -70,6 +96,8 @@ export function startMartShift(userId: number): {
   shiftId: number;
   perMinuteWage: number;
   cart: CartItem[];
+  timeLimitSec: number;
+  speedTiers: typeof ALBA_SPEED.tiers;
 } {
   if (activeShift(userId)) {
     throw { status: 409, message: "이미 진행 중인 근무가 있습니다." };
@@ -82,7 +110,13 @@ export function startMartShift(userId: number): {
   const shiftId = Number(result.lastInsertRowid);
   // 근무를 시작할 때 점장이 랜덤 이벤트(진상 손님/재고 정리/소문)를 걸 수 있다.
   maybeTriggerEvent(userId);
-  return { shiftId, perMinuteWage, cart: issueCart(shiftId, wageMultiplier(userId).rush) };
+  return {
+    shiftId,
+    perMinuteWage,
+    cart: issueCart(shiftId, wageMultiplier(userId).rush),
+    timeLimitSec: ALBA_SPEED.timeLimitSec,
+    speedTiers: ALBA_SPEED.tiers,
+  };
 }
 
 export function recordMartTransaction(
@@ -100,12 +134,20 @@ export function recordMartTransaction(
   penaltyCapped: boolean;
   balance: number;
   stamina: number;
+  timedOut: boolean;
+  elapsedSec: number | null;
+  speedMultiplier: number;
 } {
   const shift = activeShift(userId);
   if (!shift) throw { status: 400, message: "진행 중인 마트 근무가 없습니다." };
   if (!shift.pending_cart) throw { status: 400, message: "계산할 손님이 없습니다." };
   if (!Number.isFinite(enteredAmount) || enteredAmount < 0) {
     throw { status: 400, message: "올바른 금액을 입력하세요." };
+  }
+  // 제한 시간이 지나 이미 떠난 손님이면 계산을 받지 않는다(클라이언트 타이머가 늦게 돈 경우).
+  const elapsedSec = elapsedSecSinceCart(shift);
+  if (elapsedSec !== null && elapsedSec > ALBA_SPEED.timeLimitSec) {
+    throw { status: 409, message: "손님이 기다리다 떠났어요.", timedOut: true };
   }
   // 체력이 바닥나면 손님을 더 받을 수 없다 — 근무를 마치고 쉬어야 한다.
   assertCanWork(userId);
@@ -130,7 +172,9 @@ export function recordMartTransaction(
   // 이번 1분치 분급을 먼저 지급하고, 그 자리에서 오차 페널티를 차감한다(잔액 하한 0원).
   // 시급은 점장 신뢰도 등급 배수와 특별 근무(바쁜 시간대) 배수가 반영된다.
   const mult = wageMultiplier(userId);
-  const wage = Math.round(shift.per_minute_wage * mult.total * scales.wageScale);
+  // 스피드 보너스: 정확하게 계산했을 때만, 걸린 시간 구간에 따라 이 손님의 분급에 배수를 곱한다.
+  const speed = errorAmount === 0 && elapsedSec !== null ? speedMultiplier(elapsedSec) : 1;
+  const wage = Math.round(shift.per_minute_wage * mult.total * scales.wageScale * speed);
   db.prepare("UPDATE mart_shifts SET wage_total = wage_total + ? WHERE id = ?").run(wage, shift.id);
   const { balance: afterWage } = applyLedgerEntry(userId, "알바정산", wage, shift.id);
   // 일하고 적자가 나지 않게: 이번 근무의 누적 차감액이 누적 분급을 넘지 않도록 페널티를 깎는다
@@ -163,6 +207,9 @@ export function recordMartTransaction(
     penaltyCapped: penaltyCharged < penalty, // 급여를 넘는 페널티라 깎였는지
     balance: penalty > 0 ? afterPenalty : afterWage,
     stamina: Math.floor(stamina),
+    timedOut: false,
+    elapsedSec: elapsedSec === null ? null : Math.round(elapsedSec * 10) / 10,
+    speedMultiplier: speed,
   };
 }
 

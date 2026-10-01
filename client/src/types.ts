@@ -157,6 +157,14 @@ export interface MartTxResp {
   penaltyCapped: boolean; // 이번 근무 급여를 넘는 페널티라 깎였는지(근무 결과는 최소 0원)
   balance: number;
   stamina: number; // 손님 1명(1분 근무)만큼 줄어든 뒤 남은 체력
+  timedOut: boolean;
+  elapsedSec: number | null; // 손님이 온 뒤 계산까지 걸린 시간(서버 측정)
+  speedMultiplier: number; // 스피드 보너스 배수(정답일 때만, 아니면 1)
+}
+
+export interface AlbaSpeedTier {
+  withinSec: number;
+  multiplier: number;
 }
 
 export interface LotteryTicket {
@@ -279,6 +287,15 @@ export interface DailyStatus {
     rewards: number[];
   };
   quests: DailyQuest[];
+  // 올 클리어 보너스: 오늘 퀘스트를 전부 완료하면 퀘스트 보상 합계만큼 추가 지급
+  allClear: {
+    reward: number;
+    done: number;
+    total: number;
+    allOpened: boolean; // 오늘 마지막 시간대(18시) 퀘스트까지 열렸는지
+    claimed: boolean;
+    claimable: boolean;
+  };
   nextQuestAt: string | null; // 다음 시간대 퀘스트가 열리는 시각(ISO)
   pendingCount: number;
 }

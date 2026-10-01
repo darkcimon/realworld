@@ -2,7 +2,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
-import { checkIn, claimQuest, getDailyStatus } from "../social/daily.js";
+import { checkIn, claimAllClear, claimQuest, getDailyStatus } from "../social/daily.js";
 import { listNotifications, markAllRead, unreadCount } from "../social/notifications.js";
 
 export const dailyRouter = Router();
@@ -24,6 +24,14 @@ dailyRouter.post("/checkin", (req, res) => {
 dailyRouter.post("/quests/:key/claim", (req, res) => {
   try {
     res.json(claimQuest(req.userId!, String(req.params.key)));
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+  }
+});
+
+dailyRouter.post("/all-clear/claim", (req, res) => {
+  try {
+    res.json(claimAllClear(req.userId!));
   } catch (e: any) {
     res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
   }

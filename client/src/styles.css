@@ -268,6 +268,11 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .exam-modal { max-height: 86vh; overflow-y: auto; }
 .exam-modal form { display: flex; flex-direction: column; gap: 10px; }
 .exam-actions { display: flex; gap: 8px; margin-top: 10px; }
+.confirm-modal { width: 340px; max-width: calc(100vw - 32px); display: flex; flex-direction: column; gap: 12px; }
+.confirm-modal h3 { margin: 0; font-size: 17px; }
+.confirm-message { margin: 0; line-height: 1.6; white-space: pre-line; word-break: keep-all; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.confirm-actions button { min-width: 84px; }
 .modal-close { margin-top: 16px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
 
 /* 승급 시험 결과 — 틀린 문제 복습 */
@@ -535,3 +540,63 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .asset-viewer-stage canvas { display: block; }
 .asset-viewer-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; }
 .asset-viewer-hint { margin: 0; font-size: 12px; text-align: center; }
+
+/* 마트 알바 스피드 보너스 — 남은 시간 막대와 배수별 색 */
+.speed-timer { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; max-width: 420px; }
+.speed-timer-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+.speed-timer-mult { font-weight: 700; }
+.speed-timer-sec { font-variant-numeric: tabular-nums; color: var(--muted); }
+.speed-timer-track { height: 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.speed-timer-fill { height: 100%; background: var(--muted); transition: width 0.1s linear, background 0.2s; }
+.speed-timer.mult-100 .speed-timer-mult { color: #ff4fd8; }
+.speed-timer.mult-100 .speed-timer-fill { background: linear-gradient(90deg, #ff4fd8, #ffd84f); }
+.speed-timer.mult-50 .speed-timer-mult { color: #ffb020; }
+.speed-timer.mult-50 .speed-timer-fill { background: #ffb020; }
+.speed-timer.mult-30 .speed-timer-mult, .speed-timer.mult-10 .speed-timer-mult { color: var(--ok); }
+.speed-timer.mult-30 .speed-timer-fill, .speed-timer.mult-10 .speed-timer-fill { background: var(--ok); }
+.speed-timer.mult-3 .speed-timer-mult { color: var(--accent); }
+.speed-timer.mult-3 .speed-timer-fill { background: var(--accent); }
+.speed-timer.mult-1 .speed-timer-mult { color: var(--muted); }
+.speed-timer.mult-1 .speed-timer-fill { background: var(--danger); }
+
+/* 빠른 정답 칭찬 문구 — 화면 가운데에 크게 떴다 사라진다 */
+.alba-praise {
+  position: fixed; left: 50%; top: 38%; z-index: 1100; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  transform: translate(-50%, -50%); text-align: center; white-space: nowrap;
+  animation: alba-praise-pop 1.4s ease-out forwards;
+}
+.alba-praise strong { font-size: 30px; font-weight: 900; letter-spacing: 0.5px; color: var(--accent); text-shadow: 0 2px 12px rgba(0,0,0,0.6); }
+.alba-praise span { font-size: 15px; font-weight: 700; color: var(--text); text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
+.alba-praise.mult-100 strong {
+  font-size: 34px;
+  background: linear-gradient(90deg, #ff4fd8, #ffd84f, #4fd8ff, #ff4fd8); background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: alba-praise-rainbow 0.6s linear infinite;
+}
+.alba-praise.mult-50 strong { color: #ffb020; }
+.alba-praise.mult-30 strong, .alba-praise.mult-10 strong { color: var(--ok); }
+.alba-praise.mult-100, .alba-praise.mult-50 { animation: alba-praise-pop 1.4s ease-out forwards, alba-praise-shake 0.35s ease-in-out 2; }
+@keyframes alba-praise-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  30% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -70%) scale(1); }
+}
+@keyframes alba-praise-shake {
+  0%, 100% { margin-left: 0; } 25% { margin-left: -8px; } 75% { margin-left: 8px; }
+}
+@keyframes alba-praise-rainbow { to { background-position: 200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .alba-praise, .alba-praise.mult-100, .alba-praise.mult-50, .alba-praise.mult-100 strong { animation-duration: 0.01s; animation-iteration-count: 1; }
+}
+
+/* 일일 퀘스트 올 클리어 보너스 */
+.all-clear-card { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+.all-clear-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.all-clear-reward { font-weight: 800; color: #ffd84f; }
+.all-clear-card .quest-bar div { background: #ffd84f; }
+.all-clear-card.ready { border-color: #ffd84f; box-shadow: 0 0 0 1px #ffd84f inset, 0 0 16px rgba(255, 216, 79, 0.25); }
+.all-clear-card.claimed { opacity: 0.7; }
+.badge-count { margin-left: 2px; font-weight: 800; color: var(--text); }

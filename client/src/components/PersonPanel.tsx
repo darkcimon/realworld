@@ -4,7 +4,7 @@ import type { PersonDetail } from "../types";
 import { DmChat } from "./DmChat";
 import { AssetViewer } from "./CatalogPanel";
 import type { AssetCategory } from "./AssetViewer";
-import { itemDisplayName } from "../itemName";
+import { groupSameItems, itemDisplayName } from "../itemName";
 
 // README 11.2~11.5: 프로필 열람권 구매/상세 조회, 선물/하트/맞하트, 차단, 채팅 개시.
 // preview: 내 프로필을 다른 사람 시점으로 미리보기(하트/선물/채팅 등 상대용 버튼은 숨긴다).
@@ -154,10 +154,11 @@ export function PersonPanel({
             </p>
             {detail.displayedItems.length > 0 && (
               <ul className="catalog-list">
-                {detail.displayedItems.map((it) => (
+                {groupSameItems(detail.displayedItems).map(({ item: it, count }) => (
                   <li key={it.id}>
                     <span>
                       {itemDisplayName(it)}
+                      {count > 1 && <b className="badge-count"> ×{count}</b>}
                     </span>
                     <button
                       className="ghost"

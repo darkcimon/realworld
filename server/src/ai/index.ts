@@ -7,6 +7,7 @@ import type { AIProvider } from "./AIProvider.js";
 import { MockAIProvider } from "./MockAIProvider.js";
 import { ClaudeAIProvider } from "./ClaudeAIProvider.js";
 import { GeminiAIProvider } from "./GeminiAIProvider.js";
+import { plainMath, plainMathBoard } from "./plainMath.js";
 
 function selectProvider(): AIProvider {
   if (process.env.GEMINI_API_KEY) return new GeminiAIProvider();
@@ -14,4 +15,22 @@ function selectProvider(): AIProvider {
   return new MockAIProvider();
 }
 
-export const aiProvider: AIProvider = selectProvider();
+// 선생님 답변(채팅·칠판)은 화면에 글자 그대로 나가므로, LLM이 LaTeX 수식($a_n$ 등)을 섞어도
+// 읽기 쉬운 텍스트로 바꿔서 내보낸다(어느 Provider든 같은 후처리를 거치도록 여기서 감싼다).
+function withPlainMath(p: AIProvider): AIProvider {
+  return Object.assign(Object.create(p), {
+    async teacherReplyToBatch(...args: Parameters<AIProvider["teacherReplyToBatch"]>) {
+      return plainMath(await p.teacherReplyToBatch(...args));
+    },
+    async startLesson(...args: Parameters<AIProvider["startLesson"]>) {
+      const r = await p.startLesson(...args);
+      return { ...r, message: plainMath(r.message), board: plainMathBoard(r.board) };
+    },
+    async answerLessonQuestion(...args: Parameters<AIProvider["answerLessonQuestion"]>) {
+      const r = await p.answerLessonQuestion(...args);
+      return { ...r, message: plainMath(r.message), board: r.board && plainMathBoard(r.board) };
+    },
+  }) as AIProvider;
+}
+
+export const aiProvider: AIProvider = withPlainMath(selectProvider());

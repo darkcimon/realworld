@@ -81,8 +81,8 @@ export function ExamModal({
 
   async function choose(advance: boolean) {
     try {
-      await api.post(`/school/rooms/${roomId}/promote`, { advance });
-      setDecision(advance ? "advance" : "stay");
+      const r = await api.post<{ retake?: boolean }>(`/school/rooms/${roomId}/promote`, { advance });
+      setDecision(advance ? (r.retake ? "retake" : "advance") : "stay");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "선택에 실패했습니다.");
     }
@@ -163,7 +163,11 @@ export function ExamModal({
 
         {decision && (
           <div className="exam-result">
-            <p>{decision === "advance" ? "승급을 선택했습니다!" : "같은 학년에 머무르기로 했습니다."}</p>
+            <p>{decision === "advance"
+                ? "승급을 선택했습니다!"
+                : decision === "retake"
+                ? "이미 지나온 학년이라 학년은 그대로이고, 성적만 이번 결과로 갱신했어요."
+                : "같은 학년에 머무르기로 했습니다."}</p>
             <button
               onClick={() => {
                 onDone();

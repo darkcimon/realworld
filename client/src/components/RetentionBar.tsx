@@ -95,6 +95,18 @@ export function RetentionBar({
     }
   }
 
+  async function claimAllClear() {
+    setError(null);
+    try {
+      const r = await api.post<{ reward: number }>("/daily/all-clear/claim");
+      setMsg(`🏆 올 클리어! 보너스 ${won(r.reward)}을 받았어요.`);
+      onBalanceChange?.();
+      await refresh();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "보상 수령에 실패했습니다.");
+    }
+  }
+
   async function openNotif() {
     const next = !notifOpen;
     setNotifOpen(next);
@@ -210,6 +222,7 @@ export function RetentionBar({
                 </li>
               ))}
             </ul>
+            <AllClearCard allClear={daily.allClear} onClaim={claimAllClear} />
             <p className="muted">
               {daily.nextQuestAt
                 ? `⏰ ${new Date(daily.nextQuestAt).toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" })}에 새 퀘스트가 열려요. `
@@ -223,6 +236,36 @@ export function RetentionBar({
         </div>
       )}
     </>
+  );
+}
+
+/** 올 클리어 보너스 카드: 오늘 퀘스트 완료 개수와 보너스(퀘스트 보상 합계)를 보여준다. */
+function AllClearCard({ allClear: a, onClaim }: { allClear: DailyStatus["allClear"]; onClaim: () => void }) {
+  if (a.total === 0) return null;
+  const pct = Math.round((a.done / a.total) * 100);
+  const hint = a.claimed
+    ? "오늘 올 클리어 보너스를 받았어요!"
+    : !a.allOpened
+    ? "18시 퀘스트까지 모두 열린 뒤 전부 완료하면 받을 수 있어요. 금액은 퀘스트가 열릴수록 커져요."
+    : a.done === a.total
+    ? "모든 퀘스트 완료! 보너스를 받으세요."
+    : `퀘스트 ${a.total - a.done}개만 더 완료하면 받을 수 있어요.`;
+  return (
+    <div className={`all-clear-card${a.claimable ? " ready" : ""}${a.claimed ? " claimed" : ""}`}>
+      <div className="all-clear-head">
+        <strong>🏆 올 클리어 보너스</strong>
+        <span className="all-clear-reward">{won(a.reward)}</span>
+      </div>
+      <div className="quest-bar">
+        <div style={{ width: `${pct}%` }} />
+      </div>
+      <small className="muted">
+        {a.done} / {a.total} 완료 · {hint}
+      </small>
+      <button disabled={!a.claimable} onClick={onClaim}>
+        {a.claimed ? "받음" : a.claimable ? "보너스 받기" : "진행 중"}
+      </button>
+    </div>
   );
 }
 

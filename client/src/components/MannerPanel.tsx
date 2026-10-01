@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { MannerMe } from "../types";
+import { confirmDialog } from "./ConfirmDialog";
 
 // README 6.4: 매너 점수(기본 100, 위반 시 -1) / 클린 체크 / 5,000만원 초기화
 export function MannerPanel({ onBalanceChange }: { onBalanceChange: () => void }) {
@@ -26,7 +27,7 @@ export function MannerPanel({ onBalanceChange }: { onBalanceChange: () => void }
   async function reset() {
     setError(null);
     setMessage(null);
-    if (!window.confirm("5,000만 게임머니를 지불하고 매너 점수를 100으로 초기화할까요?")) return;
+    if (!(await confirmDialog("5,000만 게임머니를 지불하고 매너 점수를 100으로 초기화할까요?", { title: "매너 점수 초기화", confirmText: "초기화" }))) return;
     try {
       await api.post("/manner/reset");
       setMessage("매너 점수가 100으로 초기화되었습니다.");

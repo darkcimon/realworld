@@ -236,19 +236,12 @@ function claimedEver(userId: number, key: QuestKey): boolean {
   return !!db.prepare("SELECT 1 FROM quest_claims WHERE user_id = ? AND quest_key = ? LIMIT 1").get(userId, key);
 }
 
-export function getDailyStatus(userId: number) {
-  const today = todayKstDate();
-  const yesterday = addDays(today, -1);
-  const last = db
-    .prepare("SELECT date, streak FROM attendance_log WHERE user_id = ? ORDER BY date DESC LIMIT 1")
-    .get(userId) as { date: string; streak: number } | undefined;
+// 올 클리어 보너스: 그날 퀘스트(시간대 퀘스트 포함)를 전부 완료하면 퀘스트 보상 합계만큼 한 번 더 준다.
+// 수령 기록은 quest_claims에 이 키로 남긴다(퀘스트 키와 겹치지 않는다).
+const ALL_CLEAR_KEY = "all_clear";
 
-  const checkedInToday = last?.date === today;
-  // 지금 이어지고 있는 연속 출석 일수(어제까지 이어졌거나 오늘 이미 출석한 경우만 유효).
-  const streak = last && (last.date === today || last.date === yesterday) ? last.streak : 0;
-  const nextStreak = checkedInToday ? streak : streak + 1;
-  const nextReward = ATTENDANCE_REWARDS[(nextStreak - 1) % ATTENDANCE_REWARDS.length];
-
+/** 오늘 보이는 퀘스트와 진행도(상태 조회와 올 클리어 수령이 같은 기준을 쓰도록 한곳에서 계산). */
+function todayQuests(userId: number, today: string) {
   const phase = questPhase(userId, today);
   const claimed = new Set(
     (
@@ -275,6 +268,35 @@ export function getDailyStatus(userId: number) {
       claimable: progress >= q.goal && !claimed.has(q.key),
     };
   });
+  // 오늘 마지막 시간대 퀘스트까지 열려야(nextQuestAt === null) 오늘 퀘스트 목록이 확정된다.
+  const allOpened = nextTimedQuestAt(today) === null;
+  const doneCount = quests.filter((q) => q.progress >= q.goal).length;
+  const allClearClaimed = claimed.has(ALL_CLEAR_KEY);
+  const allClear = {
+    reward: quests.reduce((sum, q) => sum + q.reward, 0),
+    done: doneCount,
+    total: quests.length,
+    allOpened,
+    claimed: allClearClaimed,
+    claimable: allOpened && quests.length > 0 && doneCount === quests.length && !allClearClaimed,
+  };
+  return { quests, allClear };
+}
+
+export function getDailyStatus(userId: number) {
+  const today = todayKstDate();
+  const yesterday = addDays(today, -1);
+  const last = db
+    .prepare("SELECT date, streak FROM attendance_log WHERE user_id = ? ORDER BY date DESC LIMIT 1")
+    .get(userId) as { date: string; streak: number } | undefined;
+
+  const checkedInToday = last?.date === today;
+  // 지금 이어지고 있는 연속 출석 일수(어제까지 이어졌거나 오늘 이미 출석한 경우만 유효).
+  const streak = last && (last.date === today || last.date === yesterday) ? last.streak : 0;
+  const nextStreak = checkedInToday ? streak : streak + 1;
+  const nextReward = ATTENDANCE_REWARDS[(nextStreak - 1) % ATTENDANCE_REWARDS.length];
+
+  const { quests, allClear } = todayQuests(userId, today);
 
   return {
     date: today,
@@ -286,9 +308,10 @@ export function getDailyStatus(userId: number) {
       rewards: ATTENDANCE_REWARDS,
     },
     quests,
+    allClear,
     nextQuestAt: nextTimedQuestAt(today), // 다음 시간대 퀘스트가 열리는 시각(오늘 마지막이 지났으면 null)
     // 사이드바 뱃지용: 아직 받을 수 있는 보상 개수(출석 + 완료한 퀘스트)
-    pendingCount: (checkedInToday ? 0 : 1) + quests.filter((q) => q.claimable).length,
+    pendingCount: (checkedInToday ? 0 : 1) + quests.filter((q) => q.claimable).length + (allClear.claimable ? 1 : 0),
   };
 }
 
@@ -330,4 +353,18 @@ export function claimQuest(userId: number, key: string): { reward: number; balan
     .run(userId, today, key, quest.reward);
   const { balance } = applyLedgerEntry(userId, "퀘스트보상", quest.reward, Number(row.lastInsertRowid));
   return { reward: quest.reward, balance };
+}
+
+export function claimAllClear(userId: number): { reward: number; balance: number } {
+  const today = todayKstDate();
+  const { allClear } = todayQuests(userId, today);
+  if (allClear.claimed) throw { status: 409, message: "오늘 올 클리어 보상은 이미 받았습니다." };
+  if (!allClear.allOpened) throw { status: 400, message: "오늘 마지막 시간대 퀘스트가 열린 뒤에 받을 수 있어요." };
+  if (!allClear.claimable) throw { status: 400, message: "아직 모든 퀘스트를 완료하지 않았습니다." };
+
+  const row = db
+    .prepare("INSERT INTO quest_claims (user_id, date, quest_key, reward) VALUES (?, ?, ?, ?)")
+    .run(userId, today, ALL_CLEAR_KEY, allClear.reward);
+  const { balance } = applyLedgerEntry(userId, "퀘스트올클리어", allClear.reward, Number(row.lastInsertRowid));
+  return { reward: allClear.reward, balance };
 }
