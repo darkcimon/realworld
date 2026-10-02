@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import { confirmDialog } from "./ConfirmDialog";
 
-// 금융 건물: 예금(1시간마다 1% 복리) / 주식(30분마다 변동) / 채권(1,000만 원 단위, 1~7일물).
+// 금융 건물: 예금(3시간마다 0.5% 복리) / 주식(30분마다 변동) / 채권(1,000만 원 단위, 1~7일물).
 // 서버가 조회할 때마다 밀린 이자·주가·채권 만기를 계산하므로 화면은 불러오기만 하면 된다.
 
 const won = (n: number) => `${n.toLocaleString()}원`;
@@ -41,7 +41,8 @@ function timeLeft(iso: string): string {
 // ── 예금 ──────────────────────────────────────────────────────────
 interface DepositInfo {
   balance: number;
-  ratePerHour: number;
+  ratePerPeriod: number;
+  periodHours: number;
   nextInterestAt: string | null;
 }
 
@@ -70,7 +71,7 @@ export function DepositPanel({ onBalanceChange }: { onBalanceChange: () => void 
       {view}
       <p className="balance-big">{info ? won(info.balance) : "불러오는 중..."}</p>
       <p className="muted">
-        1시간마다 {((info?.ratePerHour ?? 0.01) * 100).toFixed(0)}% 이자가 붙어요(복리).
+        {info?.periodHours ?? 3}시간마다 {((info?.ratePerPeriod ?? 0.005) * 100).toFixed(1)}% 이자가 붙어요(복리).
         {info?.nextInterestAt && ` 다음 이자: ${timeLeft(info.nextInterestAt)}`}
       </p>
       <div className="lottery-form">

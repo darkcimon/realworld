@@ -6,23 +6,26 @@ import { applyLedgerEntry, withTransaction } from "../wallet/ledger.js";
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
-// ── 예금: 1시간마다 1% 복리 ─────────────────────────────────────────
-const DEPOSIT_RATE_PER_HOUR = 0.01;
+// ── 예금: 3시간마다 0.5% 복리 ───────────────────────────────────────
+const DEPOSIT_PERIOD_HOURS = 3;
+const DEPOSIT_PERIOD_MS = DEPOSIT_PERIOD_HOURS * HOUR;
+const DEPOSIT_RATE_PER_PERIOD = 0.005;
 
 interface DepositRow {
   user_id: number;
   balance: number;
-  accrued_at: number; // 마지막으로 이자를 붙인 시각(epoch ms). 다음 이자는 여기서 1시간 뒤
+  accrued_at: number; // 마지막으로 이자를 붙인 시각(epoch ms). 다음 이자는 여기서 3시간 뒤
 }
 
-/** 밀린 이자를 붙이고 현재 예금 잔액을 돌려준다. 1시간이 다 차지 않은 시간은 다음으로 넘긴다. */
+/** 밀린 이자를 붙이고 현재 예금 잔액을 돌려준다. 3시간이 다 차지 않은 시간은 다음으로 넘긴다. */
 function accrueDeposit(userId: number, now = Date.now()): DepositRow {
   const row = db.prepare("SELECT * FROM deposits WHERE user_id = ?").get(userId) as unknown as DepositRow | undefined;
   if (!row) return { user_id: userId, balance: 0, accrued_at: now };
-  const hours = Math.floor((now - row.accrued_at) / HOUR);
-  if (hours <= 0) return row;
-  const balance = Math.floor(row.balance * (1 + DEPOSIT_RATE_PER_HOUR) ** hours);
-  const accruedAt = row.accrued_at + hours * HOUR;
+  const periods = Math.floor((now - row.accrued_at) / DEPOSIT_PERIOD_MS);
+  if (periods <= 0) return row;
+  // 1.005 × 1억이 100499999.99…로 계산돼 1원이 깎이지 않게 아주 작은 값을 더한 뒤 내린다.
+  const balance = Math.floor(row.balance * (1 + DEPOSIT_RATE_PER_PERIOD) ** periods + 1e-6);
+  const accruedAt = row.accrued_at + periods * DEPOSIT_PERIOD_MS;
   db.prepare("UPDATE deposits SET balance = ?, accrued_at = ? WHERE user_id = ?").run(balance, accruedAt, userId);
   return { ...row, balance, accrued_at: accruedAt };
 }
@@ -31,8 +34,9 @@ export function getDeposit(userId: number) {
   const row = accrueDeposit(userId);
   return {
     balance: row.balance,
-    ratePerHour: DEPOSIT_RATE_PER_HOUR,
-    nextInterestAt: row.balance > 0 ? new Date(row.accrued_at + HOUR).toISOString() : null,
+    ratePerPeriod: DEPOSIT_RATE_PER_PERIOD,
+    periodHours: DEPOSIT_PERIOD_HOURS,
+    nextInterestAt: row.balance > 0 ? new Date(row.accrued_at + DEPOSIT_PERIOD_MS).toISOString() : null,
   };
 }
 
@@ -47,7 +51,7 @@ export function depositMoney(userId: number, rawAmount: unknown) {
   const now = Date.now();
   const row = accrueDeposit(userId, now);
   applyLedgerEntry(userId, "예금입금", -amount);
-  // 빈 통장에 처음 넣을 때부터 1시간을 센다. 이미 돈이 있으면 기존 이자 주기를 그대로 이어간다.
+  // 빈 통장에 처음 넣을 때부터 이자 주기(3시간)를 센다. 이미 돈이 있으면 기존 이자 주기를 그대로 이어간다.
   const accruedAt = row.balance > 0 ? row.accrued_at : now;
   db.prepare(
     `INSERT INTO deposits (user_id, balance, accrued_at) VALUES (?, ?, ?)
