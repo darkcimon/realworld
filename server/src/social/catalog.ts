@@ -85,6 +85,39 @@ function resaleQuote(
   return { price: Math.floor((o.price * ratio) / 1000) * 1000, ratio: Math.round(ratio * 100) / 100, kind };
 }
 
+// ── 양도소득세(건물=아파트 카테고리만) ──────────────────────────────
+// 팔 때 가진 건물 수(파는 건물 포함)로 세율을 정하고, 판 금액 - 산 금액(이익)에만 매긴다. 손해면 0원.
+// 선물 등으로 산 금액 기록이 없으면 정가를 산 금액으로 본다.
+const CAPITAL_GAINS_RATES = [0, 0, 0.2, 0.3, 0.4, 0.5]; // [보유 수] → 세율, 5개 이상은 50%
+
+export interface CapitalGainsTax {
+  buildings: number; // 팔기 전 보유 건물 수
+  rate: number;
+  gain: number; // 이익(손해면 음수)
+  tax: number;
+}
+
+function countBuildings(userId: number): number {
+  return (
+    db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.user_id = ? AND ci.category = 'apartment'"
+      )
+      .get(userId) as { n: number }
+  ).n;
+}
+
+function capitalGainsTax(
+  buildings: number,
+  o: { category: string; price: number; paid_price: number | null },
+  salePrice: number
+): CapitalGainsTax | null {
+  if (o.category !== "apartment") return null;
+  const rate = CAPITAL_GAINS_RATES[Math.min(buildings, CAPITAL_GAINS_RATES.length - 1)];
+  const gain = salePrice - (o.paid_price ?? o.price);
+  return { buildings, rate, gain, tax: gain > 0 ? Math.floor(gain * rate) : 0 };
+}
+
 export function listCatalog(
   category?: string
 ): (CatalogItem & { basePrice: number; marketMultiplier: number | null })[] {
@@ -136,29 +169,40 @@ export function listOwnedItems(userId: number) {
     )
     .all(userId) as any[];
   const now = Date.now();
+  const buildings = rows.filter((r) => r.category === "apartment").length;
   // price는 정가(마을 지도에서 "가장 비싼 집/차"를 고르는 기준), paidPrice는 실제로 낸 금액(선물 받은 건 null).
-  return rows.map(({ paid_price, ...r }) => ({
-    ...r,
-    displayed: !!r.displayed,
-    paidPrice: paid_price as number | null,
-    resale: resaleQuote(r, now),
-  }));
+  return rows.map(({ paid_price, ...r }) => {
+    const resale = resaleQuote(r, now);
+    return {
+      ...r,
+      displayed: !!r.displayed,
+      paidPrice: paid_price as number | null,
+      resale,
+      capitalGainsTax: capitalGainsTax(buildings, { ...r, paid_price }, resale.price), // 건물만, 지금 팔 때 기준
+    };
+  });
 }
 
 /** 소유 자산을 지금 시세(자동차는 감가 반영)로 되판다. 판 자산은 목록·전시에서 사라진다. */
-export function sellOwnedItem(userId: number, ownedItemId: number): { soldFor: number; balance: number; name: string } {
+export function sellOwnedItem(
+  userId: number,
+  ownedItemId: number
+): { soldFor: number; tax: number; balance: number; name: string } {
   const row = db
     .prepare(
-      "SELECT oi.id, oi.user_id, oi.purchased_at, oi.catalog_item_id, ci.category, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.id = ?"
+      "SELECT oi.id, oi.user_id, oi.purchased_at, oi.catalog_item_id, oi.paid_price, ci.category, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.id = ?"
     )
     .get(ownedItemId) as any;
   if (!row || row.user_id !== userId) throw { status: 404, message: "소유하지 않은 자산입니다." };
   const quote = resaleQuote(row);
+  const cgt = capitalGainsTax(countBuildings(userId), row, quote.price); // 삭제 전에 세야 파는 건물이 포함된다
   // 행 삭제가 성공해야 돈이 들어간다(같은 자산을 두 번 파는 것 방지).
   const del = db.prepare("DELETE FROM owned_items WHERE id = ? AND user_id = ?").run(ownedItemId, userId);
   if (Number(del.changes) !== 1) throw { status: 409, message: "이미 판 자산입니다." };
-  const { balance } = applyLedgerEntry(userId, "자산판매", quote.price, row.catalog_item_id);
-  return { soldFor: quote.price, balance, name: row.name };
+  let { balance } = applyLedgerEntry(userId, "자산판매", quote.price, row.catalog_item_id);
+  // 세금은 판매 대금과 따로 원장에 남긴다(이익 ≤ 판매 대금이라 잔액이 모자랄 일은 없다).
+  if (cgt && cgt.tax > 0) balance = applyLedgerEntry(userId, "양도소득세", -cgt.tax, row.catalog_item_id).balance;
+  return { soldFor: quote.price, tax: cgt?.tax ?? 0, balance, name: row.name };
 }
 
 /** 다른 유저의 프로필 조회 화면에 노출할, 전시 설정된 소유 아이템만. */

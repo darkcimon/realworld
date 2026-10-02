@@ -1,8 +1,9 @@
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import {
   BODIES,
   FACE_SIZE_RANGE,
+  FREE_UNLOCKS,
   HAIR_COLORS,
   HEADS,
   HEIGHT_RANGE,
@@ -10,10 +11,12 @@ import {
   defaultCharacter,
   randomCharacter,
   type CharacterConfig,
+  type CharacterUnlocks,
 } from "./options";
 import { CharacterStage } from "./characterLazy";
 
 // 캐릭터 꾸미기 창. 첫 시작(firstTime)에는 "나만의 캐릭터 만들기"로, 이후에는 사이드 메뉴에서 연다.
+// 성별·얼굴·키·피부색·헤어 색은 자유롭게 고르고, 옷·헤어스타일은 스타일샵에서 해금한 것만 고를 수 있다(잠긴 건 🔒).
 // 얼굴 "사진"은 프로필 사진(avatarUrl)을 동그란 스티커로 붙인다 — 프로필 사진을 바꾸면 캐릭터 얼굴도 바뀐다.
 export function CharacterStudio({
   initial,
@@ -32,7 +35,12 @@ export function CharacterStudio({
   const [hairLocked, setHairLocked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unlocks, setUnlocks] = useState<CharacterUnlocks>(FREE_UNLOCKS);
   const set = (patch: Partial<CharacterConfig>) => setConfig((c) => ({ ...c, ...patch }));
+
+  useEffect(() => {
+    api.get<CharacterUnlocks>("/profile/character/unlocks").then(setUnlocks, () => {});
+  }, []);
 
   async function save() {
     setSaving(true);
@@ -52,7 +60,7 @@ export function CharacterStudio({
       <div className="modal character-studio" onClick={(e) => e.stopPropagation()}>
         <div className="character-studio-head">
           <h2>{firstTime ? "🧍 나만의 캐릭터 만들기" : "🧍 캐릭터 꾸미기"}</h2>
-          <button type="button" className="ghost" onClick={() => setConfig(randomCharacter())}>
+          <button type="button" className="ghost" onClick={() => setConfig(randomCharacter(unlocks))}>
             🎲 랜덤
           </button>
         </div>
@@ -97,11 +105,18 @@ export function CharacterStudio({
               />
             </Field>
             <Field label="옷 스타일">
-              <Seg items={BODIES[config.gender]} value={config.body} onPick={(v) => set({ body: v })} small />
+              <Seg
+                items={BODIES[config.gender]}
+                value={config.body}
+                onPick={(v) => set({ body: v })}
+                locked={(v) => !unlocks.bodies[config.gender].includes(v)}
+                small
+              />
             </Field>
             <Field label="헤어스타일">
-              <Seg items={HEADS} value={config.head} onPick={(v) => set({ head: v })} small />
+              <Seg items={HEADS} value={config.head} onPick={(v) => set({ head: v })} locked={(v) => !unlocks.heads.includes(v)} small />
             </Field>
+            <small className="muted">🔒 잠긴 옷·헤어스타일은 마을의 👗 스타일샵(내 집 옆)에서 해금할 수 있어요.</small>
             <Range
               label="키"
               value={config.height}
@@ -153,20 +168,33 @@ function Seg({
   items,
   value,
   onPick,
+  locked,
   small = false,
 }: {
   items: [string, string][];
   value: string;
   onPick: (v: string) => void;
+  locked?: (v: string) => boolean;
   small?: boolean;
 }) {
   return (
     <div className={`character-seg${small ? " small" : ""}`}>
-      {items.map(([v, label]) => (
-        <button key={v} type="button" aria-pressed={value === v} className={value === v ? "active" : ""} onClick={() => onPick(v)}>
-          {label}
-        </button>
-      ))}
+      {items.map(([v, label]) => {
+        const isLocked = locked?.(v) ?? false;
+        return (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={value === v}
+            className={value === v ? "active" : ""}
+            disabled={isLocked}
+            title={isLocked ? "스타일샵에서 해금하세요" : undefined}
+            onClick={() => onPick(v)}
+          >
+            {isLocked ? `🔒 ${label}` : label}
+          </button>
+        );
+      })}
     </div>
   );
 }

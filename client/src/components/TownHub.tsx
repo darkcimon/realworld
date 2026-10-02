@@ -11,7 +11,9 @@ export type FacilityKey =
   | "luxury"
   | "mart"
   | "jail"
-  | "home";
+  | "home"
+  | "style"
+  | "bank";
 
 // 마을 지도(홈 화면). README 2장의 "게임 내 주요 시설"을 작은 2.5D 마을로 보여주고, 건물을 누르면 내 캐릭터가
 // 도로를 따라 걸어가서(최단 경로) 문 앞에 도착한 뒤 그 시설로 들어간다.
@@ -62,6 +64,8 @@ const FACILITIES: FacilityDef[] = [
   { key: "jail", icon: "⛓️", label: "감옥", col: 2, row: 2, w: 86, h: 64, wall: "#8d9199", roof: "flat", roofColor: "#5b5f66" },
   // 내 집은 벽/지붕 대신 스프라이트 이미지로 그린다(HOME_SPRITES). w/h는 터치 영역·간판 위치용.
   { key: "home", icon: "🏠", label: "내 집", col: 1, row: 3, w: 80, h: 70, wall: "", roof: "flat", roofColor: "" },
+  { key: "bank", icon: "🏦", label: "금융", col: 0, row: 3, w: 84, h: 80, wall: "#e9e4d8", roof: "gable", roofColor: "#2f4f7a" },
+  { key: "style", icon: "👗", label: "스타일샵", col: 2, row: 3, w: 80, h: 64, wall: "#f6dce6", roof: "awning", roofColor: "#d0578a" },
 ];
 
 // ── 내 집 / 내 차 스프라이트 ────────────────────────────────────────────

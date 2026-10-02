@@ -33,6 +33,8 @@ const FACILITY_VIEWS: Partial<Record<FacilityKey, FacilityView>> = {
   car: { title: "🚗 자동차 매장", tabs: ["catalog"], catalogCategory: "car" },
   apartment: { title: "🏡 모델하우스", tabs: ["catalog"], catalogCategory: "apartment" },
   luxury: { title: "💎 명품샵", tabs: ["catalog"], catalogCategory: "luxury" },
+  style: { title: "👗 스타일샵", tabs: ["style"] },
+  bank: { title: "🏦 금융", tabs: ["deposit", "stocks", "bonds"] },
   home: { title: "🏠 내 집", tabs: ["rest", "wallet", "catalog", "manner", "nearby"], catalogOwnedOnly: true },
 };
 

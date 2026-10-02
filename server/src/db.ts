@@ -720,6 +720,81 @@ CREATE TABLE IF NOT EXISTS user_characters (
 );
 `);
 
+// 캐릭터 스타일샵 해금 목록(social/character.ts). item_key: "body:<성별>:<모델>" | "head:<모델>" | "set:<모델>".
+// 표를 처음 만들 때는 이미 캐릭터를 꾸민 유저가 지금 입고 있는 옷·헤어를 해금된 것으로 넣어 준다
+// (유료화 전에 고른 옷이 저장할 때 잠겼다고 거절되지 않게).
+const hadCharacterUnlocks = !!db
+  .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'character_unlocks'")
+  .get();
+db.exec(`
+CREATE TABLE IF NOT EXISTS character_unlocks (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  item_key TEXT NOT NULL,
+  unlocked_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, item_key)
+);
+`);
+if (!hadCharacterUnlocks) {
+  db.exec(`
+INSERT OR IGNORE INTO character_unlocks (user_id, item_key)
+  SELECT user_id, 'body:' || json_extract(config, '$.gender') || ':' || json_extract(config, '$.body') FROM user_characters;
+INSERT OR IGNORE INTO character_unlocks (user_id, item_key)
+  SELECT user_id, 'head:' || json_extract(config, '$.head') FROM user_characters;
+`);
+}
+
+// 금융 건물(social/finance.ts): 예금 / 주식 / 채권. 시각은 계산하기 쉽게 epoch ms 정수로 저장한다.
+db.exec(`
+CREATE TABLE IF NOT EXISTS deposits (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id),
+  balance INTEGER NOT NULL,
+  accrued_at INTEGER NOT NULL -- 마지막으로 이자를 붙인 시각
+);
+CREATE TABLE IF NOT EXISTS stocks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  tier TEXT NOT NULL, -- 'large' | 'mid' | 'growth'
+  list_price INTEGER NOT NULL, -- 상장가(상장폐지 후 재상장 가격)
+  price INTEGER NOT NULL,
+  prev_price INTEGER NOT NULL,
+  slot INTEGER NOT NULL, -- 현재 가격이 정해진 30분 구간 번호
+  delisted_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS stock_prices (
+  stock_id INTEGER NOT NULL REFERENCES stocks(id),
+  slot INTEGER NOT NULL,
+  price INTEGER NOT NULL,
+  PRIMARY KEY (stock_id, slot)
+);
+CREATE TABLE IF NOT EXISTS stock_holdings (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  stock_id INTEGER NOT NULL REFERENCES stocks(id),
+  shares INTEGER NOT NULL,
+  cost INTEGER NOT NULL, -- 들고 있는 주식의 매수 원가 합계
+  PRIMARY KEY (user_id, stock_id)
+);
+CREATE TABLE IF NOT EXISTS bonds (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  days INTEGER NOT NULL,
+  rate REAL NOT NULL, -- 만기 이자율(%)
+  unit_price INTEGER NOT NULL,
+  total INTEGER NOT NULL,
+  remaining INTEGER NOT NULL,
+  issued_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS bond_holdings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  bond_id INTEGER NOT NULL REFERENCES bonds(id),
+  qty INTEGER NOT NULL,
+  bought_at INTEGER NOT NULL,
+  matures_at INTEGER NOT NULL,
+  paid_at INTEGER,
+  payout INTEGER
+);
+`);
+
 // 마지막 접속 시각(토큰 자동 연장 때 갱신, 하루 1회 정도). 오래 버려진 비회원 정리 기준이다.
 // 컬럼을 처음 만들 때는 기존 유저 모두 "지금"으로 채워 정리 유예 기간을 처음부터 다시 준다.
 const userColumns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];

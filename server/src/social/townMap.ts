@@ -14,7 +14,9 @@ export const FACILITY_POS: Record<string, { col: number; row: number }> = {
   car: { col: 0, row: 2 },
   apartment: { col: 1, row: 2 },
   jail: { col: 2, row: 2 },
+  bank: { col: 0, row: 3 },
   home: { col: 1, row: 3 },
+  style: { col: 2, row: 3 },
 };
 
 const VERTICAL_ROADS = [0.5, 1.5]; // 세로 도로 위치(열 사이)

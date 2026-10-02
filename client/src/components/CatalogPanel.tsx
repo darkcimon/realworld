@@ -58,12 +58,22 @@ export function CatalogPanel({
       o.resale.kind === "depreciation"
         ? `감가 반영 구매가의 ${Math.round(o.resale.ratio * 100)}%`
         : `지금 시세 ×${o.resale.ratio}`;
-    if (!(await confirmDialog(`${itemDisplayName(o)}을(를) ${o.resale.price.toLocaleString()}원에 팔까요?\n(${how})`, { title: "판매 확인", confirmText: "팔기" }))) return;
+    const cgt = o.capitalGainsTax;
+    const taxLine =
+      cgt && cgt.tax > 0
+        ? `\n양도소득세 ${Math.round(cgt.rate * 100)}%(건물 ${cgt.buildings}채 보유): -${cgt.tax.toLocaleString()}원\n실수령 ${(o.resale.price - cgt.tax).toLocaleString()}원`
+        : cgt
+          ? `\n양도소득세 없음(${cgt.gain <= 0 ? "이익 없음" : "건물 1채 보유"})`
+          : "";
+    if (!(await confirmDialog(`${itemDisplayName(o)}을(를) ${o.resale.price.toLocaleString()}원에 팔까요?\n(${how})${taxLine}`, { title: "판매 확인", confirmText: "팔기" }))) return;
     setError(null);
     setMessage(null);
     try {
-      const r = await api.post<{ soldFor: number }>(`/owned-items/${o.id}/sell`);
-      setMessage(`${itemDisplayName(o)}을(를) ${r.soldFor.toLocaleString()}원에 팔았어요.`);
+      const r = await api.post<{ soldFor: number; tax: number }>(`/owned-items/${o.id}/sell`);
+      setMessage(
+        `${itemDisplayName(o)}을(를) ${r.soldFor.toLocaleString()}원에 팔았어요.` +
+          (r.tax > 0 ? ` 양도소득세 ${r.tax.toLocaleString()}원을 내고 ${(r.soldFor - r.tax).toLocaleString()}원을 받았어요.` : "")
+      );
       onBalanceChange();
       onProfileChange(); // 전시 중이던 자산이면 프로필에서도 빠진다
       await loadOwned();
@@ -218,6 +228,9 @@ export function CatalogPanel({
                 {o.resale.kind === "depreciation"
                   ? ` (감가 ${Math.round((1 - o.resale.ratio) * 100)}%)`
                   : ` (시세 ×${o.resale.ratio})`}
+                {o.capitalGainsTax && o.capitalGainsTax.tax > 0 && (
+                  <> · 양도세 {Math.round(o.capitalGainsTax.rate * 100)}% -{o.capitalGainsTax.tax.toLocaleString()}원</>
+                )}
               </div>
             </div>
             <div className="catalog-actions">

@@ -355,6 +355,14 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .job-list li.assigned { border-color: var(--accent); }
 .catalog-actions { display: flex; gap: 6px; }
 
+.nearby-filters { display: flex; flex-direction: column; gap: 6px; }
+.filter-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.filter-chip {
+  padding: 5px 10px; border-radius: 999px; font-size: 12px; cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+}
+.filter-chip.active { color: var(--text); border-color: var(--accent); }
+
 .work-form, .mart-form, .lottery-form { display: flex; flex-direction: column; gap: 10px; }
 .work-decision { display: flex; flex-direction: column; gap: 8px; }
 .settle-box { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
@@ -638,3 +646,22 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .character-credit { font-size: 11px; }
 .character-edit-btn { margin-top: 6px; padding: 6px 12px; font-size: 13px; border-radius: 999px; background: var(--accent); color: #fff; border: none; font-weight: 700; align-self: flex-start; }
 .person-modal .character-stage { max-height: 44vh; }
+.style-preview { display: flex; flex-direction: column; gap: 6px; max-width: 320px; width: 100%; margin: 0 auto; }
+.style-preview .character-stage { max-height: 36vh; }
+.style-preview-caption { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 32px; }
+.style-section { display: flex; flex-direction: column; gap: 8px; }
+.catalog-list li.previewing { border-color: var(--accent); }
+.character-seg button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* 금융: 주식·채권 행 */
+.catalog-list li.stock-row { flex-wrap: wrap; }
+.stock-info { flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.stock-trade { display: flex; gap: 6px; align-items: center; }
+.stock-trade input { width: 64px; padding: 6px 8px; }
+.stock-trade button { padding: 6px 10px; }
+.sparkline { width: 72px; height: 30px; flex: 0 0 auto; }
+.sparkline.up polyline { stroke: #e5484d; }
+.sparkline.down polyline { stroke: #4c8dff; }
+.price-change { font-size: 12px; font-weight: 700; }
+.price-change.up { color: #e5484d; }
+.price-change.down { color: #4c8dff; }

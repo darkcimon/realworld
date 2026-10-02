@@ -33,8 +33,7 @@ guard(nearbyRouter);
 
 nearbyRouter.get("/", (req, res) => {
   try {
-    const radiusKm = Number(req.query.radiusKm ?? 50);
-    res.json(listNearby(req.userId!, radiusKm));
+    res.json(listNearby(req.userId!));
   } catch (e: any) {
     res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
   }

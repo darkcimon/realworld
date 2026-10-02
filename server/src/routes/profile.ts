@@ -8,7 +8,7 @@ import { getActiveJail } from "../school/jail.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
 import { addPhoto, purchasePhotoAlbum } from "../social/photos.js";
 import { listDisplayedItems } from "../social/catalog.js";
-import { getCharacter, saveCharacter } from "../social/character.js";
+import { buyStyleItem, getCharacter, listStyleShop, listUnlocks, saveCharacter } from "../social/character.js";
 
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
@@ -103,6 +103,28 @@ profileRouter.put("/character", (req, res) => {
   try {
     res.json({ character: saveCharacter(req.userId!, req.body?.character) });
   } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+  }
+});
+
+// 꾸미기 창의 잠금 표시용(졸업 전에도 기본 캐릭터는 꾸밀 수 있어 게이트 없음)
+profileRouter.get("/character/unlocks", (req, res) => {
+  res.json(listUnlocks(req.userId!));
+});
+
+// 스타일샵(마을 시설): 다른 매장처럼 고3 졸업/비수감 게이트를 건다.
+profileRouter.get("/style-shop", requireGraduatedHighSchool, requireNotJailed, (req, res) => {
+  res.json(listStyleShop(req.userId!));
+});
+
+profileRouter.post("/style-shop/buy", requireGraduatedHighSchool, requireNotJailed, (req, res) => {
+  try {
+    res.json(buyStyleItem(req.userId!, String(req.body?.key ?? "")));
+  } catch (e: any) {
+    if (e instanceof InsufficientBalanceError) {
+      res.status(400).json({ error: e.message });
+      return;
+    }
     res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
   }
 });

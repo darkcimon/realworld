@@ -10,9 +10,11 @@ import { NearbyPanel } from "./NearbyPanel";
 import { PersonPanel } from "./PersonPanel";
 import { MartShopPanel } from "./MartShopPanel";
 import { HomeRestPanel } from "./HomeRestPanel";
+import { StyleShopPanel } from "./StyleShopPanel";
+import { BondsPanel, DepositPanel, StocksPanel } from "./FinancePanel";
 import type { CatalogItem, Vitals } from "../types";
 
-export type SocialTab = "rest" | "shop" | "wallet" | "jobs" | "alba" | "lottery" | "manner" | "catalog" | "nearby";
+export type SocialTab = "rest" | "shop" | "wallet" | "jobs" | "alba" | "lottery" | "manner" | "catalog" | "nearby" | "style" | "deposit" | "stocks" | "bonds";
 type Tab = SocialTab;
 
 const TABS: { key: Tab; label: string }[] = [
@@ -25,6 +27,10 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "manner", label: "매너" },
   { key: "catalog", label: "자산" },
   { key: "nearby", label: "인연찾기" },
+  { key: "style", label: "스타일샵" },
+  { key: "deposit", label: "예금" },
+  { key: "stocks", label: "주식" },
+  { key: "bonds", label: "채권" },
 ];
 
 /** 마을 시설 하나에 들어왔을 때 보여줄 것. 다른 시설로 가려면 마을로 나가서 걸어가야 한다. */
@@ -100,6 +106,10 @@ export function SocialHub({
         />
       )}
       {tab === "nearby" && <NearbyPanel onOpenPerson={setPersonId} />}
+      {tab === "deposit" && <DepositPanel onBalanceChange={refreshBalance} />}
+      {tab === "stocks" && <StocksPanel onBalanceChange={refreshBalance} />}
+      {tab === "bonds" && <BondsPanel onBalanceChange={refreshBalance} />}
+      {tab === "style" && <StyleShopPanel onBalanceChange={refreshBalance} onProfileChange={onProfileChange} />}
 
       {personId !== null && (
         <PersonPanel

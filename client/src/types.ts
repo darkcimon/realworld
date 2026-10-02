@@ -214,13 +214,20 @@ export interface OwnedItem {
   paidPrice: number | null; // 실제로 낸 금액(선물 받은 건 null)
   // 지금 되팔면 받는 금액. 자동차는 보유 기간만큼 감가(depreciation), 아파트·명품은 시세(market) 배수.
   resale: { price: number; ratio: number; kind: "depreciation" | "market" };
+  // 건물(아파트)만: 지금 팔면 내는 양도소득세. 세율은 보유 건물 수(2개 20% … 5개 이상 50%), 이익이 없으면 0.
+  capitalGainsTax: { buildings: number; rate: number; gain: number; tax: number } | null;
 }
 
 export interface NearbyUser {
   userId: number;
   nickname: string;
   avatarUrl: string | null;
-  distanceKm: number;
+  distanceBucket: number; // 0=30km 이내, 1=50km, 2=100km, 3=200km, 4=꽤 먼 거리, 5=많이 먼 거리
+  distanceLabel: string; // 정확한 거리 대신 "30km 이내" 같은 구간 라벨
+  recentlyActive: boolean; // 24시간 내 접속
+  hasPhoto: boolean;
+  goodManner: boolean; // 매너 점수 90점 초과
+  heartSent: boolean; // 내가 이미 하트를 보낸 상대
 }
 
 export interface PersonDetail {
