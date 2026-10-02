@@ -7,7 +7,6 @@ import { checkSocialContent } from "./manner.js";
 import { nicknameOf, notify } from "./notifications.js";
 import { chatLengthError } from "../util/chatLimit.js";
 
-export const GIFT_COST = 1_000_000;
 // 하트 50만원 / 프로필 열람(=채팅 개시 조건) 300만원: 일급 상한(S등급 최대 30만원)을 받은 상태에서도
 // 하루에 채팅을 걸 수 있는 상대가 2~5명 정도로 제한되도록 일부러 하트/열람권 비용을 높게 잡았다.
 export const HEART_COST = 500_000;
@@ -206,23 +205,56 @@ export function listMatches(userId: number) {
     .all(userId, userId, userId, userId);
 }
 
-export function sendGift(senderId: number, receiverId: number): { balance: number } {
+/**
+ * 내가 가진 자산(자동차·건물·명품) 하나를 상대에게 그대로 넘긴다. 돈이 아니라 물건이 옮겨 간다.
+ * 받은 사람은 낸 돈이 없으므로 paid_price를 비우고(양도세는 정가 기준), 전시는 꺼 둔다.
+ * 자동차 감가는 처음 산 날(purchased_at)부터 그대로 이어지고, 남은 연료도 차에 따라간다.
+ */
+export function sendGift(
+  senderId: number,
+  receiverId: number,
+  ownedItemId: number
+): { name: string } {
   if (senderId === receiverId) throw { status: 400, message: "자기 자신에게 선물할 수 없습니다." };
   assertNotBlocked(senderId, receiverId);
-  const { balance } = applyLedgerEntry(senderId, "선물", -GIFT_COST);
+  const row = db
+    .prepare(
+      "SELECT oi.id, oi.user_id, oi.catalog_item_id, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.id = ?"
+    )
+    .get(ownedItemId) as any;
+  if (!row || row.user_id !== senderId) throw { status: 404, message: "선물할 자산을 찾을 수 없습니다." };
+  // user_id 조건으로 옮겨야 같은 자산을 동시에 두 번 보내거나 판 뒤에 보내는 일을 막을 수 있다.
+  const moved = db
+    .prepare("UPDATE owned_items SET user_id = ?, displayed = 0, paid_price = NULL WHERE id = ? AND user_id = ?")
+    .run(receiverId, ownedItemId, senderId);
+  if (Number(moved.changes) !== 1) throw { status: 409, message: "이미 보냈거나 판 자산입니다." };
   db.prepare(
-    "INSERT INTO gifts (sender_id, receiver_id, item_ref, amount) VALUES (?, ?, NULL, ?)"
-  ).run(senderId, receiverId, GIFT_COST);
-  return { balance };
+    "INSERT INTO gifts (sender_id, receiver_id, item_ref, amount) VALUES (?, ?, ?, ?)"
+  ).run(senderId, receiverId, row.catalog_item_id, row.price);
+  notify(receiverId, "gift", `🎁 ${nicknameOf(senderId)}님이 ${row.name}을(를) 선물했어요!`);
+  return { name: row.name };
+}
+
+/** 프로필 화면에서 하트 버튼 상태를 정하는 데 쓴다(보냄 / 받음 → 맞하트 가능 / 맞하트 성립). */
+export function heartStatus(userId: number, targetId: number) {
+  const has = (from: number, to: number) =>
+    !!db.prepare("SELECT 1 FROM hearts WHERE sender_id = ? AND receiver_id = ?").get(from, to);
+  return { sent: has(userId, targetId), received: has(targetId, userId), matched: isMatched(userId, targetId) };
 }
 
 export function sendHeart(senderId: number, receiverId: number): { balance: number } {
   if (senderId === receiverId) throw { status: 400, message: "자기 자신에게 하트를 보낼 수 없습니다." };
   assertNotBlocked(senderId, receiverId);
+  if (isMatched(senderId, receiverId)) throw { status: 409, message: "이미 맞하트가 된 상대입니다." };
   const already = db
     .prepare("SELECT 1 FROM hearts WHERE sender_id = ? AND receiver_id = ?")
     .get(senderId, receiverId);
   if (already) throw { status: 409, message: "이미 하트를 보냈습니다." };
+  // 상대가 먼저 하트를 보냈다면 그냥 하트가 아니라 맞하트로 처리해야 매칭이 생긴다.
+  const incoming = db
+    .prepare("SELECT 1 FROM hearts WHERE sender_id = ? AND receiver_id = ?")
+    .get(receiverId, senderId);
+  if (incoming) return { balance: reciprocateHeart(senderId, receiverId).balance! };
 
   const { balance } = applyLedgerEntry(senderId, "하트", -HEART_COST);
   db.prepare("INSERT INTO hearts (sender_id, receiver_id) VALUES (?, ?)").run(

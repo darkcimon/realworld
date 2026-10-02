@@ -386,6 +386,11 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .badge.clickable { cursor: pointer; }
 .person-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .person-actions button { flex: 1 1 auto; }
+.gift-picker { padding: 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
+.gift-picker h4 { margin: 0; }
+.gift-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 30vh; overflow-y: auto; }
+.gift-item { width: 100%; display: flex; justify-content: space-between; gap: 8px; text-align: left; background: transparent; border: 1px solid var(--border); color: inherit; }
+.gift-item.selected { border-color: var(--accent); background: var(--panel); }
 
 .dm-chat { display: flex; flex-direction: column; height: 320px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-top: 8px; }
 .dm-chat .chat-header { padding: 8px 12px; }

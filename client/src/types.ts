@@ -313,7 +313,7 @@ export interface DailyStatus {
 
 export interface AppNotification {
   id: number;
-  type: "lottery" | "salary" | "heart" | "match" | "npc";
+  type: "lottery" | "salary" | "heart" | "match" | "gift" | "npc";
   message: string;
   read: number;
   created_at: string;

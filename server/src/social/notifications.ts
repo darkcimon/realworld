@@ -2,7 +2,7 @@
 // 다음 접속 때 한눈에 보여준다. 이벤트가 일어나는 곳(로또 추첨, 정산, 하트)에서 notify()만 부르면 된다.
 import { db } from "../db.js";
 
-export type NotificationType = "lottery" | "salary" | "heart" | "match" | "npc";
+export type NotificationType = "lottery" | "salary" | "heart" | "match" | "gift" | "npc";
 
 export function notify(userId: number, type: NotificationType, message: string): void {
   db.prepare("INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)").run(

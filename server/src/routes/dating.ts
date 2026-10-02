@@ -8,6 +8,7 @@ import { InsufficientBalanceError } from "../wallet/ledger.js";
 import {
   block,
   getProfileDetail,
+  heartStatus,
   listIncomingHearts,
   listMatches,
   listSocialMessages,
@@ -88,12 +89,8 @@ guard(giftsRouter);
 
 giftsRouter.post("/:targetId", (req, res) => {
   try {
-    res.json(sendGift(req.userId!, Number(req.params.targetId)));
+    res.json(sendGift(req.userId!, Number(req.params.targetId), Number(req.body?.ownedItemId)));
   } catch (e: any) {
-    if (e instanceof InsufficientBalanceError) {
-      res.status(400).json({ error: e.message });
-      return;
-    }
     res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
   }
 });
@@ -103,6 +100,10 @@ guard(heartsRouter);
 
 heartsRouter.get("/incoming", (req, res) => {
   res.json(listIncomingHearts(req.userId!));
+});
+
+heartsRouter.get("/status/:targetId", (req, res) => {
+  res.json(heartStatus(req.userId!, Number(req.params.targetId)));
 });
 
 heartsRouter.post("/:targetId", (req, res) => {

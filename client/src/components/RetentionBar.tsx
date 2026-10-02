@@ -12,6 +12,7 @@ const TYPE_ICON: Record<string, string> = {
   salary: "💰",
   heart: "💌",
   match: "💘",
+  gift: "🎁",
   npc: "🧑‍💼",
 };
 

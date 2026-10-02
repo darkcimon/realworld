@@ -1,12 +1,21 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
-import type { PersonDetail, PublicProfile } from "../types";
+import type { OwnedItem, PersonDetail, PublicProfile } from "../types";
 import { DmChat } from "./DmChat";
 import { AssetViewer } from "./CatalogPanel";
 import type { AssetCategory } from "./AssetViewer";
 import { groupSameItems, itemDisplayName } from "../itemName";
 import { CharacterStage } from "../character/characterLazy";
 import { assetIcon } from "../assetIcons";
+import { confirmDialog } from "./ConfirmDialog";
+
+interface HeartStatus {
+  sent: boolean;
+  received: boolean;
+  matched: boolean;
+}
+
+const CATEGORY_LABEL: Record<OwnedItem["category"], string> = { car: "자동차", apartment: "건물", luxury: "명품" };
 
 // README 11.2~11.5: 프로필 열람권 구매/상세 조회, 선물/하트/맞하트, 차단, 채팅 개시.
 // 3D 캐릭터는 공간을 많이 차지해 채팅창을 밀어내므로, 사이드 메뉴처럼 간단 프로필만 보여주고
@@ -33,6 +42,10 @@ export function PersonPanel({
   const [message, setMessage] = useState<string | null>(null);
   const [publicProfile, setPublicProfile] = useState<PublicProfile | null>(null);
   const [characterOpen, setCharacterOpen] = useState(false);
+  const [heart, setHeart] = useState<HeartStatus | null>(null);
+  // 선물: 돈이 아니라 내가 가진 자산(자동차·건물·명품) 하나를 골라 넘긴다.
+  const [giftItems, setGiftItems] = useState<OwnedItem[] | null>(null);
+  const [giftPick, setGiftPick] = useState<number | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // 채팅을 열면 모바일에서도 바로 입력할 수 있게 채팅창까지 스크롤한다.
@@ -60,7 +73,11 @@ export function PersonPanel({
     setChatOpen(false);
     setCharacterOpen(false);
     setPublicProfile(null);
+    setHeart(null);
+    setGiftItems(null);
+    setGiftPick(null);
     loadDetail();
+    if (!preview) loadHeart();
     // 학력/졸업 등급은 열람권과 무관한 공개 정보라 따로 불러온다.
     api
       .get<PublicProfile>(`/profile/public/${targetId}`)
@@ -81,24 +98,64 @@ export function PersonPanel({
     }
   }
 
+  async function loadHeart() {
+    try {
+      setHeart(await api.get<HeartStatus>(`/hearts/status/${targetId}`));
+    } catch {
+      setHeart(null);
+    }
+  }
+
+  // 상대가 먼저 보낸 하트가 있으면 서버가 맞하트로 처리한다.
   async function sendHeart() {
     setError(null);
     setMessage(null);
     try {
       await api.post(`/hearts/${targetId}`);
-      setMessage("하트를 보냈습니다.");
+      setMessage(heart?.received ? "맞하트가 성립되었습니다!" : "하트를 보냈습니다.");
       onBalanceChange();
+      await loadHeart();
+      if (heart?.received) await loadDetail();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "하트 전송에 실패했습니다.");
     }
   }
 
+  async function openGift() {
+    setError(null);
+    setMessage(null);
+    if (giftItems) {
+      setGiftItems(null);
+      return;
+    }
+    try {
+      setGiftItems(await api.get<OwnedItem[]>("/catalog/owned"));
+      setGiftPick(null);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "내 자산을 불러올 수 없습니다.");
+    }
+  }
+
   async function sendGift() {
+    const item = giftItems?.find((o) => o.id === giftPick);
+    if (!item) return;
+    const name = itemDisplayName(item);
+    const who = basic?.nickname ?? `유저 #${targetId}`;
+    if (
+      !(await confirmDialog(`${name}을(를) ${who}님에게 보내시겠습니까?
+보낸 자산은 상대 소유가 되어 되돌릴 수 없어요.`, {
+        title: "선물 보내기",
+        confirmText: "보내기",
+      }))
+    )
+      return;
     setError(null);
     setMessage(null);
     try {
-      await api.post(`/gifts/${targetId}`);
-      setMessage("선물을 보냈습니다.");
+      await api.post(`/gifts/${targetId}`, { ownedItemId: item.id });
+      setMessage(`${name}을(를) 선물했습니다.`);
+      setGiftItems(null);
+      setGiftPick(null);
       onBalanceChange();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "선물 전송에 실패했습니다.");
@@ -214,11 +271,21 @@ export function PersonPanel({
 
         {!preview && (
           <div className="person-actions">
-            <button className="ghost" onClick={sendHeart}>
-              하트 보내기 (50만원)
-            </button>
-            <button className="ghost" onClick={sendGift}>
-              선물 보내기 (100만원)
+            {heart?.matched ? (
+              <button className="ghost" disabled>
+                💞 맞하트 성립
+              </button>
+            ) : heart?.sent ? (
+              <button className="ghost" disabled>
+                💌 하트 보냄
+              </button>
+            ) : (
+              <button className="ghost" onClick={sendHeart}>
+                {heart?.received ? "맞하트 보내기 (50만원)" : "하트 보내기 (50만원)"}
+              </button>
+            )}
+            <button className="ghost" onClick={openGift}>
+              🎁 선물 보내기
             </button>
             <button onClick={openChat}>채팅 시작</button>
             <button className="ghost" onClick={block}>
@@ -227,6 +294,41 @@ export function PersonPanel({
             <button className="ghost" onClick={unblock}>
               차단 해제
             </button>
+          </div>
+        )}
+
+        {giftItems && (
+          <div className="gift-picker">
+            <h4>선물할 자산 고르기</h4>
+            {giftItems.length === 0 ? (
+              <p className="muted">선물할 수 있는 자산이 없어요. 자동차·건물·명품을 먼저 사보세요.</p>
+            ) : (
+              <ul className="gift-list">
+                {giftItems.map((o) => (
+                  <li key={o.id}>
+                    <button
+                      className={giftPick === o.id ? "gift-item selected" : "gift-item"}
+                      onClick={() => setGiftPick(o.id)}
+                    >
+                      <span>
+                        {assetIcon(o.category, o.name)} {itemDisplayName(o)}
+                      </span>
+                      <span className="muted">
+                        {CATEGORY_LABEL[o.category]} · 시세 {o.resale.price.toLocaleString()}원
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="person-actions">
+              <button onClick={sendGift} disabled={giftPick == null}>
+                보내기
+              </button>
+              <button className="ghost" onClick={() => setGiftItems(null)}>
+                취소
+              </button>
+            </div>
           </div>
         )}
 
