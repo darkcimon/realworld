@@ -380,7 +380,10 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .manual-location-form input { min-width: 0; }
 .manual-location-form button { grid-column: 1 / -1; }
 
-.person-modal { width: 420px; max-width: 90vw; display: flex; flex-direction: column; gap: 10px; }
+.person-modal { width: 420px; max-width: 90vw; max-height: 92vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.person-profile-card { padding: 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; align-items: flex-start; }
+.person-profile-card .avatar { width: 64px; height: 64px; }
+.badge.clickable { cursor: pointer; }
 .person-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .person-actions button { flex: 1 1 auto; }
 
