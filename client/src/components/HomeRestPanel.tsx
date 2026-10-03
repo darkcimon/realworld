@@ -73,6 +73,21 @@ export function HomeRestPanel({ onVitalsChange }: { onVitalsChange: (v: Vitals) 
   const canSleepAt = vitals?.canSleepAt ? new Date(vitals.canSleepAt) : null;
   const cookAt = vitals?.cookAvailableAt ? new Date(vitals.cookAvailableAt) : null;
   const hhmm = (d: Date) => d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  // 배가 불러도 냉장고에 자리가 있으면 요리해서 넣어 둘 수 있다(서버 assertCanCook와 같은 조건).
+  const canCook =
+    !!vitals && (vitals.stamina < vitals.maxStamina || vitals.meals.length < vitals.fridgeCapacity);
+
+  async function eatMeal(id: number) {
+    setError(null);
+    setMessage(null);
+    try {
+      const r = await api.post<{ dish: string; gained: number; vitals: Vitals }>(`/town/meals/${id}/eat`);
+      update(r.vitals);
+      setMessage(`😋 ${r.dish}을(를) 데워 먹었어요. 체력 +${r.gained}`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "음식을 먹지 못했어요.");
+    }
+  }
 
   return (
     <div className="panel">
@@ -95,22 +110,47 @@ export function HomeRestPanel({ onVitalsChange }: { onVitalsChange: (v: Vitals) 
               ? `🏠 ${vitals.home} — 가만히 있어도 1시간에 체력이 ${vitals.regenPerHour}씩 차요.`
               : `📦 박스집 — 1시간에 체력이 ${vitals.regenPerHour}씩 차요. 집을 사면 더 빨리 차요.`}
           </p>
-          {!vitals.home && (
-            <div className="cook-entry">
-              <button
-                className="ghost"
-                onClick={() => setCooking(true)}
-                disabled={sleeping || !!cookAt || vitals.stamina >= vitals.maxStamina}
-              >
-                🍳 요리하기 (리듬게임, 체력 최대 +30)
-              </button>
-              <small className="muted">
-                {cookAt
-                  ? `${hhmm(cookAt)} 이후에 다시 요리할 수 있어요.`
-                  : vitals.stamina >= vitals.maxStamina
-                    ? "배가 불러서 지금은 요리할 필요가 없어요."
+          <div className="cook-entry">
+            <button className="ghost" onClick={() => setCooking(true)} disabled={sleeping || !!cookAt || !canCook}>
+              🍳 요리하기 (리듬게임, 한 그릇 체력 최대 +{vitals.cookMaxGain})
+            </button>
+            <small className="muted">
+              {cookAt
+                ? `${hhmm(cookAt)} 이후에 다시 요리할 수 있어요.`
+                : !canCook
+                  ? vitals.fridgeCapacity > 0
+                    ? "배도 부르고 냉장고도 가득 찼어요."
+                    : "배가 불러서 지금은 요리할 필요가 없어요."
+                  : vitals.fridgeCapacity > 0
+                    ? "좋은 집일수록 든든한 요리가 나와요. 잘 만들면 가끔 여러 그릇이 생겨 냉장고에 넣어 둬요. 15분마다 한 번."
                     : "재료가 선에 닿을 때 맞춰 누를수록 맛있게(체력 많이) 만들어져요. 15분마다 한 번."}
-              </small>
+            </small>
+          </div>
+          {vitals.fridgeCapacity > 0 && (
+            <div className="fridge">
+              <strong>
+                🧊 냉장고 {vitals.meals.length}/{vitals.fridgeCapacity}
+              </strong>
+              {vitals.meals.length === 0 ? (
+                <small className="muted">비어 있어요. 요리를 잘하면 남은 음식이 여기에 들어와요.</small>
+              ) : (
+                <ul className="fridge-list">
+                  {vitals.meals.map((m) => (
+                    <li key={m.id}>
+                      <span>
+                        {m.dish} <small className="muted">체력 +{m.stamina}</small>
+                      </span>
+                      <button
+                        className="ghost"
+                        onClick={() => eatMeal(m.id)}
+                        disabled={sleeping || vitals.stamina >= vitals.maxStamina}
+                      >
+                        꺼내 먹기
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
           {sleeping && (

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
-import type { DailyStatus, NotificationsResp, Vitals } from "../types";
+import type { AppNotification, DailyStatus, NotificationsResp, Vitals } from "../types";
 
 // 리텐션 루프 UI: 우상단의 📅(출석/일일 퀘스트)와 🔔(알림) 버튼.
 // - 그날 첫 접속에 출석하지 않았다면 출석 패널을 자동으로 띄워 "오늘 할 일"을 바로 보여준다.
@@ -14,6 +14,7 @@ const TYPE_ICON: Record<string, string> = {
   match: "💘",
   gift: "🎁",
   npc: "🧑‍💼",
+  message: "💬",
 };
 
 export function RetentionBar({
@@ -21,11 +22,13 @@ export function RetentionBar({
   onBalanceChange,
   vitals,
   onGoTown,
+  onOpenChat,
 }: {
   refreshKey: string;
   onBalanceChange?: () => void;
   vitals?: Vitals | null; // 졸업 후에만 넘어온다 — 달력 옆에 체력 배터리로 표시
   onGoTown?: () => void; // 마을 지도가 아닌 화면에서만 넘어온다 — 스크롤 위치와 상관없이 바로 마을로
+  onOpenChat?: (targetId: number | null) => void; // 메시지 알림 클릭: 상대 id면 그 대화, null이면 대화 목록
 }) {
   const [daily, setDaily] = useState<DailyStatus | null>(null);
   const [notif, setNotif] = useState<NotificationsResp | null>(null);
@@ -118,6 +121,16 @@ export function RetentionBar({
     }
   }
 
+  // 메시지 알림 클릭: 새로 온 메시지 알림이 여러 사람에게서 왔으면 대화 목록으로, 한 사람뿐이면 그 대화로 바로 간다.
+  function openMessageNotif(n: AppNotification) {
+    if (!onOpenChat || n.actorId == null) return;
+    const freshSenders = new Set(
+      notif?.items.filter((x) => x.type === "message" && x.actorId != null && freshIds.has(x.id)).map((x) => x.actorId)
+    );
+    setNotifOpen(false);
+    onOpenChat(freshIds.has(n.id) && freshSenders.size > 1 ? null : n.actorId);
+  }
+
   return (
     <>
       <div className="retention-bar">
@@ -155,15 +168,23 @@ export function RetentionBar({
             </button>
           </div>
           <ul>
-            {notif?.items.map((n) => (
-              <li key={n.id} className={freshIds.has(n.id) ? "fresh" : ""}>
+            {notif?.items.map((n) => {
+              const clickable = n.type === "message" && n.actorId != null && !!onOpenChat;
+              return (
+              <li
+                key={n.id}
+                className={`${freshIds.has(n.id) ? "fresh" : ""}${clickable ? " clickable" : ""}`}
+                onClick={clickable ? () => openMessageNotif(n) : undefined}
+                title={clickable ? "눌러서 대화로 이동" : undefined}
+              >
                 <span>{TYPE_ICON[n.type] ?? "🔔"}</span>
                 <div>
                   <p>{n.message}</p>
                   <small className="muted">{n.created_at.slice(0, 16).replace("T", " ")}</small>
                 </div>
               </li>
-            ))}
+              );
+            })}
             {notif && notif.items.length === 0 && (
               <li className="muted">아직 알림이 없어요. 로또 결과, 월급, 맞하트 소식이 여기에 도착해요.</li>
             )}

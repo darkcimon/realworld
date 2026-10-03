@@ -401,8 +401,13 @@ export function attachSocket(httpServer: HttpServer) {
 
     socket.on("dm:message", ({ targetId, content }: { targetId: number; content: string }) => {
       try {
-        const { message, violation } = sendSocialMessage(userId, Number(targetId), content);
         const room = dmRoomName(userId, Number(targetId));
+        // 상대가 이미 이 대화방을 열어 두고 있으면 실시간으로 보이므로 알림은 남기지 않는다.
+        const roomSockets = io.sockets.adapter.rooms.get(room);
+        const recipientWatching = [...(roomSockets ?? [])].some(
+          (id) => io.sockets.sockets.get(id)?.data.userId === Number(targetId)
+        );
+        const { message, violation } = sendSocialMessage(userId, Number(targetId), content, recipientWatching);
         io.to(room).emit("dm:message", {
           id: message.id,
           fromId: message.from_id,

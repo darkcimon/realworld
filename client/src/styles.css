@@ -449,6 +449,9 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .retention-bar { position: fixed; top: 14px; right: 14px; z-index: 900; display: flex; gap: 8px; }
 .retention-btn { position: relative; width: 40px; height: 40px; padding: 0; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); font-size: 18px; line-height: 1; }
 .cook-entry { display: flex; flex-direction: column; gap: 4px; }
+.fridge { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; margin: 8px 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; }
+.fridge-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fridge-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cook-modal { width: 380px; max-width: 94vw; display: flex; flex-direction: column; gap: 10px; }
 .cook-modal h3 { margin: 0; display: flex; align-items: baseline; gap: 8px; }
 .cook-dish { font-size: 14px; font-weight: 400; }
@@ -491,6 +494,8 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .notif-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .notif-panel ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .notif-panel li { display: flex; gap: 8px; padding: 8px; border-radius: 8px; }
+.notif-panel li.clickable { cursor: pointer; }
+.notif-panel li.clickable:hover { background: var(--panel-2); }
 .notif-panel li.fresh { background: var(--panel-2); border-left: 3px solid var(--accent, #6c8cff); }
 .notif-panel li p { margin: 0 0 2px; font-size: 13px; line-height: 1.4; }
 .daily-modal { width: 420px; max-width: 92vw; max-height: 86vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
@@ -658,6 +663,8 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .style-preview .character-stage { max-height: 36vh; }
 .style-preview-caption { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 32px; }
 .style-section { display: flex; flex-direction: column; gap: 8px; }
+.catalog-list li.conversation-item { cursor: pointer; }
+.conversation-preview { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .catalog-list li.previewing { border-color: var(--accent); }
 .character-seg button:disabled { opacity: 0.45; cursor: not-allowed; }
 

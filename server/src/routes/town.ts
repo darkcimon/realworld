@@ -6,6 +6,7 @@ import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
 import {
   eat,
+  eatStoredMeal,
   finishCooking,
   getVitals,
   move,
@@ -39,7 +40,7 @@ townRouter.post("/move", requireNotJailed, (req, res) =>
 townRouter.post("/car", requireGraduatedHighSchool, requireNotJailed, (req, res) =>
   handle(res, () => selectCar(req.userId!, Number(req.body?.ownedItemId)))
 );
-// 박스집 요리(리듬게임): 채보 받기 → 끝나면 판정 수 제출
+// 내 집 요리(리듬게임): 채보 받기 → 끝나면 판정 수 제출
 townRouter.post("/cook/start", requireGraduatedHighSchool, requireNotJailed, (req, res) =>
   handle(res, () => startCooking(req.userId!))
 );
@@ -47,6 +48,10 @@ townRouter.post("/cook/finish", requireGraduatedHighSchool, requireNotJailed, (r
   handle(res, () =>
     finishCooking(req.userId!, String(req.body?.sessionId ?? ""), Number(req.body?.perfect), Number(req.body?.good))
   )
+);
+// 냉장고에 넣어 둔 음식 꺼내 먹기
+townRouter.post("/meals/:id/eat", requireGraduatedHighSchool, requireNotJailed, (req, res) =>
+  handle(res, () => eatStoredMeal(req.userId!, Number(req.params.id)))
 );
 townRouter.post("/sleep", requireGraduatedHighSchool, requireNotJailed, (req, res) =>
   handle(res, () => sleep(req.userId!))

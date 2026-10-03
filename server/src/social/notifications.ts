@@ -2,20 +2,35 @@
 // 다음 접속 때 한눈에 보여준다. 이벤트가 일어나는 곳(로또 추첨, 정산, 하트)에서 notify()만 부르면 된다.
 import { db } from "../db.js";
 
-export type NotificationType = "lottery" | "salary" | "heart" | "match" | "gift" | "npc";
+export type NotificationType = "lottery" | "salary" | "heart" | "match" | "gift" | "npc" | "message";
 
-export function notify(userId: number, type: NotificationType, message: string): void {
-  db.prepare("INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)").run(
+/** actorId: 알림을 일으킨 상대 유저 — 클라이언트가 알림을 눌렀을 때 그 사람과의 대화로 바로 이동하는 데 쓴다. */
+export function notify(userId: number, type: NotificationType, message: string, actorId?: number): void {
+  db.prepare("INSERT INTO notifications (user_id, type, message, actor_id) VALUES (?, ?, ?, ?)").run(
     userId,
     type,
-    message
+    message,
+    actorId ?? null
   );
+}
+
+/**
+ * 1:1 메시지 알림. 메시지마다 알림을 쌓으면 대화 한 번에 알림창이 도배되므로, 같은 사람에게서 온
+ * 안 읽은 메시지 알림은 하나만 남긴다(이전 것을 지우고 최신 내용으로 다시 넣어 맨 위로 올린다).
+ */
+export function notifyMessage(toId: number, fromId: number, content: string): void {
+  db.prepare("DELETE FROM notifications WHERE user_id = ? AND type = 'message' AND actor_id = ? AND read = 0").run(
+    toId,
+    fromId
+  );
+  const preview = content.length > 30 ? `${content.slice(0, 30)}…` : content;
+  notify(toId, "message", `💬 ${nicknameOf(fromId)}님이 메시지를 보냈어요: "${preview}"`, fromId);
 }
 
 export function listNotifications(userId: number, limit = 30) {
   return db
     .prepare(
-      "SELECT id, type, message, read, created_at FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT ?"
+      "SELECT id, type, message, read, created_at, actor_id AS actorId FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT ?"
     )
     .all(userId, limit);
 }

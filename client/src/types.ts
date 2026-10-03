@@ -246,6 +246,15 @@ export interface IncomingHeart {
   sentAt: string;
 }
 
+export interface ConversationSummary {
+  userId: number;
+  nickname: string;
+  avatarUrl: string | null;
+  lastMessage: string;
+  lastFromId: number;
+  lastAt: string;
+}
+
 export interface MatchSummary {
   userId: number;
   nickname: string;
@@ -313,10 +322,11 @@ export interface DailyStatus {
 
 export interface AppNotification {
   id: number;
-  type: "lottery" | "salary" | "heart" | "match" | "gift" | "npc";
+  type: "lottery" | "salary" | "heart" | "match" | "gift" | "npc" | "message";
   message: string;
   read: number;
   created_at: string;
+  actorId: number | null; // 알림을 일으킨 상대 유저(메시지 알림이면 보낸 사람)
 }
 
 export interface NotificationsResp {
@@ -513,7 +523,10 @@ export interface Vitals {
   walkCost: number;
   regenPerHour: number; // 자연 회복(1시간당) — 비싼 집일수록 빠르다
   home: string | null; // 가진 집 중 가장 비싼 집(null = 박스집)
-  cookAvailableAt: string | null; // 박스집 요리(리듬게임)를 다시 할 수 있는 시각. null이면 지금 가능
+  cookAvailableAt: string | null; // 내 집 요리(리듬게임)를 다시 할 수 있는 시각. null이면 지금 가능
+  cookMaxGain: number; // 요리 한 그릇 최대 체력 — 좋은 집일수록 크다
+  fridgeCapacity: number; // 남은 음식을 넣어 둘 냉장고 칸(박스집 0)
+  meals: { id: number; dish: string; stamina: number }[]; // 냉장고에 있는 음식
   fuel: number;
   fuelCapacity: number; // 지금 차의 연료통(칸). 차종마다 다르고, 차가 없으면 0
   location: string; // 마을에서 마지막으로 도착한 시설(연료는 이동한 칸 수만큼 준다)

@@ -38,6 +38,9 @@ const FACILITY_VIEWS: Partial<Record<FacilityKey, FacilityView>> = {
   home: { title: "🏠 내 집", tabs: ["rest", "wallet", "catalog", "manner", "nearby"], catalogOwnedOnly: true },
 };
 
+// 메시지 알림을 눌렀을 때만 들어가는 화면. 마을을 걸어가지 않는 예외라서 인연찾기(대화) 탭만 연다.
+const CHAT_FACILITY: FacilityView = { title: "💬 대화", tabs: ["nearby"] };
+
 const SAVE_NUDGE_KEY = "rw_save_nudge_at";
 const CHARACTER_SKIP_KEY = "rw_character_skipped";
 
@@ -59,6 +62,8 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [saveNudge, setSaveNudge] = useState(false);
   const [firstStudio, setFirstStudio] = useState(false);
+  // 알림에서 대화로 이동: targetId가 있으면 그 사람과의 대화, null이면 대화 목록. seq로 같은 요청도 다시 반영한다.
+  const [chatJump, setChatJump] = useState<{ targetId: number | null; seq: number } | null>(null);
 
   async function loadAll() {
     try {
@@ -208,7 +213,17 @@ export default function App() {
     const next = FACILITY_VIEWS[key];
     if (!next) return; // 감옥은 선택해서 가는 곳이 아니라 규칙 위반 시 강제로 가는 곳
     setFacility(next);
+    setChatJump(null); // 예전에 알림으로 들어왔던 요청이 다시 실행되지 않게
     setView("social");
+  }
+
+  function openChatFromNotif(targetId: number | null) {
+    // 이미 인연찾기가 있는 시설(내 집) 안이면 그대로 두고, 아니면 대화 탭만 있는 화면을 연다.
+    if (!(view === "social" && facility?.tabs.includes("nearby"))) setFacility(CHAT_FACILITY);
+    setFacilityNotice(null);
+    setChatJump({ targetId, seq: Date.now() });
+    setView("social");
+    setSidebarOpen(false);
   }
 
   function goTo(next: View) {
@@ -225,6 +240,7 @@ export default function App() {
         refreshKey={view}
         vitals={graduated ? vitals : null}
         onGoTown={view === "hub" ? undefined : () => goTo("hub")}
+        onOpenChat={graduated ? openChatFromNotif : undefined}
       />
 
       <button
@@ -279,7 +295,7 @@ export default function App() {
       )}
 
       {view === "social" && facility && (
-        <SocialHub key={facility.title} onProfileChange={loadAll} facility={facility} notice={facilityNotice} onExit={() => setView("hub")} onVitalsChange={setVitals} />
+        <SocialHub key={facility.title} onProfileChange={loadAll} facility={facility} notice={facilityNotice} onExit={() => setView("hub")} onVitalsChange={setVitals} chatJump={chatJump} />
       )}
 
       {view === "rooms" && (

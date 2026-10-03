@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api";
-import type { IncomingHeart, MatchSummary, NearbyUser } from "../types";
+import type { ConversationSummary, IncomingHeart, MatchSummary, NearbyUser } from "../types";
 
 // README 11.2: 위치(자동 GPS/수동, 수동은 24시간 1회) 및 가까운 순 유저 찾기(거리는 구간 라벨로만 표시).
 // 목록이 길어지면 거리 구간·최근 접속·사진·매너·하트 보낸 상대 숨기기 필터로 좁혀 본다.
@@ -22,8 +22,16 @@ const TOGGLE_FILTERS = [
 ] as const;
 type ToggleKey = (typeof TOGGLE_FILTERS)[number]["key"];
 
-export function NearbyPanel({ onOpenPerson }: { onOpenPerson: (userId: number) => void }) {
+export function NearbyPanel({
+  onOpenPerson,
+  focusConversationsKey,
+}: {
+  onOpenPerson: (userId: number, openChat?: boolean) => void;
+  focusConversationsKey?: number; // 메시지 알림에서 넘어오면 바뀐다 — 대화 목록을 새로 받고 그 위치로 스크롤
+}) {
   const [nearby, setNearby] = useState<NearbyUser[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const conversationsRef = useRef<HTMLDivElement>(null);
   const [incoming, setIncoming] = useState<IncomingHeart[]>([]);
   const [matches, setMatches] = useState<MatchSummary[]>([]);
   const [manualLat, setManualLat] = useState("");
@@ -64,11 +72,22 @@ export function NearbyPanel({ onOpenPerson }: { onOpenPerson: (userId: number) =
   async function loadMatches() {
     setMatches(await api.get<MatchSummary[]>("/matches"));
   }
+  async function loadConversations() {
+    setConversations(await api.get<ConversationSummary[]>("/chat/conversations"));
+  }
 
   useEffect(() => {
     loadIncoming();
     loadMatches();
   }, []);
+
+  useEffect(() => {
+    loadConversations()
+      .then(() => {
+        if (focusConversationsKey) conversationsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      })
+      .catch(() => {});
+  }, [focusConversationsKey]);
 
   async function useGps() {
     setError(null);
@@ -143,6 +162,28 @@ export function NearbyPanel({ onOpenPerson }: { onOpenPerson: (userId: number) =
         </button>
       </div>
 
+      <div ref={conversationsRef}>
+        <h4>대화 목록 💬</h4>
+        {conversations.length > 0 ? (
+          <ul className="catalog-list">
+            {conversations.map((c) => (
+              <li key={c.userId} className="conversation-item" onClick={() => onOpenPerson(c.userId, true)}>
+                <div>
+                  <strong>{c.nickname}</strong>
+                  <div className="muted conversation-preview">
+                    {c.lastFromId === c.userId ? "" : "나: "}
+                    {c.lastMessage}
+                  </div>
+                </div>
+                <small className="muted">{c.lastAt.slice(5, 16).replace("T", " ")}</small>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">아직 주고받은 메시지가 없어요.</p>
+        )}
+      </div>
+
       {incoming.length > 0 && (
         <>
           <h4>나에게 온 하트 💌</h4>
@@ -169,7 +210,7 @@ export function NearbyPanel({ onOpenPerson }: { onOpenPerson: (userId: number) =
             {matches.map((m) => (
               <li key={m.userId}>
                 <span>{m.nickname}</span>
-                <button className="ghost" onClick={() => onOpenPerson(m.userId)}>
+                <button className="ghost" onClick={() => onOpenPerson(m.userId, true)}>
                   대화하기
                 </button>
               </li>

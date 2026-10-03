@@ -9,6 +9,7 @@ import {
   block,
   getProfileDetail,
   heartStatus,
+  listConversations,
   listIncomingHearts,
   listMatches,
   listSocialMessages,
@@ -59,6 +60,10 @@ chatRouter.post("/request/:targetId", (req, res) => {
   } catch (e: any) {
     res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
   }
+});
+
+chatRouter.get("/conversations", (req, res) => {
+  res.json(listConversations(req.userId!));
 });
 
 chatRouter.get("/messages/:targetId", (req, res) => {

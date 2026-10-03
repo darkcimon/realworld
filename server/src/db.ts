@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS quest_claims (
 CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id),
-  type TEXT NOT NULL, -- 'lottery' | 'salary' | 'heart' | 'match'
+  type TEXT NOT NULL, -- 'lottery' | 'salary' | 'heart' | 'match' | 'gift' | 'npc' | 'message'
   message TEXT NOT NULL,
   read INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -577,6 +577,23 @@ if (!martShiftColumns.some((c) => c.name === "wage_total")) {
 if (!martShiftColumns.some((c) => c.name === "cart_issued_at")) {
   db.exec("ALTER TABLE mart_shifts ADD COLUMN cart_issued_at INTEGER");
 }
+
+// 알림을 누르면 관련 화면으로 바로 가려고, 알림을 일으킨 상대(예: 메시지를 보낸 유저)를 기록한다.
+const notificationColumns = db.prepare("PRAGMA table_info(notifications)").all() as { name: string }[];
+if (!notificationColumns.some((c) => c.name === "actor_id")) {
+  db.exec("ALTER TABLE notifications ADD COLUMN actor_id INTEGER");
+}
+
+// 내 집 요리에서 여러 그릇이 만들어지면 남은 음식을 냉장고에 넣어 두고 나중에 먹는다.
+db.exec(`
+CREATE TABLE IF NOT EXISTS home_meals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  dish TEXT NOT NULL,
+  stamina INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
 
 // 직장 상사 "긴급 프로젝트": 이번 평가 기간에 달성해야 할 잔업 배치 수(0이면 없음).
 const bossStateColumns = db.prepare("PRAGMA table_info(boss_state)").all() as { name: string }[];

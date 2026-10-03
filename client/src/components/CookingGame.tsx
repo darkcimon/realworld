@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Vitals } from "../types";
 
-// 박스집 요리 리듬게임: 재료(노트)가 3줄로 떨어지고, 판정선에 닿을 때 그 줄 버튼을 누른다.
+// 내 집 요리 리듬게임: 재료(노트)가 3줄로 떨어지고, 판정선에 닿을 때 그 줄 버튼을 누른다.
 // 채보는 서버가 만들어 주고(/town/cook/start), 끝나면 퍼펙트·굿 수를 보내 체력을 받는다(/town/cook/finish).
 const PERFECT_MS = 90;
 const GOOD_MS = 180;
@@ -32,7 +32,7 @@ interface StartResp {
 export function CookingGame({ onDone, onClose }: { onDone: (v: Vitals) => void; onClose: () => void }) {
   const [phase, setPhase] = useState<"loading" | "playing" | "sending" | "result" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ dish: string; score: number; gained: number } | null>(null);
+  const [result, setResult] = useState<{ dish: string; score: number; gained: number; portions: number; stored: number } | null>(null);
   const [, setTick] = useState(0); // 매 프레임 다시 그리기
   const [flash, setFlash] = useState<{ text: Judge; lane: number; at: number } | null>(null);
   const game = useRef<{ start: StartResp; notes: Note[]; t0: number; combo: number } | null>(null);
@@ -50,7 +50,7 @@ export function CookingGame({ onDone, onClose }: { onDone: (v: Vitals) => void; 
     const perfect = g.notes.filter((n) => n.judged === "perfect").length;
     const good = g.notes.filter((n) => n.judged === "good").length;
     try {
-      const r = await api.post<{ dish: string; score: number; gained: number; vitals: Vitals }>("/town/cook/finish", {
+      const r = await api.post<{ dish: string; score: number; gained: number; portions: number; stored: number; vitals: Vitals }>("/town/cook/finish", {
         sessionId: g.start.sessionId,
         perfect,
         good,
@@ -202,6 +202,8 @@ export function CookingGame({ onDone, onClose }: { onDone: (v: Vitals) => void; 
             <p>
               점수 <b>{result.score}</b>점 → 💪 체력 <b>+{result.gained}</b>
             </p>
+            {result.portions > 1 && <p className="ok-text">🍽️ 넉넉하게 {result.portions}그릇이 만들어졌어요!</p>}
+            {result.stored > 0 && <p className="ok-text">🧊 {result.stored}그릇은 냉장고에 넣어 뒀어요. 쉬기 화면에서 꺼내 먹을 수 있어요.</p>}
             <p className="muted">
               {result.score >= 90 ? "요리사 뺨치는 솜씨예요!" : result.score >= 60 ? "먹을 만하게 됐어요." : "조금 탔지만 배는 불러요."}
             </p>

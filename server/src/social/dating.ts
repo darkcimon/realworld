@@ -4,7 +4,7 @@ import { applyLedgerEntry } from "../wallet/ledger.js";
 import { listDisplayedItems } from "./catalog.js";
 import { getCharacter } from "./character.js";
 import { checkSocialContent } from "./manner.js";
-import { nicknameOf, notify } from "./notifications.js";
+import { nicknameOf, notify, notifyMessage } from "./notifications.js";
 import { chatLengthError } from "../util/chatLimit.js";
 
 // 하트 50만원 / 프로필 열람(=채팅 개시 조건) 300만원: 일급 상한(S등급 최대 30만원)을 받은 상태에서도
@@ -136,11 +136,15 @@ export interface SocialMessage {
   avatarUrl?: string | null;
 }
 
-/** 채팅 개시 조건(맞하트 또는 유효한 열람권)을 만족해야 실제 메시지도 보낼 수 있다. */
+/**
+ * 채팅 개시 조건(맞하트 또는 유효한 열람권)을 만족해야 실제 메시지도 보낼 수 있다.
+ * recipientWatching: 받는 사람이 지금 이 대화방을 보고 있으면(소켓 룸에 들어와 있으면) 알림을 남기지 않는다.
+ */
 export function sendSocialMessage(
   fromId: number,
   toId: number,
-  content: string
+  content: string,
+  recipientWatching = false
 ): { message: SocialMessage; violation: ReturnType<typeof checkSocialContent> } {
   if (fromId === toId) throw { status: 400, message: "자기 자신에게 메시지를 보낼 수 없습니다." };
   assertCanChat(fromId, toId);
@@ -158,6 +162,11 @@ export function sendSocialMessage(
     )
     .get(Number(result.lastInsertRowid)) as unknown as SocialMessage;
 
+  // 열람권으로 먼저 말을 건 경우 받는 사람은 열람권이 없어 답장도, 대화 내용 확인도 못 한다.
+  // 하트(README 11.3)처럼 받는 사람에게 보낸 사람 열람권을 자동 발급해 알림을 누르면 바로 답할 수 있게 한다.
+  if (!isMatched(fromId, toId) && !hasValidPass(toId, fromId)) grantViewPass(toId, fromId);
+  if (!recipientWatching) notifyMessage(toId, fromId, text);
+
   // README 6.4(매너)/manner.ts의 "사회인 채팅 등"에서 재사용하기로 되어 있던 훅을 여기서 실제로 건다.
   const violation = checkSocialContent(fromId, text);
   return { message: row, violation };
@@ -172,6 +181,31 @@ export function listSocialMessages(userId: number, otherId: number): SocialMessa
        ORDER BY sm.id`
     )
     .all(userId, otherId, otherId, userId) as unknown as SocialMessage[];
+}
+
+/**
+ * 대화 목록: 메시지를 한 번이라도 주고받은 상대별 마지막 메시지(차단 관계는 뺀다).
+ * 메시지 알림이 여러 사람에게서 왔을 때 알림을 누르면 이 목록으로 바로 이동한다.
+ */
+export function listConversations(userId: number) {
+  return db
+    .prepare(
+      `SELECT c.otherId AS userId, u.nickname, u.avatar_url AS avatarUrl,
+              sm.content AS lastMessage, sm.from_id AS lastFromId, sm.created_at AS lastAt
+       FROM (
+         SELECT CASE WHEN from_id = ? THEN to_id ELSE from_id END AS otherId, MAX(id) AS lastId
+         FROM social_messages WHERE from_id = ? OR to_id = ?
+         GROUP BY otherId
+       ) c
+       JOIN social_messages sm ON sm.id = c.lastId
+       JOIN users u ON u.id = c.otherId
+       WHERE NOT EXISTS (
+         SELECT 1 FROM blocks b
+         WHERE (b.blocker_id = ? AND b.blocked_id = c.otherId) OR (b.blocker_id = c.otherId AND b.blocked_id = ?)
+       )
+       ORDER BY c.lastId DESC`
+    )
+    .all(userId, userId, userId, userId, userId);
 }
 
 /** 아직 맞하트로 이어지지 않은, 나에게 온 하트 목록 — "맞하트" 버튼을 실제로 쓸 수 있게 해준다. */

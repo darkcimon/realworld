@@ -27,12 +27,14 @@ export function PersonPanel({
   onBalanceChange,
   onJailed,
   preview = false,
+  autoOpenChat = false,
 }: {
   targetId: number;
   onClose: () => void;
   onBalanceChange: () => void;
   onJailed: () => void;
   preview?: boolean;
+  autoOpenChat?: boolean; // 대화 목록/메시지 알림에서 열었을 때 대화창까지 바로 연다
 }) {
   const [detail, setDetail] = useState<PersonDetail | null>(null);
   const [needsPass, setNeedsPass] = useState(false);
@@ -78,6 +80,7 @@ export function PersonPanel({
     setGiftPick(null);
     loadDetail();
     if (!preview) loadHeart();
+    if (autoOpenChat && !preview) openChat();
     // 학력/졸업 등급은 열람권과 무관한 공개 정보라 따로 불러온다.
     api
       .get<PublicProfile>(`/profile/public/${targetId}`)

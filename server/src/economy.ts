@@ -263,7 +263,9 @@ export const VITALS = {
   sleepCooldownHours: 6, // 내 집에서 자면 체력이 가득 차고, 이 시간 뒤에 다시 잘 수 있다
   // 차를 몰고 내 집에 도착하면 연료통의 homeRefuelRatio만큼 채운다. 집 근처를 오가며 연료를 무한히 불리지 못하게
   // homeRefuelCooldownHours마다 한 번만(경차 60칸이면 12칸 — 집과 가까운 건물 왕복보다 많다).
-  homeRefuelRatio: 0.2,
+  homeRefuelRatio: 0.2, // 박스집
+  // 좋은 집일수록 주차장에서 더 많이 채워 준다(가진 집 중 가장 비싼 집 기준, 펜트하우스는 연료통의 절반).
+  homeRefuelRatioByHome: { 원룸: 0.3, "84㎡ 아파트": 0.4, 펜트하우스: 0.5 } as Record<string, number>,
   homeRefuelCooldownHours: 3,
   // 일하면 근무 시간에 비례해 체력이 준다. 직장 문제 1개 = 12분(5문제 배치 = 1시간), 알바 손님 1명 = 1분.
   // 체력이 없으면 새 근무 배치를 시작하거나 다음 손님을 받을 수 없다(배치 도중이면 끝까지는 풀 수 있다).
@@ -307,8 +309,8 @@ export const SCHOOL_REPEAT_REWARD: Record<string, number[]> = {
   high: [36_000, 40_000, 45_000], // 고1~고3
 };
 
-// ── 박스집 요리(리듬게임) ────────────────────────────────────────────────
-// 집이 없는(박스집) 사회인은 내 집에서 리듬게임으로 음식을 만들어 체력을 채울 수 있다.
+// ── 내 집 요리(리듬게임) ────────────────────────────────────────────────
+// 사회인은 내 집에서 리듬게임으로 음식을 만들어 체력을 채울 수 있다(박스집도, 산 집도).
 // 채보(노트)는 서버가 만들어 주고, 게임 시간이 실제로 지났는지·판정 수가 노트 수를 넘지 않는지 서버가 확인한다.
 // 점수를 속이더라도 한 판 최대 maxGain, cooldownMinutes마다 한 번이라 마트 음식보다 크게 이득 보지 못한다.
 export const COOKING = {
@@ -319,4 +321,28 @@ export const COOKING = {
   lanes: 3,
   goodWeight: 0.5, // 굿은 퍼펙트의 절반으로 친다
   dishes: ["🍳 계란볶음밥", "🍜 김치라면", "🥘 된장찌개", "🍙 참치주먹밥", "🥞 김치전", "🍝 토마토 파스타"],
+  // 산 집은 주방이 좋아서 체력을 더 많이 채우는 음식이 나오고, 잘 만들면(extraMinScore 이상) 가끔 여러 그릇이
+  // 만들어져 남은 건 냉장고(fridge칸)에 넣어 두고 나중에 먹는다. extraChances[i] = (i+1)번째 추가 그릇이 나올 확률.
+  // 박스집(byHome에 없음)은 위 maxGain/dishes 그대로, 추가 그릇·냉장고 없음.
+  extraMinScore: 60,
+  byHome: {
+    원룸: {
+      maxGain: 40,
+      fridge: 2,
+      extraChances: [0.25],
+      dishes: ["🍛 카레라이스", "🥘 김치찌개", "🍝 크림 파스타", "🍳 오므라이스", "🥗 닭가슴살 샐러드"],
+    },
+    "84㎡ 아파트": {
+      maxGain: 55,
+      fridge: 4,
+      extraChances: [0.4, 0.15],
+      dishes: ["🍲 갈비찜", "🍣 연어덮밥", "🥩 불고기 정식", "🍜 수제 칼국수", "🦐 감바스"],
+    },
+    펜트하우스: {
+      maxGain: 75,
+      fridge: 6,
+      extraChances: [0.55, 0.3, 0.1],
+      dishes: ["🥩 한우 스테이크", "🦞 랍스터 파스타", "🍱 한정식 한 상", "🍣 오마카세 초밥", "🦀 대게찜"],
+    },
+  } as Record<string, { maxGain: number; fridge: number; extraChances: number[]; dishes: string[] }>,
 };

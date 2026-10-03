@@ -48,16 +48,33 @@ export function SocialHub({
   notice,
   onExit,
   onVitalsChange,
+  chatJump,
 }: {
   onProfileChange: () => void;
   facility: FacilityView;
   notice?: string | null; // 시설에 들어올 때 한 번 보여줄 안내(예: 집 주차장 주유)
   onExit: () => void;
   onVitalsChange: (v: Vitals) => void;
+  chatJump?: { targetId: number | null; seq: number } | null; // 메시지 알림 클릭으로 들어온 경우
 }) {
   const [tab, setTab] = useState<Tab>(facility.tabs[0]);
   const [balance, setBalance] = useState<number | null>(null);
   const [personId, setPersonId] = useState<number | null>(null);
+  const [autoChat, setAutoChat] = useState(false); // 프로필을 열면서 바로 대화창까지 연다
+
+  function openPerson(userId: number, openChat = false) {
+    setPersonId(userId);
+    setAutoChat(openChat);
+  }
+
+  // 메시지 알림을 누르면 인연찾기 탭으로 옮기고, 한 사람이면 그 대화를 바로 연다(여러 명이면 대화 목록만 보여준다).
+  useEffect(() => {
+    if (!chatJump || !facility.tabs.includes("nearby")) return;
+    setTab("nearby");
+    if (chatJump.targetId != null) openPerson(chatJump.targetId, true);
+    else setPersonId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatJump?.seq]);
 
   async function refreshBalance() {
     const w = await api.get<{ balance: number }>("/wallet/me");
@@ -105,7 +122,7 @@ export function SocialHub({
           ownedOnly={facility.catalogOwnedOnly}
         />
       )}
-      {tab === "nearby" && <NearbyPanel onOpenPerson={setPersonId} />}
+      {tab === "nearby" && <NearbyPanel onOpenPerson={openPerson} focusConversationsKey={chatJump?.seq} />}
       {tab === "deposit" && <DepositPanel onBalanceChange={refreshBalance} />}
       {tab === "stocks" && <StocksPanel onBalanceChange={refreshBalance} />}
       {tab === "bonds" && <BondsPanel onBalanceChange={refreshBalance} />}
@@ -114,6 +131,7 @@ export function SocialHub({
       {personId !== null && (
         <PersonPanel
           targetId={personId}
+          autoOpenChat={autoChat}
           onClose={() => setPersonId(null)}
           onBalanceChange={refreshBalance}
           onJailed={onProfileChange}
