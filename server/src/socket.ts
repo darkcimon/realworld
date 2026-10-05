@@ -11,7 +11,7 @@ import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { db, roomOrderIndex, setRoomTopic } from "./db.js";
-import { JWT_SECRET } from "./middleware/auth.js";
+import { isBanned, JWT_SECRET } from "./middleware/auth.js";
 import { getActiveJail, recordViolation } from "./school/jail.js";
 import { loadRecentHistory, loadSummary, maybeCompactRoomMemory } from "./school/roomMemory.js";
 import { detectViolation } from "./util/moderation.js";
@@ -202,6 +202,7 @@ export function attachSocket(httpServer: HttpServer) {
     if (!token) return next(new Error("unauthorized"));
     try {
       const payload = jwt.verify(token, JWT_SECRET) as unknown as { sub: number };
+      if (isBanned(payload.sub)) return next(new Error("banned"));
       socket.data.userId = payload.sub;
       next();
     } catch {

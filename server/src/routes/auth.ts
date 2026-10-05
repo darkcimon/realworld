@@ -5,7 +5,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { db } from "../db.js";
-import { JWT_SECRET, requireAuth, signToken } from "../middleware/auth.js";
+import { JWT_SECRET, requireAuthAllowBanned, signToken } from "../middleware/auth.js";
 import { deleteAccount } from "../social/accountDeletion.js";
 
 export const authRouter = Router();
@@ -111,8 +111,8 @@ authRouter.post("/login", (req, res) => {
   });
 });
 
-// 계정 삭제: 모든 진행 데이터·사진·위치·메시지를 지운다. 되돌릴 수 없다.
-authRouter.post("/delete-account", requireAuth, (req, res) => {
+// 계정 삭제: 모든 진행 데이터·사진·위치·메시지를 지운다. 되돌릴 수 없다. 이용 정지된 계정도 지울 수 있어야 한다.
+authRouter.post("/delete-account", requireAuthAllowBanned, (req, res) => {
   try {
     res.json(deleteAccount(req.userId!, req.body?.password));
   } catch (e: any) {

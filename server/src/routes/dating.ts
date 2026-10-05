@@ -21,6 +21,8 @@ import {
   unblock,
 } from "../social/dating.js";
 
+import { REPORT_REASONS, reportUser } from "../social/reports.js";
+
 function guard(router: Router) {
   router.use(requireAuth);
   router.use(requireNotJailed);
@@ -144,4 +146,20 @@ blocksRouter.post("/:targetId", (req, res) => {
 blocksRouter.delete("/:targetId", (req, res) => {
   unblock(req.userId!, Number(req.params.targetId));
   res.json({ ok: true });
+});
+
+// 신고: 사유를 받아 기록하고 그 사람을 차단한다. 신고가 쌓이면 social/reports.ts가 감옥·정지 처리.
+export const reportsRouter = Router();
+reportsRouter.use(requireAuth);
+
+reportsRouter.get("/reasons", (_req, res) => {
+  res.json({ reasons: REPORT_REASONS });
+});
+
+reportsRouter.post("/:targetId", (req, res) => {
+  try {
+    res.json(reportUser(req.userId!, Number(req.params.targetId), req.body?.reason, req.body?.detail));
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+  }
 });

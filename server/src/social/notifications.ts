@@ -3,7 +3,7 @@
 import { db } from "../db.js";
 import { sendPush } from "./push.js";
 
-export type NotificationType = "lottery" | "salary" | "heart" | "match" | "gift" | "npc" | "message";
+export type NotificationType = "lottery" | "salary" | "heart" | "match" | "gift" | "npc" | "message" | "system";
 
 // 휴대폰 알림(푸시)으로도 보낼 종류와 그 제목. NPC(상사·점장·동료) 알림은 게임 안에서 행동할 때 생기는 말이라
 // 휴대폰까지 울리면 시끄러우므로 게임 안 알림으로만 남긴다.

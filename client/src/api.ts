@@ -14,11 +14,16 @@ export function clearToken() {
 
 class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
+
+/** 신고 누적으로 이용 정지된 계정이면 App이 정지 화면으로 바꾼다. */
+export const BANNED_EVENT = "account:banned";
 
 async function request<T>(
   method: string,
@@ -40,7 +45,8 @@ async function request<T>(
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     if (method !== "GET") feedback("error"); // 누른 동작이 실패하면 짧은 경고음(조회 실패는 조용히)
-    throw new ApiError(res.status, data?.error ?? `요청 실패 (${res.status})`);
+    if (data?.code === "banned") window.dispatchEvent(new CustomEvent(BANNED_EVENT, { detail: { isGuest: !!data.isGuest } }));
+    throw new ApiError(res.status, data?.error ?? `요청 실패 (${res.status})`, data?.code);
   }
   return data as T;
 }

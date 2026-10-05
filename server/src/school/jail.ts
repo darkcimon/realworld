@@ -16,6 +16,12 @@ export interface JailSession {
 const JAIL_DURATION_MS = 3 * 60 * 60 * 1000; // 3시간
 const SOLITARY_DURATION_MS = 24 * 60 * 60 * 1000; // 1일
 
+/** 위반 단계와 상관없이 바로 감옥(3시간)에 보낸다 — 신고 누적(social/reports.ts)용. */
+export function sendToJail(userId: number): void {
+  const endsAt = new Date(Date.now() + JAIL_DURATION_MS).toISOString().replace("Z", "");
+  db.prepare("INSERT INTO jail_sessions (user_id, type, ends_at) VALUES (?, 'jail', ?)").run(userId, endsAt);
+}
+
 export function getActiveJail(userId: number): JailSession | null {
   const row = db
     .prepare(

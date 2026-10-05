@@ -710,3 +710,11 @@ button.danger { background: var(--danger); color: #fff; }
 button.danger:disabled { opacity: 0.5; }
 .delete-account-agree { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .login-legal { text-align: center; margin-top: 16px; } .login-legal a { color: var(--muted); }
+
+/* 신고 */
+.report-btn { color: var(--danger); }
+.report-reasons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.report-reasons label { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; cursor: pointer; }
+.report-reasons label.active { border-color: var(--danger); }
+.save-account-modal textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font: inherit; resize: vertical; }
+.banned-card a { color: var(--accent); }

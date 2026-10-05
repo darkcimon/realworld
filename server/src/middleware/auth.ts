@@ -30,7 +30,30 @@ function maybeRefresh(res: Response, payload: { sub: number; iat?: number }) {
   db.prepare("UPDATE users SET last_seen_at = datetime('now') WHERE id = ?").run(payload.sub);
 }
 
+/** 신고 누적으로 이용 정지된 계정인지(social/reports.ts). */
+export function isBanned(userId: number): boolean {
+  return !!bannedRow(userId);
+}
+
+function bannedRow(userId: number): { is_guest: number } | null {
+  const row = db.prepare("SELECT banned_at, is_guest FROM users WHERE id = ?").get(userId) as
+    | { banned_at: string | null; is_guest: number }
+    | undefined;
+  return row?.banned_at ? row : null;
+}
+
+export const BANNED_MESSAGE = "신고가 누적되어 이용이 정지된 계정이에요.";
+
+/** 이용 정지된 계정도 통과시킨다 — 계정 삭제처럼 정지 중에도 할 수 있어야 하는 요청에만 쓴다. */
+export function requireAuthAllowBanned(req: Request, res: Response, next: NextFunction) {
+  verifyToken(req, res, next, true);
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  verifyToken(req, res, next, false);
+}
+
+function verifyToken(req: Request, res: Response, next: NextFunction, allowBanned: boolean) {
   const header = req.headers.authorization;
   const token = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
   if (!token) {
@@ -41,6 +64,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     const payload = jwt.verify(token, JWT_SECRET) as unknown as { sub: number; iat?: number };
     req.userId = payload.sub;
     maybeRefresh(res, payload);
+    const ban = allowBanned ? null : bannedRow(payload.sub);
+    if (ban) {
+      // isGuest: 정지 화면에서 계정 삭제할 때 비밀번호를 물을지 정하는 데 쓴다(프로필을 못 불러오므로).
+      res.status(403).json({ error: BANNED_MESSAGE, code: "banned", isGuest: !!ban.is_guest });
+      return;
+    }
     next();
   } catch {
     res.status(401).json({ error: "유효하지 않은 토큰입니다." });

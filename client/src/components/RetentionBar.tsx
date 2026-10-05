@@ -18,6 +18,7 @@ const TYPE_ICON: Record<string, string> = {
   gift: "🎁",
   npc: "🧑‍💼",
   message: "💬",
+  system: "🚨",
 };
 
 export function RetentionBar({

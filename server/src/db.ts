@@ -824,6 +824,24 @@ if (!userColumns.some((c) => c.name === "last_seen_at")) {
 if (!userColumns.some((c) => c.name === "adult_confirmed_at")) {
   db.exec("ALTER TABLE users ADD COLUMN adult_confirmed_at TEXT");
 }
+// 이용 정지 시각(신고 누적, social/reports.ts). NULL이면 정상. 정지되면 계정 삭제 외에는 아무것도 할 수 없다.
+if (!userColumns.some((c) => c.name === "banned_at")) {
+  db.exec("ALTER TABLE users ADD COLUMN banned_at TEXT");
+}
+
+// 신고: 한 사람이 같은 상대를 한 번만 신고할 수 있다(누적은 "서로 다른 신고자 수"로 센다).
+db.exec(`
+CREATE TABLE IF NOT EXISTS reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  reporter_id INTEGER NOT NULL REFERENCES users(id),
+  target_id INTEGER NOT NULL REFERENCES users(id),
+  reason TEXT NOT NULL,
+  detail TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (reporter_id, target_id)
+);
+CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_id);
+`);
 
 // 졸업 기록은 학교급당 1건(재응시하면 최근 결과로 갱신). 예전에는 졸업할 때마다 행이 쌓여 프로필에
 // "초졸S 초졸A …"처럼 중복 표시됐으므로 학교급별 가장 최근 행만 남기고 유니크 인덱스를 건다.

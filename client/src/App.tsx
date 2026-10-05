@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, clearToken, getToken } from "./api";
+import { api, BANNED_EVENT, clearToken, getToken } from "./api";
 import type { MoveMode, PlacementInfo, Profile, RoomSummary, Vitals } from "./types";
 import { Login } from "./components/Login";
 import { ProfileHeader } from "./components/ProfileHeader";
@@ -70,6 +70,8 @@ export default function App() {
   const [pushState, setPushState] = useState<PushState>("unsupported");
   const [pushBusy, setPushBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // 신고 누적으로 이용 정지(서버가 403 code=banned). 정지되면 프로필을 못 받으므로 비회원 여부도 함께 받는다.
+  const [banned, setBanned] = useState<{ isGuest: boolean } | null>(null);
   const refueledOnArrival = useRef(false); // 집에 들어갈 때 주유 효과음을 낼지(이동 요청 시 정해진다)
   // 알림에서 대화로 이동: targetId가 있으면 그 사람과의 대화, null이면 대화 목록. seq로 같은 요청도 다시 반영한다.
   const [chatJump, setChatJump] = useState<{ targetId: number | null; seq: number } | null>(null);
@@ -96,6 +98,12 @@ export default function App() {
   useEffect(() => {
     if (authed) loadAll();
   }, [authed]);
+
+  useEffect(() => {
+    const on = (e: Event) => setBanned({ isGuest: !!(e as CustomEvent<{ isGuest: boolean }>).detail?.isGuest });
+    window.addEventListener(BANNED_EVENT, on);
+    return () => window.removeEventListener(BANNED_EVENT, on);
+  }, []);
 
   // 휴대폰 알림: 이미 켠 기기면 지금 계정에 다시 붙이고, 알림을 눌러 들어왔으면 그 화면으로 보낸다.
   useEffect(() => {
@@ -203,6 +211,55 @@ export default function App() {
 
   if (!authed) {
     return <Login onAuthed={() => setAuthed(true)} />;
+  }
+
+  // 이용 정지: 계정 삭제(정지 중에도 가능)와 로그아웃만 할 수 있다.
+  if (banned) {
+    return (
+      <div className="app">
+        <div className="login-card banned-card">
+          <h1>🚫 이용이 정지된 계정이에요</h1>
+          <p className="subtitle">
+            여러 이용자에게 신고가 누적되어 더는 게임을 할 수 없어요. 잘못된 정지라고 생각되면 아래 메일로 닉네임과 함께
+            알려 주세요.
+          </p>
+          <p>
+            <a href="mailto:cimon7157@gmail.com?subject=%EC%9D%B4%EC%9A%A9%20%EC%A0%95%EC%A7%80%20%EB%AC%B8%EC%9D%98">
+              cimon7157@gmail.com
+            </a>
+          </p>
+          <div className="confirm-actions">
+            <button className="logout" onClick={() => setDeleteOpen(true)}>
+              계정 삭제
+            </button>
+            <button
+              className="ghost"
+              onClick={() => {
+                clearToken();
+                setBanned(null);
+                setAuthed(false);
+                setProfile(null);
+              }}
+            >
+              로그아웃
+            </button>
+          </div>
+        </div>
+        {deleteOpen && (
+          <DeleteAccountModal
+            isGuest={banned.isGuest}
+            onClose={() => setDeleteOpen(false)}
+            onDeleted={() => {
+              setDeleteOpen(false);
+              setBanned(null);
+              clearToken();
+              setAuthed(false);
+              setProfile(null);
+            }}
+          />
+        )}
+      </div>
+    );
   }
 
   if (!profile) {

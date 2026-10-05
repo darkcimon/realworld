@@ -31,6 +31,7 @@ import {
   heartsRouter,
   matchesRouter,
   profileViewRouter,
+  reportsRouter,
 } from "./routes/dating.js";
 import { attachSocket } from "./socket.js";
 import { startLotteryScheduler } from "./social/lottery.js";
@@ -71,6 +72,7 @@ app.use("/api/chat", chatRouter);
 app.use("/api/gifts", giftsRouter);
 app.use("/api/hearts", heartsRouter);
 app.use("/api/blocks", blocksRouter);
+app.use("/api/reports", reportsRouter);
 app.use("/api/matches", matchesRouter);
 app.use("/api/daily", dailyRouter);
 app.use("/api/notifications", notificationsRouter);

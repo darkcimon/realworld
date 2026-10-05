@@ -9,6 +9,7 @@ import { CharacterStage } from "../character/characterLazy";
 import { assetIcon } from "../assetIcons";
 import { confirmDialog } from "./ConfirmDialog";
 import { feedback } from "../feedback";
+import { ReportModal } from "./ReportModal";
 
 interface HeartStatus {
   sent: boolean;
@@ -47,6 +48,7 @@ export function PersonPanel({
   autoOpenChat?: boolean; // 대화 목록/메시지 알림에서 열었을 때 대화창까지 바로 연다
 }) {
   const [detail, setDetail] = useState<PersonDetail | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
   const [needsPass, setNeedsPass] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [viewAsset, setViewAsset] = useState<{ category: AssetCategory; name: string } | null>(null);
@@ -335,7 +337,22 @@ export function PersonPanel({
             <button className="ghost" onClick={unblock}>
               차단 해제
             </button>
+            <button className="ghost report-btn" onClick={() => setReportOpen(true)}>
+              🚨 신고
+            </button>
           </div>
+        )}
+        {reportOpen && (
+          <ReportModal
+            targetId={targetId}
+            targetName={basic?.nickname ?? `유저 #${targetId}`}
+            onClose={() => setReportOpen(false)}
+            onReported={() => {
+              setReportOpen(false);
+              setChatOpen(false);
+              setMessage("신고했어요. 이 사람은 차단돼서 더는 연락할 수 없어요.");
+            }}
+          />
         )}
 
         {giftItems && (
