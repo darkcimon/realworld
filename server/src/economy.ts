@@ -273,7 +273,7 @@ export const VITALS = {
   workMinutes: { jobQuestion: 12, albaCustomer: 1 },
   // 차종별 연료통(가득 채웠을 때 달릴 수 있는 칸 수). 시설 사이 이동은 1~5칸(평균 약 2.5칸).
   // 작은 차일수록 연비가 좋아 오래 가고, 빠르고 비싼 차일수록 연료통이 금방 빈다.
-  tankCells: { 경차: 60, "준중형 세단": 50, 스포츠카: 40, 슈퍼카: 30 } as Record<string, number>,
+  tankCells: { 경차: 60, "준중형 세단": 50, 스포츠카: 40, 슈퍼카: 70 } as Record<string, number>,
   defaultTankCells: 50,
   foods: [
     { key: "gimbap", name: "🍙 삼각김밥", price: 1_500, stamina: 15 },

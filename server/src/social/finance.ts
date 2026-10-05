@@ -30,6 +30,27 @@ function accrueDeposit(userId: number, now = Date.now()): DepositRow {
   return { ...row, balance, accrued_at: accruedAt };
 }
 
+/** 자산 합계용: 예금 잔액, 주식 평가액(지금 가격 × 보유 주식 수), 만기 전 채권 원금. */
+export function financialAssetsOf(userId: number): { deposit: number; stocks: number; bonds: number } {
+  advanceStocks();
+  const deposit = accrueDeposit(userId).balance;
+  const stocks = (
+    db
+      .prepare(
+        "SELECT COALESCE(SUM(h.shares * s.price), 0) AS v FROM stock_holdings h JOIN stocks s ON s.id = h.stock_id WHERE h.user_id = ?"
+      )
+      .get(userId) as { v: number }
+  ).v;
+  const bonds = (
+    db
+      .prepare(
+        "SELECT COALESCE(SUM(bh.qty * b.unit_price), 0) AS v FROM bond_holdings bh JOIN bonds b ON b.id = bh.bond_id WHERE bh.user_id = ? AND bh.paid_at IS NULL"
+      )
+      .get(userId) as { v: number }
+  ).v;
+  return { deposit, stocks, bonds };
+}
+
 export function getDeposit(userId: number) {
   const row = accrueDeposit(userId);
   return {

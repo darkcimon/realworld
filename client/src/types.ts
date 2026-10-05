@@ -207,6 +207,7 @@ export interface OwnedItem {
   id: number;
   displayed: boolean;
   purchased_at: string;
+  catalog_item_id: number;
   category: "car" | "apartment" | "luxury";
   brand: string | null;
   name: string;
@@ -236,6 +237,7 @@ export interface PersonDetail {
   avatarUrl: string | null;
   photos: { url: string; sort_order: number }[];
   displayedItems: { id: number; category: string; brand: string | null; name: string }[];
+  wealthBand: string; // 자산 합계 구간("3억원대"). 정확한 금액은 본인만 /catalog/net-worth로 본다
   character: CharacterConfig | null;
 }
 

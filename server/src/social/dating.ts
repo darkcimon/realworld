@@ -1,7 +1,7 @@
 // README 11.2~11.5: 프로필 열람권, 채팅 개시 게이트, 선물/하트/맞하트, 차단.
 import { db } from "../db.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
-import { listDisplayedItems } from "./catalog.js";
+import { getNetWorth, listDisplayedItems, wealthBand } from "./catalog.js";
 import { getCharacter } from "./character.js";
 import { checkSocialContent } from "./manner.js";
 import { nicknameOf, notify, notifyMessage } from "./notifications.js";
@@ -100,6 +100,7 @@ export function getProfileDetail(viewerId: number, targetId: number) {
     avatarUrl: user.avatar_url,
     photos,
     displayedItems: listDisplayedItems(targetId),
+    wealthBand: wealthBand(getNetWorth(targetId).total), // "3억원대" — 정확한 금액은 본인만 본다
     character: getCharacter(targetId),
   };
 }

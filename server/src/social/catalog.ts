@@ -1,7 +1,8 @@
 // README 8~10장: 자동차/아파트/명품샵. 구매 → 소유(owned_items) → 프로필 전시 토글 → 되팔기.
 import { db } from "../db.js";
 import { ASSET_RESALE } from "../economy.js";
-import { applyLedgerEntry } from "../wallet/ledger.js";
+import { applyLedgerEntry, getBalance } from "../wallet/ledger.js";
+import { financialAssetsOf } from "./finance.js";
 
 export interface CatalogItem {
   id: number;
@@ -142,16 +143,26 @@ function getItem(itemId: number): CatalogItem | undefined {
     | undefined;
 }
 
-/** 구매 시점에는 "전시 가능한 상태"로만 저장되고, 실제 노출은 별도 토글(PATCH)로 켜야 한다. */
-export function purchaseItem(userId: number, itemId: number): { ownedItemId: number; item: CatalogItem } {
+/** 한 번에 살 수 있는 최대 개수. */
+const MAX_PURCHASE_QUANTITY = 100;
+
+/** 구매 시점에는 "전시 가능한 상태"로만 저장되고, 실제 노출은 별도 토글(PATCH)로 켜야 한다. quantity개를 같은 시세로 한꺼번에 산다. */
+export function purchaseItem(
+  userId: number,
+  itemId: number,
+  quantity = 1
+): { ownedItemId: number; ownedItemIds: number[]; quantity: number; total: number; item: CatalogItem } {
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_PURCHASE_QUANTITY) {
+    throw { status: 400, message: `수량은 1~${MAX_PURCHASE_QUANTITY}개로 입력해주세요.` };
+  }
   const item = getItem(itemId);
   if (!item) throw { status: 404, message: "존재하지 않는 상품입니다." };
   const paid = currentBuyPrice(item);
-  applyLedgerEntry(userId, "자산구매", -paid, item.id);
-  const result = db
-    .prepare("INSERT INTO owned_items (user_id, catalog_item_id, paid_price) VALUES (?, ?, ?)")
-    .run(userId, item.id, paid);
-  return { ownedItemId: Number(result.lastInsertRowid), item: { ...item, price: paid } };
+  const total = paid * quantity;
+  applyLedgerEntry(userId, "자산구매", -total, item.id); // 잔액이 모자라면 여기서 막혀 아무것도 안 생긴다
+  const insert = db.prepare("INSERT INTO owned_items (user_id, catalog_item_id, paid_price) VALUES (?, ?, ?)");
+  const ownedItemIds = Array.from({ length: quantity }, () => Number(insert.run(userId, item.id, paid).lastInsertRowid));
+  return { ownedItemId: ownedItemIds[0], ownedItemIds, quantity, total, item: { ...item, price: paid } };
 }
 
 export function setDisplayed(userId: number, ownedItemId: number, displayed: boolean): void {
@@ -203,6 +214,48 @@ export function sellOwnedItem(
   // 세금은 판매 대금과 따로 원장에 남긴다(이익 ≤ 판매 대금이라 잔액이 모자랄 일은 없다).
   if (cgt && cgt.tax > 0) balance = applyLedgerEntry(userId, "양도소득세", -cgt.tax, row.catalog_item_id).balance;
   return { soldFor: quote.price, tax: cgt?.tax ?? 0, balance, name: row.name };
+}
+
+/** 여러 자산을 한꺼번에 판다. 하나씩 파는 것과 같은 계산(건물 양도세는 파는 순서대로 보유 수가 줄어든다). */
+export function sellOwnedItems(
+  userId: number,
+  ownedItemIds: number[]
+): { count: number; soldFor: number; tax: number; balance: number } {
+  const ids = [...new Set(ownedItemIds)];
+  if (ids.length === 0 || ids.some((id) => !Number.isInteger(id))) {
+    throw { status: 400, message: "팔 자산을 골라주세요." };
+  }
+  // 하나라도 내 것이 아니면 아무것도 팔지 않는다.
+  const mine = ids.filter(
+    (id) => (db.prepare("SELECT user_id FROM owned_items WHERE id = ?").get(id) as { user_id: number } | undefined)?.user_id === userId
+  );
+  if (mine.length !== ids.length) throw { status: 404, message: "소유하지 않은 자산이 섞여 있습니다." };
+  let soldFor = 0;
+  let tax = 0;
+  let balance = 0;
+  for (const id of ids) {
+    const r = sellOwnedItem(userId, id);
+    soldFor += r.soldFor;
+    tax += r.tax;
+    balance = r.balance;
+  }
+  return { count: ids.length, soldFor, tax, balance };
+}
+
+/** 내 자산 합계: 현금 + 예금 + 주식 평가액 + 채권 원금 + 소유 자산(지금 팔면 받는 금액, 양도세 전). */
+export function getNetWorth(userId: number) {
+  const cash = getBalance(userId);
+  const { deposit, stocks, bonds } = financialAssetsOf(userId);
+  const items = listOwnedItems(userId).reduce((sum, o) => sum + o.resale.price, 0);
+  return { total: cash + deposit + stocks + bonds + items, cash, deposit, stocks, bonds, items };
+}
+
+/** 자산 합계를 "3억원대"처럼 앞자리 단위로 뭉뚱그린다. 다른 사람에게는 정확한 금액 대신 이것만 보여준다. */
+export function wealthBand(total: number): string {
+  if (total >= 1e12) return `${Math.floor(total / 1e12).toLocaleString()}조원대`;
+  if (total >= 1e8) return `${Math.floor(total / 1e8).toLocaleString()}억원대`;
+  if (total >= 1e7) return `${Math.floor(total / 1e7)}천만원대`;
+  return `${Math.floor(Math.max(0, total) / 1e4).toLocaleString()}만원대`;
 }
 
 /** 다른 유저의 프로필 조회 화면에 노출할, 전시 설정된 소유 아이템만. */

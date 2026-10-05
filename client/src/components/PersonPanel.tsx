@@ -17,6 +17,15 @@ interface HeartStatus {
 
 const CATEGORY_LABEL: Record<OwnedItem["category"], string> = { car: "자동차", apartment: "건물", luxury: "명품" };
 
+interface NetWorth {
+  total: number;
+  cash: number;
+  deposit: number;
+  stocks: number;
+  bonds: number;
+  items: number;
+}
+
 // README 11.2~11.5: 프로필 열람권 구매/상세 조회, 선물/하트/맞하트, 차단, 채팅 개시.
 // 3D 캐릭터는 공간을 많이 차지해 채팅창을 밀어내므로, 사이드 메뉴처럼 간단 프로필만 보여주고
 // 아바타를 누르면 별도 창으로 3D 캐릭터를 띄운다.
@@ -49,6 +58,16 @@ export function PersonPanel({
   const [giftItems, setGiftItems] = useState<OwnedItem[] | null>(null);
   const [giftPick, setGiftPick] = useState<number | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const [netWorth, setNetWorth] = useState<NetWorth | null>(null);
+
+  // 미리보기(내 프로필)에서는 자산 구성(현금·예금·…)까지 툴팁으로 보여준다. 다른 사람은 "N억원대"만 본다.
+  useEffect(() => {
+    if (!preview) return;
+    api
+      .get<NetWorth>("/catalog/net-worth")
+      .then(setNetWorth)
+      .catch(() => {});
+  }, [preview]);
 
   // 채팅을 열면 모바일에서도 바로 입력할 수 있게 채팅창까지 스크롤한다.
   useEffect(() => {
@@ -242,6 +261,21 @@ export function PersonPanel({
                 <button className="character-edit-btn" onClick={() => setCharacterOpen(true)}>
                   🧍 3D 캐릭터 보기
                 </button>
+              )}
+              {detail && (
+                <div
+                  className="profile-grade net-worth"
+                  title={netWorth ? [
+                    `현금 ${netWorth.cash.toLocaleString()}원`,
+                    `예금 ${netWorth.deposit.toLocaleString()}원`,
+                    `주식 ${netWorth.stocks.toLocaleString()}원`,
+                    `채권 ${netWorth.bonds.toLocaleString()}원`,
+                    `자동차·건물·명품(지금 팔면) ${netWorth.items.toLocaleString()}원`,
+                    `합계 ${netWorth.total.toLocaleString()}원`,
+                  ].join("\n") : undefined}
+                >
+                  💰 {detail.wealthBand} 자산가
+                </div>
               )}
               {publicProfile?.school && <div className="profile-grade">{publicProfile.school.label}</div>}
               {publicProfile && publicProfile.graduations.length > 0 && (
