@@ -49,7 +49,7 @@ function interactionColumns(): { table: string; column: string }[] {
 }
 
 /** table에서 column IN values인 행을 지우기 전에, 그 행을 참조하는 자식 행부터 재귀적으로 지운다. */
-function purge(table: string, column: string, values: (number | string)[], depth = 0): number {
+export function purge(table: string, column: string, values: (number | string)[], depth = 0): number {
   if (!values.length) return 0;
   if (depth > 8) throw new Error(`guestCleanup: FK 깊이 초과 (${table})`);
   const placeholders = values.map(() => "?").join(",");

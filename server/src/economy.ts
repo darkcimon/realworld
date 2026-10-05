@@ -268,6 +268,9 @@ export const VITALS = {
   // 좋은 집일수록 주차장에서 더 많이 채워 준다(가진 집 중 가장 비싼 집 기준, 펜트하우스는 연료통의 절반).
   homeRefuelRatioByHome: { 원룸: 0.3, "84㎡ 아파트": 0.4, 펜트하우스: 0.5 } as Record<string, number>,
   homeRefuelCooldownHours: 3,
+  // 볼일 보는 곳(장보기·쇼핑·집 구경·은행)에 도착하면 차로 가도 체력이 조금 든다 — 일을 안 하는 투자자도
+  // 체력을 쓰게 해서 먹기·잠자기 루프가 돌게 한다. 걸어가면 걷기 체력(walkCost)에 더해진다.
+  errandStamina: { mart: 3, luxury: 3, car: 3, apartment: 3, bank: 3, style: 3 } as Record<string, number>,
   // 일하면 근무 시간에 비례해 체력이 준다. 직장 문제 1개 = 12분(5문제 배치 = 1시간), 알바 손님 1명 = 1분.
   // 체력이 없으면 새 근무 배치를 시작하거나 다음 손님을 받을 수 없다(배치 도중이면 끝까지는 풀 수 있다).
   staminaPerWorkHour: 15,

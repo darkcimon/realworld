@@ -112,6 +112,9 @@ app.get("/ads.txt", (_req, res) => {
 const clientDist = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "client", "dist");
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
+  // Play 스토어 등록에 필요한 공개 페이지(개인정보처리방침, 계정 삭제 안내) — 확장자 없는 주소로도 연다.
+  app.get("/privacy", (_req, res) => res.sendFile(path.join(clientDist, "privacy.html")));
+  app.get("/account-deletion", (_req, res) => res.sendFile(path.join(clientDist, "account-deletion.html")));
   // SPA: /api가 아닌 나머지 GET 요청은 index.html로 돌려 클라이언트 라우팅에 맡긴다.
   app.get(/^\/(?!api\/|socket\.io\/).*/, (_req, res) => {
     res.sendFile(path.join(clientDist, "index.html"));

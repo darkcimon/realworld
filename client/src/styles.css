@@ -704,3 +704,9 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .share-card-preview { width: 100%; border-radius: 12px; display: block; }
 .share-card-actions { display: flex; gap: 8px; margin-top: 12px; }
 .share-card-actions button { flex: 1; }
+
+/* 계정 삭제 */
+button.danger { background: var(--danger); color: #fff; }
+button.danger:disabled { opacity: 0.5; }
+.delete-account-agree { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.login-legal { text-align: center; margin-top: 16px; } .login-legal a { color: var(--muted); }

@@ -132,6 +132,10 @@ export function Login({ onAuthed }: { onAuthed: () => void }) {
         </form>
       )}
       {error && <p className="error">{error}</p>}
+      <p className="hint login-legal">
+        <a href="/privacy" target="_blank" rel="noreferrer">개인정보처리방침</a> ·{" "}
+        <a href="/account-deletion" target="_blank" rel="noreferrer">계정 삭제 안내</a>
+      </p>
 
       {pickerOpen && (
         <AvatarPicker

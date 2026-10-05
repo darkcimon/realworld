@@ -237,6 +237,9 @@ export function move(
   } else if (car && row.fuel > 0) {
     mode = "drive"; // 제자리(0칸): 소모 없이 지금 모습 그대로
   }
+  // 볼일 보는 곳에 도착하면 차로 가도 체력이 조금 든다(0 아래로는 안 내려가고, 막지는 않는다).
+  const errand = cells > 0 ? (VITALS.errandStamina[to] ?? 0) : 0;
+  if (errand > 0) row.stamina = Math.max(0, row.stamina - errand);
   // 내 집에 도착하면(다른 곳에서 와야 함) 주차장에서 연료통의 일부를 채운다 — 쿨타임마다 한 번.
   // 쿨타임 중이면 다시 채울 수 있는 시각을 알려준다(집 화면 안내용).
   let homeRefuel = 0;

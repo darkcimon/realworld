@@ -4,6 +4,7 @@ import type { MoveMode, PlacementInfo, Profile, RoomSummary, Vitals } from "./ty
 import { Login } from "./components/Login";
 import { ProfileHeader } from "./components/ProfileHeader";
 import { SaveAccountModal } from "./components/SaveAccountModal";
+import { DeleteAccountModal } from "./components/DeleteAccountModal";
 import { CharacterStudio } from "./character/CharacterStudio";
 import { confirmDialog } from "./components/ConfirmDialog";
 import { RoomList } from "./components/RoomList";
@@ -68,6 +69,7 @@ export default function App() {
   const [hapticOn, setHapticOnState] = useState(isHapticOn);
   const [pushState, setPushState] = useState<PushState>("unsupported");
   const [pushBusy, setPushBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const refueledOnArrival = useRef(false); // 집에 들어갈 때 주유 효과음을 낼지(이동 요청 시 정해진다)
   // 알림에서 대화로 이동: targetId가 있으면 그 사람과의 대화, null이면 대화 목록. seq로 같은 요청도 다시 반영한다.
   const [chatJump, setChatJump] = useState<{ targetId: number | null; seq: number } | null>(null);
@@ -331,6 +333,17 @@ export default function App() {
             </div>
             <div className="sidebar-actions">
               <button
+                className="logout"
+                onClick={() => {
+                  setDeleteOpen(true);
+                  setSidebarOpen(false);
+                }}
+              >
+                계정 삭제
+              </button>
+            </div>
+            <div className="sidebar-actions">
+              <button
                 className="ghost"
                 aria-pressed={soundOn}
                 onClick={() => {
@@ -481,6 +494,19 @@ export default function App() {
           onSaved={() => {
             setFirstStudio(false);
             loadAll();
+          }}
+        />
+      )}
+      {deleteOpen && profile && (
+        <DeleteAccountModal
+          isGuest={profile.isGuest}
+          onClose={() => setDeleteOpen(false)}
+          onDeleted={() => {
+            // 서버에서 이 기기의 알림 구독까지 지워졌다 — 토큰만 버리면 된다.
+            setDeleteOpen(false);
+            clearToken();
+            setAuthed(false);
+            setProfile(null);
           }}
         />
       )}
