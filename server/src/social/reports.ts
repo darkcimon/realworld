@@ -39,9 +39,14 @@ export function reportUser(reporterId: number, targetId: number, reason: unknown
   }
 }
 
+/** 아직 관리자가 처리하지 않은 신고 수(= 서로 다른 신고자 수). */
+export function activeReportCount(targetId: number): number {
+  return (db.prepare("SELECT COUNT(*) AS c FROM reports WHERE target_id = ? AND cleared_at IS NULL").get(targetId) as { c: number }).c;
+}
+
 /** 받은 신고 수(서로 다른 신고자)에 따라 감옥·정지. 문턱을 "넘는 순간" 한 번만 적용한다. */
 function applySanctions(targetId: number): void {
-  const count = (db.prepare("SELECT COUNT(*) AS c FROM reports WHERE target_id = ?").get(targetId) as { c: number }).c;
+  const count = activeReportCount(targetId);
   if (count >= REPORT.banAt) {
     db.prepare("UPDATE users SET banned_at = COALESCE(banned_at, datetime('now')) WHERE id = ?").run(targetId);
   } else if (count === REPORT.jailAt) {

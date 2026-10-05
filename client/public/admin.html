@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>관리자 · 신고 관리</title>
+<style>
+  :root { --bg: #ffffff; --text: #1d2129; --muted: #5b6472; --border: #e3e6eb; --accent: #3b6fe0; --panel: #f6f7f9; --danger: #d93a4e; --ok: #1f9d55; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1115; --text: #e8eaed; --muted: #9aa3b2; --border: #2a2f3a; --accent: #7aa2ff; --panel: #171a21; --danger: #ff5b6e; --ok: #4ade80; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 "Pretendard", "Apple SD Gothic Neo", -apple-system, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  input { flex: 1; min-width: 200px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit; }
+  button { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.ok { border-color: var(--ok); color: var(--ok); }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-top: 12px; background: var(--panel); }
+  .card h2 { font-size: 17px; margin: 0; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); margin-left: 6px; }
+  .tag.ban { border-color: var(--danger); color: var(--danger); }
+  .tag.jail { border-color: #e0a100; color: #e0a100; }
+  ul { margin: 8px 0 10px; padding-left: 18px; font-size: 14px; }
+  li.cleared { color: var(--muted); text-decoration: line-through; }
+  .msg { margin: 12px 0; }
+  .error { color: var(--danger); }
+</style>
+</head>
+<body>
+<main>
+  <h1>🛡️ 신고 관리</h1>
+  <div class="row">
+    <input id="key" type="password" placeholder="관리자 키 (서버 환경변수 ADMIN_TOKEN)" autocomplete="off" />
+    <button class="primary" id="load">불러오기</button>
+  </div>
+  <p class="muted">키는 이 탭에만 기억되고, 탭을 닫으면 지워져요.</p>
+  <div id="msg" class="msg"></div>
+  <div id="list"></div>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const keyInput = $("key");
+  try { keyInput.value = sessionStorage.getItem("rw_admin_key") || ""; } catch {}
+
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  async function call(method, path) {
+    const res = await fetch("/api/admin" + path, { method, headers: { "X-Admin-Token": keyInput.value } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "요청 실패 (" + res.status + ")");
+    return data;
+  }
+
+  function show(text, isError) {
+    $("msg").innerHTML = text ? `<span class="${isError ? "error" : ""}">${esc(text)}</span>` : "";
+  }
+
+  async function load() {
+    try { sessionStorage.setItem("rw_admin_key", keyInput.value); } catch {}
+    try {
+      const { users } = await call("GET", "/reported");
+      show(users.length ? "" : "처리할 신고가 없어요 🎉");
+      $("list").innerHTML = users.map((u) => `
+        <div class="card">
+          <h2>${esc(u.nickname)} <span class="muted">#${u.id} · ${u.isGuest ? "비회원" : esc(u.email)}</span>
+            ${u.bannedAt ? `<span class="tag ban">이용 정지 (${esc(u.bannedAt)})</span>` : ""}
+            ${u.jailedUntil ? `<span class="tag jail">감옥 ~${esc(new Date(u.jailedUntil + "Z").toLocaleString("ko-KR"))}</span>` : ""}
+          </h2>
+          <div class="muted">처리 안 된 신고 ${u.activeReports}건 · 전체 ${u.totalReports}건</div>
+          <ul>${u.reports.map((r) => `
+            <li class="${r.clearedAt ? "cleared" : ""}"><b>${esc(r.reason)}</b> — ${esc(r.reporter)}(#${r.reporterId}), ${esc(r.createdAt)}${r.detail ? `<br><span class="muted">"${esc(r.detail)}"</span>` : ""}</li>`).join("")}
+          </ul>
+          <div class="row">
+            <button class="ok" data-act="unban" data-id="${u.id}" data-name="${esc(u.nickname)}">정지·감옥 해제 + 신고 처리됨</button>
+            ${u.jailedUntil ? `<button data-act="release" data-id="${u.id}" data-name="${esc(u.nickname)}">감옥만 해제</button>` : ""}
+          </div>
+        </div>`).join("");
+    } catch (e) {
+      $("list").innerHTML = "";
+      show(e.message, true);
+    }
+  }
+
+  $("list").addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const { act, id, name } = btn.dataset;
+    const label = act === "unban" ? "정지·감옥을 풀고 지금까지의 신고를 처리됨으로" : "감옥에서만 꺼낼";
+    if (!confirm(`${name}(#${id})님의 ${label} 할까요?`)) return;
+    try {
+      await call("POST", `/users/${id}/${act}`);
+      await load();
+      show(`${name}님 처리 완료`);
+    } catch (err) {
+      show(err.message, true);
+    }
+  });
+  $("load").addEventListener("click", load);
+  keyInput.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
+  if (keyInput.value) load();
+</script>
+</body>
+</html>

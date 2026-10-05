@@ -24,6 +24,7 @@ import { catalogRouter, luxuryRouter, ownedItemsRouter } from "./routes/catalog.
 import { locationRouter, nearbyRouter } from "./routes/location.js";
 import { financeRouter } from "./routes/finance.js";
 import { rankingRouter } from "./routes/ranking.js";
+import { adminRouter } from "./routes/admin.js";
 import {
   blocksRouter,
   chatRouter,
@@ -77,6 +78,7 @@ app.use("/api/matches", matchesRouter);
 app.use("/api/daily", dailyRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/npc", npcRouter);
+app.use("/api/admin", adminRouter);
 
 // Play 스토어 앱(TWA)이 이 도메인의 앱임을 증명하는 파일. 이게 맞아야 앱 위쪽에 주소창이 안 보이고
 // 알림도 앱 이름으로 뜬다. 패키지 이름과 앱 서명 인증서 SHA-256(Play Console > 앱 무결성)을 환경변수로 넣는다.
@@ -117,6 +119,7 @@ if (fs.existsSync(clientDist)) {
   // Play 스토어 등록에 필요한 공개 페이지(개인정보처리방침, 계정 삭제 안내) — 확장자 없는 주소로도 연다.
   app.get("/privacy", (_req, res) => res.sendFile(path.join(clientDist, "privacy.html")));
   app.get("/account-deletion", (_req, res) => res.sendFile(path.join(clientDist, "account-deletion.html")));
+  app.get("/admin", (_req, res) => res.sendFile(path.join(clientDist, "admin.html")));
   // SPA: /api가 아닌 나머지 GET 요청은 index.html로 돌려 클라이언트 라우팅에 맡긴다.
   app.get(/^\/(?!api\/|socket\.io\/).*/, (_req, res) => {
     res.sendFile(path.join(clientDist, "index.html"));

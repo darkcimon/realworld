@@ -842,6 +842,10 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_id);
 `);
+// 관리자가 정지·감옥을 풀면 그때까지의 신고는 "처리됨"으로 남기고 누적 횟수에서 뺀다(admin.ts).
+if (!(db.prepare("PRAGMA table_info(reports)").all() as { name: string }[]).some((c) => c.name === "cleared_at")) {
+  db.exec("ALTER TABLE reports ADD COLUMN cleared_at TEXT");
+}
 
 // 졸업 기록은 학교급당 1건(재응시하면 최근 결과로 갱신). 예전에는 졸업할 때마다 행이 쌓여 프로필에
 // "초졸S 초졸A …"처럼 중복 표시됐으므로 학교급별 가장 최근 행만 남기고 유니크 인덱스를 건다.
