@@ -11,6 +11,21 @@
 
 ---
 
+## 현재 상태 (1~2단계 완료)
+
+- 패키지 이름: **`com.realworld.app`** (바꿀 수 없음)
+- `twa-manifest.json`과 Android 프로젝트 생성 완료 — 알림 위임·위치 위임 켜짐
+- 서명 키: `android/android.keystore`, 비밀번호는 `android/keystore-password.txt` (둘 다 커밋 안 됨 — **꼭 따로 백업**)
+- 업로드 키 SHA-256: `0E:C4:8B:C1:08:21:B0:59:C4:B5:11:81:B7:9D:89:F7:6D:74:23:C9:44:AF:9B:ED:39:A6:03:75:50:79:83:B6`
+- 이 PC 빌드 환경: `~/.bubblewrap/config.json`의 JDK를 17(`C:/Users/PC_1M/jdk17` → Microsoft JDK 17 링크)로 맞춤.
+  JDK 24로는 Gradle이 실패하고, 경로에 공백(`Program Files`)이 있으면 Bubblewrap 서명 단계가 실패한다
+- 다시 빌드(PowerShell):
+  ```powershell
+  cd android
+  $env:BUBBLEWRAP_KEYSTORE_PASSWORD = "<keystore-password.txt의 비밀번호>"; $env:BUBBLEWRAP_KEY_PASSWORD = $env:BUBBLEWRAP_KEYSTORE_PASSWORD
+  bubblewrap build
+  ```
+
 ## 0. 미리 확인
 
 - [ ] `https://real-world.up.railway.app/manifest.webmanifest` 가 열린다(클라이언트를 새로 빌드해 배포해야 생긴다)

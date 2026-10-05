@@ -9,3 +9,4 @@ build/
 app/build/
 .gradle/
 local.properties
+keystore-password.txt
