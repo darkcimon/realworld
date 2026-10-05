@@ -76,6 +76,37 @@ app.use("/api/daily", dailyRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/npc", npcRouter);
 
+// Play 스토어 앱(TWA)이 이 도메인의 앱임을 증명하는 파일. 이게 맞아야 앱 위쪽에 주소창이 안 보이고
+// 알림도 앱 이름으로 뜬다. 패키지 이름과 앱 서명 인증서 SHA-256(Play Console > 앱 무결성)을 환경변수로 넣는다.
+app.get("/.well-known/assetlinks.json", (_req, res) => {
+  const pkg = process.env.TWA_PACKAGE_NAME;
+  const fingerprints = (process.env.TWA_SHA256_FINGERPRINTS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!pkg || !fingerprints.length) {
+    res.status(404).json({ error: "TWA_PACKAGE_NAME / TWA_SHA256_FINGERPRINTS 가 설정되지 않았습니다." });
+    return;
+  }
+  res.json([
+    {
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target: { namespace: "android_app", package_name: pkg, sha256_cert_fingerprints: fingerprints },
+    },
+  ]);
+});
+
+// 광고(AdSense) 판매자 인증 파일. AdSense 계정의 게시자 ID(pub-로 시작)를 환경변수로 넣으면 켜진다.
+// 루트 도메인에 있어야 인정되므로 내 도메인으로 배포했을 때만 의미가 있다.
+app.get("/ads.txt", (_req, res) => {
+  const pub = process.env.ADSENSE_PUBLISHER_ID?.trim();
+  if (!pub) {
+    res.status(404).type("text/plain").send("");
+    return;
+  }
+  res.type("text/plain").send(`google.com, ${pub.startsWith("pub-") ? pub : `pub-${pub}`}, DIRECT, f08c47fec0942fa0\n`);
+});
+
 // 운영 배포: 빌드된 클라이언트(client/dist)가 있으면 같은 서버·같은 도메인에서 함께 제공한다.
 // 개발 중에는 Vite 개발 서버가 /api·/socket.io를 이 서버로 프록시하므로 이 블록은 쓰이지 않는다.
 const clientDist = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "client", "dist");

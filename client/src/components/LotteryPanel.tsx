@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { LotteryToday } from "../types";
+import { feedback } from "../feedback";
 
 // README 7장: 만원 단위, 회차당 3개 제한, 매일 09·12·15·18시 네 번 추첨.
 export function LotteryPanel({ onBalanceChange }: { onBalanceChange: () => void }) {
@@ -26,6 +27,7 @@ export function LotteryPanel({ onBalanceChange }: { onBalanceChange: () => void 
         amount: Number(units),
       });
       setMessage(`${r.amount.toLocaleString()}원 구매 완료 (${r.roundDate} 회차)`);
+      feedback("purchase");
       onBalanceChange();
       await load();
     } catch (e) {

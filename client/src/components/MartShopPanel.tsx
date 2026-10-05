@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { ShopMenu, Vitals } from "../types";
+import { feedback } from "../feedback";
 
 // 마트 장보기: 음식을 사 먹어 체력을 채우고, 차가 있으면 부족한 연료를 채운다(가격·효과는 서버 economy.ts VITALS).
 export function MartShopPanel({
@@ -43,12 +44,14 @@ export function MartShopPanel({
   const eat = (key: string, name: string) =>
     run(async () => {
       const r = await api.post<{ gained: number }>("/town/shop/food", { key });
+      feedback("eat");
       return `${name} 냠냠! 체력 +${r.gained}`;
     });
 
   const refuel = () =>
     run(async () => {
       const r = await api.post<{ paid: number }>("/town/shop/fuel");
+      feedback("refuel");
       return `⛽ 가득 주유 완료 (${r.paid.toLocaleString()}원)`;
     });
 

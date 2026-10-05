@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Vitals } from "../types";
+import { feedback } from "../feedback";
 
 // 내 집 요리 리듬게임: 재료(노트)가 3줄로 떨어지고, 판정선에 닿을 때 그 줄 버튼을 누른다.
 // 채보는 서버가 만들어 주고(/town/cook/start), 끝나면 퍼펙트·굿 수를 보내 체력을 받는다(/town/cook/finish).
@@ -56,6 +57,7 @@ export function CookingGame({ onDone, onClose }: { onDone: (v: Vitals) => void; 
         good,
       });
       setResult(r);
+      feedback("eat");
       setPhase("result");
       onDoneRef.current(r.vitals);
     } catch (e) {
@@ -114,6 +116,7 @@ export function CookingGame({ onDone, onClose }: { onDone: (v: Vitals) => void; 
     const judge: Judge = Math.abs(best.t - now) <= PERFECT_MS ? "perfect" : "good";
     best.judged = judge;
     g.combo += 1;
+    feedback("hit");
     setFlash({ text: judge, lane, at: now });
   }, []);
 
@@ -177,7 +180,7 @@ export function CookingGame({ onDone, onClose }: { onDone: (v: Vitals) => void; 
                 </span>
               )}
             </div>
-            <div className="cook-pads">
+            <div className="cook-pads" data-quiet>
               {LANES.map((l, i) => (
                 <button
                   key={i}

@@ -4,6 +4,7 @@ import type { CatalogItem, OwnedItem, Profile } from "../types";
 import { PersonPanel } from "./PersonPanel";
 import { itemDisplayName } from "../itemName";
 import { confirmDialog } from "./ConfirmDialog";
+import { feedback } from "../feedback";
 
 // three.js가 무거워서 3D 창을 처음 열 때만 불러온다.
 export const AssetViewer = lazy(() => import("./AssetViewer"));
@@ -77,6 +78,7 @@ export function CatalogPanel({
         `${itemDisplayName(o)}을(를) ${r.soldFor.toLocaleString()}원에 팔았어요.` +
           (r.tax > 0 ? ` 양도소득세 ${r.tax.toLocaleString()}원을 내고 ${(r.soldFor - r.tax).toLocaleString()}원을 받았어요.` : "")
       );
+      feedback("coin");
       onBalanceChange();
       onProfileChange(); // 전시 중이던 자산이면 프로필에서도 빠진다
       await loadOwned();
@@ -113,6 +115,7 @@ export function CatalogPanel({
     try {
       const r = await api.post<{ count: number; soldFor: number }>(`/owned-items/sell-many`, { ids });
       setMessage(`${itemDisplayName(first)} ${r.count}개를 ${r.soldFor.toLocaleString()}원에 팔았어요.`);
+      feedback("coin");
       onBalanceChange();
       onProfileChange(); // 전시 중이던 자산이면 프로필에서도 빠진다
       await loadOwned();
@@ -134,6 +137,7 @@ export function CatalogPanel({
           ? `${r.item.name} ${r.quantity}개 구매 완료! (${r.total.toLocaleString()}원)`
           : `${r.item.name} 구매 완료!`
       );
+      feedback("purchase");
       onBalanceChange();
       await loadOwned();
     } catch (e) {
@@ -163,6 +167,7 @@ export function CatalogPanel({
     try {
       const r = await api.post<{ item: CatalogItem }>(`/luxury/${itemId}/gift`, { targetId });
       setMessage(`${r.item.name}을(를) 선물했습니다!`);
+      feedback("heart");
       onBalanceChange();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "선물에 실패했습니다.");

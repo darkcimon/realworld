@@ -1,8 +1,20 @@
 // 알림(리텐션 루프): 로또 결과, 월급 지급, 하트/맞하트처럼 "유저가 자리를 비운 사이 일어난 일"을
 // 다음 접속 때 한눈에 보여준다. 이벤트가 일어나는 곳(로또 추첨, 정산, 하트)에서 notify()만 부르면 된다.
 import { db } from "../db.js";
+import { sendPush } from "./push.js";
 
 export type NotificationType = "lottery" | "salary" | "heart" | "match" | "gift" | "npc" | "message";
+
+// 휴대폰 알림(푸시)으로도 보낼 종류와 그 제목. NPC(상사·점장·동료) 알림은 게임 안에서 행동할 때 생기는 말이라
+// 휴대폰까지 울리면 시끄러우므로 게임 안 알림으로만 남긴다.
+const PUSH_TITLES: Partial<Record<NotificationType, string>> = {
+  lottery: "🎰 로또 결과",
+  salary: "💰 월급 지급",
+  heart: "💌 하트 도착",
+  match: "💘 맞하트 성사",
+  gift: "🎁 선물 도착",
+  message: "💬 새 메시지",
+};
 
 /** actorId: 알림을 일으킨 상대 유저 — 클라이언트가 알림을 눌렀을 때 그 사람과의 대화로 바로 이동하는 데 쓴다. */
 export function notify(userId: number, type: NotificationType, message: string, actorId?: number): void {
@@ -12,6 +24,12 @@ export function notify(userId: number, type: NotificationType, message: string, 
     message,
     actorId ?? null
   );
+  const title = PUSH_TITLES[type];
+  if (title) {
+    // 같은 사람의 메시지는 휴대폰 알림 하나로 바꿔치기한다(대화 중 알림이 쌓이지 않게).
+    const tag = type === "message" && actorId != null ? `message-${actorId}` : undefined;
+    sendPush(userId, { title, body: message, tag, type, actorId: actorId ?? null });
+  }
 }
 
 /**

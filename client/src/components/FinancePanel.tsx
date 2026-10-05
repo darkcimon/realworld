@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import { confirmDialog } from "./ConfirmDialog";
+import { feedback } from "../feedback";
 
 // 금융 건물: 예금(3시간마다 0.5% 복리) / 주식(30분마다 변동) / 채권(1,000만 원 단위, 1~7일물).
 // 서버가 조회할 때마다 밀린 이자·주가·채권 만기를 계산하므로 화면은 불러오기만 하면 된다.
@@ -62,6 +63,7 @@ export function DepositPanel({ onBalanceChange }: { onBalanceChange: () => void 
       setInfo(r);
       setAmount("");
       onBalanceChange();
+      feedback("coin");
       return `${won(Number(amount))} ${kind === "deposit" ? "입금" : "출금"} 완료`;
     }, "처리하지 못했습니다.");
 
@@ -149,6 +151,7 @@ export function StocksPanel({ onBalanceChange }: { onBalanceChange: () => void }
     run(async () => {
       const shares = Number(qty[s.id] || 1);
       const r = await api.post<{ price: number; total: number }>(`/finance/stocks/${s.id}/${side}`, { shares });
+      feedback(side === "buy" ? "purchase" : "coin");
       onBalanceChange();
       await load();
       return `${s.name} ${shares.toLocaleString()}주 ${side === "buy" ? "매수" : "매도"} (${won(r.total)})`;
@@ -255,6 +258,7 @@ export function BondsPanel({ onBalanceChange }: { onBalanceChange: () => void })
       if (!(await confirmDialog(`${b.name} ${n}개를 ${won(total)}에 살까요?\n${b.days}일 뒤 ${won(Math.round(total * (1 + b.rate / 100)))}을 돌려받아요.`, { title: "채권 구매", confirmText: "사기" })))
         return;
       await api.post(`/finance/bonds/${b.id}/buy`, { qty: n });
+      feedback("purchase");
       onBalanceChange();
       await load();
       return `${b.name} ${n}개 구매 완료`;

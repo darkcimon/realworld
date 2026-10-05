@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Vitals } from "../types";
 import { CookingGame } from "./CookingGame";
+import { feedback } from "../feedback";
 
 // 내 집 쉬기: 자면 체력이 가득 찬다(쿨타임은 서버 economy.ts VITALS.sleepCooldownHours).
 // 서버는 즉시 가득 채우지만, 화면에서는 SLEEP_MS 동안 체력(과 오른쪽 위 배터리)이 천천히 차오르게 보여준다.
@@ -39,6 +40,7 @@ export function HomeRestPanel({ onVitalsChange }: { onVitalsChange: (v: Vitals) 
     let after: Vitals;
     try {
       after = await api.post<Vitals>("/town/sleep");
+      feedback("sleep");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "잠들지 못했어요.");
       return;
@@ -83,6 +85,7 @@ export function HomeRestPanel({ onVitalsChange }: { onVitalsChange: (v: Vitals) 
     try {
       const r = await api.post<{ dish: string; gained: number; vitals: Vitals }>(`/town/meals/${id}/eat`);
       update(r.vitals);
+      feedback("eat");
       setMessage(`😋 ${r.dish}을(를) 데워 먹었어요. 체력 +${r.gained}`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "음식을 먹지 못했어요.");

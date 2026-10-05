@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { ExamWrongAnswer } from "../types";
 import { AnswerInput } from "./AnswerInput";
+import { feedback } from "../feedback";
 
 // 승급 시험 — 10문제 중 7개 이상 정답 시 승급 여부를 본인이 선택. 방이 잠겨 있지 않은 한
 // 언제든 응시할 수 있다(별도의 참여 시간 제한 없음). 결과 화면에서는 틀린 문제의 정답과
@@ -64,6 +65,7 @@ export function ExamModal({
         answer,
       });
       if (r.finished) {
+        feedback(r.passed ? "jackpot" : "wrong"); // 문제마다 정답은 알려주지 않고 끝에 결과만
         setResult(r);
         setQuestion(null);
       } else {

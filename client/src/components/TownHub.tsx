@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { MoveMode, Vitals } from "../types";
+import { feedback } from "../feedback";
 
 export type FacilityKey =
   | "school"
@@ -254,6 +255,7 @@ export function TownHub({
       saveLastSpot(attachId(key));
       if (!isEnabled(key)) {
         setBubble(lockedMessage());
+        feedback("locked");
         // 잠긴 건물 앞에서는 도로로 한 발 물러난다(다음 이동의 출발점).
         const back = graph.nodes.get(attachId(key))!;
         timers.current.push(window.setTimeout(() => setPos(back), 350));
@@ -262,6 +264,7 @@ export function TownHub({
       }
       setBubble(null);
       setEntering(true);
+      feedback("door");
       timers.current.push(window.setTimeout(() => onSelect(key), reducedMotion ? 0 : 320));
     },
     [graph, onSelect, reducedMotion]
@@ -338,6 +341,7 @@ export function TownHub({
   }, [idleMode]);
 
   function applyMode(m: MoveMode) {
+    feedback(m);
     setMode(m);
     speedRef.current = SPEED[m];
     if (m === "tired") setBubble("너무 지쳤어요… 마트에서 뭘 좀 먹거나 집에서 쉬어요 😵");

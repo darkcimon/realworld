@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { ExamWrongAnswer, PlacementInfo } from "../types";
 import { AnswerInput } from "./AnswerInput";
+import { feedback } from "../feedback";
 
 // 배치고사 — 학교급(초/중/고) 단위 10문제 중 8문제 이상 맞히면 해당 학교급 졸업장을 바로 받고
 // 고정 보상을 받는다. 학년별 승급 시험을 거치지 않고 학교 과정을 건너뛰는 지름길이다.
@@ -65,6 +66,7 @@ export function PlacementModal({
     try {
       const r = await api.post<AnswerResp>(`${base}/answer`, { questionNo: question.no, answer });
       if (r.finished) {
+        feedback(r.passed === false ? "wrong" : "correct");
         setResult(r);
         setQuestion(null);
       } else {

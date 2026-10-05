@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, clearToken, getToken } from "./api";
 import type { MoveMode, PlacementInfo, Profile, RoomSummary, Vitals } from "./types";
 import { Login } from "./components/Login";
@@ -18,6 +18,8 @@ import { TownHub, type FacilityKey, type OwnedAsset } from "./components/TownHub
 import { HelpGuide } from "./components/HelpGuide";
 import { SidebarAssets } from "./components/SidebarAssets";
 import { onVitalsRefresh } from "./vitalsEvents";
+import { detachPush, disablePush, enablePush, getPushState, onNotificationClick, syncPush, type PushState } from "./push";
+import { feedback, installTapFeedback, isHapticOn, isSoundOn, setHapticOn, setSoundOn } from "./feedback";
 
 type View = "hub" | "rooms" | "lesson" | "chat" | "social";
 
@@ -62,6 +64,11 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [saveNudge, setSaveNudge] = useState(false);
   const [firstStudio, setFirstStudio] = useState(false);
+  const [soundOn, setSoundOnState] = useState(isSoundOn);
+  const [hapticOn, setHapticOnState] = useState(isHapticOn);
+  const [pushState, setPushState] = useState<PushState>("unsupported");
+  const [pushBusy, setPushBusy] = useState(false);
+  const refueledOnArrival = useRef(false); // 집에 들어갈 때 주유 효과음을 낼지(이동 요청 시 정해진다)
   // 알림에서 대화로 이동: targetId가 있으면 그 사람과의 대화, null이면 대화 목록. seq로 같은 요청도 다시 반영한다.
   const [chatJump, setChatJump] = useState<{ targetId: number | null; seq: number } | null>(null);
 
@@ -87,6 +94,37 @@ export default function App() {
   useEffect(() => {
     if (authed) loadAll();
   }, [authed]);
+
+  // 휴대폰 알림: 이미 켠 기기면 지금 계정에 다시 붙이고, 알림을 눌러 들어왔으면 그 화면으로 보낸다.
+  useEffect(() => {
+    if (!authed) return;
+    void syncPush().then(() => getPushState().then(setPushState));
+    return onNotificationClick(({ type, actorId }) => {
+      if (type === "message" && actorId != null) openChatFromNotif(actorId);
+      else if (type === "heart" || type === "match" || type === "gift") openChatFromNotif(null);
+      // 로또·월급 알림은 앱을 여는 것으로 충분(알림창에서 내용을 볼 수 있다)
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed]);
+
+  // 휴대폰 설정에서 권한을 바꿨을 수 있으니 사이드 메뉴를 열 때마다 다시 확인한다.
+  useEffect(() => {
+    if (sidebarOpen) void getPushState().then(setPushState);
+  }, [sidebarOpen]);
+
+  async function togglePush() {
+    setPushBusy(true);
+    try {
+      setPushState(pushState === "on" ? await disablePush() : await enablePush());
+    } catch {
+      setPushState(await getPushState());
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  // 버튼을 누를 때마다 작은 "톡" 소리와 짧은 진동(소리/진동은 사이드 메뉴에서 끌 수 있다).
+  useEffect(() => installTapFeedback(), []);
 
   // 마을 지도의 내 집/내 차 모습은 소유 자산으로 정해진다. 마을로 돌아올 때마다 새로 받는다(매장에서 샀을 수 있음).
   useEffect(() => {
@@ -120,10 +158,24 @@ export default function App() {
 
   // 마을에서 이동할 때마다 서버가 체력/연료를 깎고 이동 방식(걷기/차/지친 걸음)을 정해준다.
   async function moveInTown(to: FacilityKey): Promise<MoveMode> {
-    const r = await api.post<{ mode: MoveMode; cells: number; homeRefuel: number; vitals: Vitals }>("/town/move", { to });
+    const r = await api.post<{
+      mode: MoveMode;
+      cells: number;
+      homeRefuel: number;
+      homeRefuelReadyAt: string | null;
+      vitals: Vitals;
+    }>("/town/move", { to });
     setVitals(r.vitals);
     // 차를 몰고 집에 오면 주차장에서 연료를 조금 채워 준다(서버, 쿨타임 있음) — 집 화면에 알려준다.
-    setFacilityNotice(r.homeRefuel > 0 ? `🅿️ 집 주차장에서 연료를 ${r.homeRefuel}칸 채웠어요.` : null);
+    // 쿨타임 중이면 언제 다시 채울 수 있는지 알려줘서 "안 채워졌다"고 헷갈리지 않게 한다.
+    refueledOnArrival.current = r.homeRefuel > 0;
+    setFacilityNotice(
+      r.homeRefuel > 0
+        ? `🅿️ 집 주차장에서 연료를 ${r.homeRefuel}칸 채웠어요.`
+        : r.homeRefuelReadyAt
+          ? `🅿️ 주차장 충전은 ${untilText(r.homeRefuelReadyAt)} 뒤에 다시 돼요.`
+          : null
+    );
     return r.mode;
   }
 
@@ -199,6 +251,7 @@ export default function App() {
     ) {
       return;
     }
+    await detachPush(); // 로그아웃한 계정의 알림이 이 기기로 계속 오지 않게
     clearToken();
     setAuthed(false);
     setProfile(null);
@@ -212,6 +265,10 @@ export default function App() {
     const next = FACILITY_VIEWS[key];
     if (!next) return; // 감옥은 선택해서 가는 곳이 아니라 규칙 위반 시 강제로 가는 곳
     setFacility(next);
+    if (key === "home" && refueledOnArrival.current) {
+      refueledOnArrival.current = false;
+      window.setTimeout(() => feedback("refuel"), 300); // 문 여는 소리 뒤에 주유 소리
+    }
     setChatJump(null); // 예전에 알림으로 들어왔던 요청이 다시 실행되지 않게
     setView("social");
   }
@@ -272,6 +329,45 @@ export default function App() {
                 로그아웃
               </button>
             </div>
+            <div className="sidebar-actions">
+              <button
+                className="ghost"
+                aria-pressed={soundOn}
+                onClick={() => {
+                  setSoundOn(!soundOn);
+                  setSoundOnState(!soundOn);
+                }}
+              >
+                {soundOn ? "🔊 소리 켜짐" : "🔇 소리 꺼짐"}
+              </button>
+              <button
+                className="ghost"
+                aria-pressed={hapticOn}
+                onClick={() => {
+                  setHapticOn(!hapticOn);
+                  setHapticOnState(!hapticOn);
+                }}
+              >
+                {hapticOn ? "📳 진동 켜짐" : "📴 진동 꺼짐"}
+              </button>
+            </div>
+            {pushState !== "unsupported" && (
+              <div className="sidebar-actions">
+                <button
+                  className="ghost"
+                  aria-pressed={pushState === "on"}
+                  disabled={pushBusy || pushState === "denied"}
+                  onClick={togglePush}
+                  title={pushState === "denied" ? "휴대폰 설정 > 앱 > 알림에서 허용해 주세요" : undefined}
+                >
+                  {pushState === "on"
+                    ? "🔔 휴대폰 알림 켜짐"
+                    : pushState === "denied"
+                      ? "🔕 알림이 차단됨 (휴대폰 설정에서 허용)"
+                      : "🔕 휴대폰 알림 받기"}
+                </button>
+              </div>
+            )}
             {/* 시설로 바로 가는 지름길은 두지 않는다 — 마을로 돌아가 걸어서(차로) 이동한다. */}
             <div className="tabs sidebar-nav">
               <button className={view === "hub" ? "active" : ""} onClick={() => goTo("hub")}>
@@ -400,4 +496,12 @@ export default function App() {
       )}
     </div>
   );
+}
+
+/** 지금부터 그 시각까지 남은 시간("2시간 15분", "40분"). */
+function untilText(iso: string): string {
+  const mins = Math.max(1, Math.ceil((new Date(iso).getTime() - Date.now()) / 60_000));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? (m > 0 ? `${h}시간 ${m}분` : `${h}시간`) : `${m}분`;
 }

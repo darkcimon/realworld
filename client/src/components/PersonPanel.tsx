@@ -8,6 +8,7 @@ import { groupSameItems, itemDisplayName } from "../itemName";
 import { CharacterStage } from "../character/characterLazy";
 import { assetIcon } from "../assetIcons";
 import { confirmDialog } from "./ConfirmDialog";
+import { feedback } from "../feedback";
 
 interface HeartStatus {
   sent: boolean;
@@ -113,6 +114,7 @@ export function PersonPanel({
     setMessage(null);
     try {
       await api.post(`/profile-view/${targetId}/purchase`);
+      feedback("purchase");
       onBalanceChange();
       await loadDetail();
     } catch (e) {
@@ -134,6 +136,7 @@ export function PersonPanel({
     setMessage(null);
     try {
       await api.post(`/hearts/${targetId}`);
+      feedback(heart?.received ? "jackpot" : "heart");
       setMessage(heart?.received ? "맞하트가 성립되었습니다!" : "하트를 보냈습니다.");
       onBalanceChange();
       await loadHeart();
@@ -175,6 +178,7 @@ export function PersonPanel({
     setMessage(null);
     try {
       await api.post(`/gifts/${targetId}`, { ownedItemId: item.id });
+      feedback("heart");
       setMessage(`${name}을(를) 선물했습니다.`);
       setGiftItems(null);
       setGiftPick(null);

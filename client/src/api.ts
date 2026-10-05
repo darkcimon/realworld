@@ -1,3 +1,5 @@
+import { feedback } from "./feedback";
+
 const TOKEN_KEY = "realworld_token";
 
 export function getToken(): string | null {
@@ -37,6 +39,7 @@ async function request<T>(
   if (refreshed && token) setToken(refreshed);
   const data = await res.json().catch(() => null);
   if (!res.ok) {
+    if (method !== "GET") feedback("error"); // 누른 동작이 실패하면 짧은 경고음(조회 실패는 조용히)
     throw new ApiError(res.status, data?.error ?? `요청 실패 (${res.status})`);
   }
   return data as T;

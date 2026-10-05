@@ -216,7 +216,7 @@ export function getVitals(userId: number): Vitals {
 export function move(
   userId: number,
   to: string
-): { mode: MoveMode; cells: number; homeRefuel: number; vitals: Vitals } {
+): { mode: MoveMode; cells: number; homeRefuel: number; homeRefuelReadyAt: string | null; vitals: Vitals } {
   if (!isFacility(to)) throw { status: 400, message: "없는 장소예요." };
   const row = load(userId);
   const cells = cellsBetween(row.location ?? "home", to);
@@ -238,14 +238,14 @@ export function move(
     mode = "drive"; // 제자리(0칸): 소모 없이 지금 모습 그대로
   }
   // 내 집에 도착하면(다른 곳에서 와야 함) 주차장에서 연료통의 일부를 채운다 — 쿨타임마다 한 번.
+  // 쿨타임 중이면 다시 채울 수 있는 시각을 알려준다(집 화면 안내용).
   let homeRefuel = 0;
+  let homeRefuelReadyAt: string | null = null;
   const now = Date.now();
-  if (
-    to === "home" &&
-    cells > 0 &&
-    car &&
-    (!row.home_refuel_at || now - row.home_refuel_at >= VITALS.homeRefuelCooldownHours * HOUR)
-  ) {
+  const readyAt = row.home_refuel_at ? row.home_refuel_at + VITALS.homeRefuelCooldownHours * HOUR : 0;
+  if (to === "home" && cells > 0 && car && readyAt > now) {
+    homeRefuelReadyAt = new Date(readyAt).toISOString();
+  } else if (to === "home" && cells > 0 && car) {
     const add = Math.min(car.tank - row.fuel, Math.ceil(car.tank * homeRefuelRatioOf(row.home ?? null)));
     if (add > 0) {
       row.fuel += add;
@@ -254,7 +254,7 @@ export function move(
     }
   }
   save(row);
-  return { mode, cells, homeRefuel, vitals: view(row, userId) };
+  return { mode, cells, homeRefuel, homeRefuelReadyAt, vitals: view(row, userId) };
 }
 
 /** 내 집에서 잠자기: 체력 가득. sleepCooldownHours마다 한 번. */

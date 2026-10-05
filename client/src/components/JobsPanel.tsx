@@ -5,6 +5,7 @@ import type { Job, WorkAnswerResp, WorkStartResp } from "../types";
 import { AnswerInput } from "./AnswerInput";
 import { BossPanel } from "./BossPanel";
 import { ColleaguePanel } from "./ColleaguePanel";
+import { feedback } from "../feedback";
 
 // README 6.1~6.2: 직업 배정 → 5문제 단위 근무 → 잔업/퇴근 선택 → 정산(일급 지급)
 export function JobsPanel({ onBalanceChange }: { onBalanceChange: () => void }) {
@@ -71,6 +72,7 @@ export function JobsPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
       const r = await api.post<WorkAnswerResp>("/work/answer", { sessionId, answer });
       requestVitalsRefresh(); // 문제 1개 = 12분 근무만큼 체력이 줄었다
       setLastResult({ correct: r.correct, correctAnswer: r.correctAnswer, explanation: r.explanation });
+      feedback(r.correct ? "correct" : "wrong");
       if (r.batchComplete) {
         setAwaitingDecision(true);
         setQuestion(null);
@@ -103,6 +105,7 @@ export function JobsPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
           ? `${r.settledSessions}건 정산 완료, 총 ${r.totalPaid.toLocaleString()}원 지급`
           : "정산할 근무가 없습니다."
       );
+      if (r.totalPaid > 0) feedback("coin");
       setBossKey((k) => k + 1);
       onBalanceChange();
     } catch (e) {

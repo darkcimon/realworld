@@ -4,6 +4,7 @@ import { api, ApiError } from "../api";
 import type { AlbaSpeedTier, MartCartItem, MartTxResp } from "../types";
 import { ManagerPanel } from "./ManagerPanel";
 import { NumberKeypad } from "./NumberKeypad";
+import { feedback, haptic } from "../feedback";
 
 // README 6.3: 마트 알바 — 손님이 산 물건을 계산해준다. 분급 지급 + 오차 100배 즉시 차감(하한 0원).
 // 손님 카트(정답 금액)는 서버가 발급하고 보관한다 — 여기서는 입력한 금액만 보낸다.
@@ -81,13 +82,7 @@ export function AlbaPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
     const p = PRAISE[mult];
     if (!p) return;
     setPraise({ key: Date.now(), mult });
-    if (p.vibrate) {
-      try {
-        navigator.vibrate?.(p.vibrate);
-      } catch {
-        // 진동을 지원하지 않는 기기(iOS 등)는 그냥 넘어간다.
-      }
-    }
+    if (p.vibrate) haptic(p.vibrate);
   }
 
   useEffect(() => {
@@ -126,6 +121,8 @@ export function AlbaPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
       });
       setLastTx(r);
       setLeftNotice(false);
+      // 맞게 계산하면 동전 소리(빠를수록 화려하게), 틀리면 삐 소리
+      feedback(r.errorAmount === 0 ? (r.speedMultiplier >= 30 ? "jackpot" : "coin") : "wrong");
       celebrate(r.speedMultiplier);
       requestVitalsRefresh(); // 손님 1명 = 1분 근무만큼 체력이 줄었다
       setEntered("");
@@ -156,6 +153,7 @@ export function AlbaPanel({ onBalanceChange }: { onBalanceChange: () => void }) 
         managerReacted: boolean;
       }>("/alba/mart/shift/end");
       setSummary(r);
+      if (r.netPay > 0) feedback("coin");
       setShift(null);
       setCart(null);
       setDeadline(null);

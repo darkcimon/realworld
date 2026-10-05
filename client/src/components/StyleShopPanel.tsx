@@ -4,6 +4,7 @@ import type { Profile } from "../types";
 import { CharacterStage } from "../character/characterLazy";
 import { BODIES, HEADS, SET_LABELS, defaultCharacter, type CharacterConfig } from "../character/options";
 import { confirmDialog } from "./ConfirmDialog";
+import { feedback } from "../feedback";
 
 // 스타일샵(내 집 옆): 캐릭터 세트(옷+헤어)·옷·헤어스타일을 사서 해금한다. 해금한 건 여기서 바로 입거나
 // 사이드 메뉴의 캐릭터 꾸미기에서 고를 수 있다. 사기 전에 "입어보기"로 내 캐릭터에 걸쳐 볼 수 있다.
@@ -73,6 +74,7 @@ export function StyleShopPanel({
     setMessage(null);
     try {
       await api.post("/profile/style-shop/buy", { key: item.key });
+      feedback("purchase");
       setMessage(`${itemLabel(item)} 해금! "입기"를 누르면 바로 입을 수 있어요.`);
       await loadItems();
       onBalanceChange();

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { ConversationSummary, IncomingHeart, MatchSummary, NearbyUser } from "../types";
+import { feedback } from "../feedback";
 
 // README 11.2: 위치(자동 GPS/수동, 수동은 24시간 1회) 및 가까운 순 유저 찾기(거리는 구간 라벨로만 표시).
 // 목록이 길어지면 거리 구간·최근 접속·사진·매너·하트 보낸 상대 숨기기 필터로 좁혀 본다.
@@ -124,6 +125,7 @@ export function NearbyPanel({
     setMessage(null);
     try {
       await api.post(`/hearts/${senderId}/reciprocate`);
+      feedback("jackpot");
       setMessage("맞하트가 성립되었습니다!");
       await loadIncoming();
       await loadMatches();

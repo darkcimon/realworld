@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { AppNotification, DailyStatus, NotificationsResp, Vitals } from "../types";
 import { RankingModal } from "./RankingModal";
+import { feedback } from "../feedback";
+import { enablePush, getPushState, type PushState } from "../push";
 
 // 리텐션 루프 UI: 우상단의 🏆(자산 랭킹·자랑 카드), 📅(출석/일일 퀘스트)와 🔔(알림) 버튼.
 // - 그날 첫 접속에 출석하지 않았다면 출석 패널을 자동으로 띄워 "오늘 할 일"을 바로 보여준다.
@@ -41,6 +43,8 @@ export function RetentionBar({
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [autoChecked, setAutoChecked] = useState(false);
+  const lastUnread = useRef<number | null>(null);
+  const [pushState, setPushState] = useState<PushState>("unsupported");
 
   const refresh = useCallback(async () => {
     try {
@@ -50,6 +54,9 @@ export function RetentionBar({
       ]);
       setDaily(d);
       setNotif(n);
+      // 새 알림(메시지·하트 등)이 늘었으면 알림음 — 처음 불러올 때는 조용히.
+      if (lastUnread.current !== null && n.unread > lastUnread.current) feedback("message");
+      lastUnread.current = n.unread;
       return d;
     } catch {
       return null; // 구금 중이거나 일시 오류 — 조용히 넘어간다.
@@ -81,6 +88,7 @@ export function RetentionBar({
     setError(null);
     try {
       const r = await api.post<{ streak: number; reward: number }>("/daily/checkin");
+      feedback("coin");
       setMsg(`🎉 ${r.streak}일 연속 출석! ${won(r.reward)}을 받았어요.`);
       onBalanceChange?.();
       await refresh();
@@ -93,6 +101,7 @@ export function RetentionBar({
     setError(null);
     try {
       const r = await api.post<{ reward: number }>(`/daily/quests/${key}/claim`);
+      feedback("coin");
       setMsg(`✅ 퀘스트 보상 ${won(r.reward)}을 받았어요.`);
       onBalanceChange?.();
       await refresh();
@@ -105,6 +114,7 @@ export function RetentionBar({
     setError(null);
     try {
       const r = await api.post<{ reward: number }>("/daily/all-clear/claim");
+      feedback("jackpot");
       setMsg(`🏆 올 클리어! 보너스 ${won(r.reward)}을 받았어요.`);
       onBalanceChange?.();
       await refresh();
@@ -116,10 +126,12 @@ export function RetentionBar({
   async function openNotif() {
     const next = !notifOpen;
     setNotifOpen(next);
+    if (next) void getPushState().then(setPushState);
     if (next && notif && notif.unread > 0) {
       setFreshIds(new Set(notif.items.filter((n) => !n.read).map((n) => n.id)));
       await api.post("/notifications/read-all");
       setNotif({ ...notif, unread: 0 });
+      lastUnread.current = 0;
     }
   }
 
@@ -174,6 +186,14 @@ export function RetentionBar({
               ✕
             </button>
           </div>
+          {pushState === "off" && (
+            <button
+              className="ghost notif-push-cta"
+              onClick={async () => setPushState(await enablePush().catch(() => getPushState()))}
+            >
+              📲 휴대폰으로도 알림 받기 (메시지·하트·월급·로또)
+            </button>
+          )}
           <ul>
             {notif?.items.map((n) => {
               const clickable = n.type === "message" && n.actorId != null && !!onOpenChat;
