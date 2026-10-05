@@ -1,7 +1,7 @@
 // README 8~10장: 자동차/아파트/명품샵. 구매 → 소유(owned_items) → 프로필 전시 토글 → 되팔기.
 import { db } from "../db.js";
 import { ASSET_RESALE } from "../economy.js";
-import { applyLedgerEntry, getBalance } from "../wallet/ledger.js";
+import { applyLedgerEntry, getBalance, withTransaction } from "../wallet/ledger.js";
 import { financialAssetsOf } from "./finance.js";
 
 export interface CatalogItem {
@@ -159,9 +159,12 @@ export function purchaseItem(
   if (!item) throw { status: 404, message: "존재하지 않는 상품입니다." };
   const paid = currentBuyPrice(item);
   const total = paid * quantity;
-  applyLedgerEntry(userId, "자산구매", -total, item.id); // 잔액이 모자라면 여기서 막혀 아무것도 안 생긴다
-  const insert = db.prepare("INSERT INTO owned_items (user_id, catalog_item_id, paid_price) VALUES (?, ?, ?)");
-  const ownedItemIds = Array.from({ length: quantity }, () => Number(insert.run(userId, item.id, paid).lastInsertRowid));
+  // 돈 빼기와 물건 넣기를 한 트랜잭션으로 — 중간에 실패하면 돈만 빠지는 일이 없게
+  const ownedItemIds = withTransaction(() => {
+    applyLedgerEntry(userId, "자산구매", -total, item.id); // 잔액이 모자라면 여기서 막혀 아무것도 안 생긴다
+    const insert = db.prepare("INSERT INTO owned_items (user_id, catalog_item_id, paid_price) VALUES (?, ?, ?)");
+    return Array.from({ length: quantity }, () => Number(insert.run(userId, item.id, paid).lastInsertRowid));
+  });
   return { ownedItemId: ownedItemIds[0], ownedItemIds, quantity, total, item: { ...item, price: paid } };
 }
 

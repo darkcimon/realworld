@@ -3,6 +3,7 @@ import { api } from "../api";
 import type { Profile } from "../types";
 import { AvatarPicker } from "./AvatarPicker";
 import { SaveAccountModal } from "./SaveAccountModal";
+import { PhotoAlbumModal } from "./PhotoAlbumModal";
 import { CharacterStudio } from "../character/CharacterStudio";
 import { groupSameItems, itemDisplayName } from "../itemName";
 import { assetIcon } from "../assetIcons";
@@ -18,6 +19,7 @@ export function ProfileHeader({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [studioOpen, setStudioOpen] = useState(false);
+  const [albumOpen, setAlbumOpen] = useState(false);
 
   async function onAvatarSelected(dataUrl: string) {
     setPickerOpen(false);
@@ -41,6 +43,9 @@ export function ProfileHeader({
         </div>
         <button className="character-edit-btn" onClick={() => setStudioOpen(true)}>
           🧍 {profile.character ? "캐릭터 꾸미기" : "캐릭터 만들기"}
+        </button>
+        <button className="character-edit-btn" onClick={() => setAlbumOpen(true)}>
+          📷 내 사진첩
         </button>
         {profile.isGuest && (
           <button className="save-account-btn" onClick={() => setSaveOpen(true)}>
@@ -88,6 +93,7 @@ export function ProfileHeader({
         />
       )}
 
+      {albumOpen && <PhotoAlbumModal onClose={() => setAlbumOpen(false)} onAvatarChanged={onRefresh} />}
       {saveOpen && (
         <SaveAccountModal
           onClose={() => setSaveOpen(false)}

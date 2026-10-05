@@ -49,6 +49,7 @@ export function PersonPanel({
 }) {
   const [detail, setDetail] = useState<PersonDetail | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [photoView, setPhotoView] = useState<string | null>(null); // 사진첩 사진 크게 보기
   const [needsPass, setNeedsPass] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [viewAsset, setViewAsset] = useState<{ category: AssetCategory; name: string } | null>(null);
@@ -309,6 +310,19 @@ export function PersonPanel({
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {detail && detail.photos.length > 0 && (
+          <div className="person-photos">
+            {detail.photos.map((p) => (
+              <img key={p.sort_order} src={p.url} alt={`${basic?.nickname ?? ""} 사진 ${p.sort_order}`} onClick={() => setPhotoView(p.url)} />
+            ))}
+          </div>
+        )}
+        {photoView && (
+          <div className="photo-lightbox" onClick={() => setPhotoView(null)}>
+            <img src={photoView} alt="사진 크게 보기" />
           </div>
         )}
 

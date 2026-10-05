@@ -22,6 +22,7 @@ import {
 } from "../social/dating.js";
 
 import { REPORT_REASONS, reportUser } from "../social/reports.js";
+import { rateLimit } from "../util/validate.js";
 
 function guard(router: Router) {
   router.use(requireAuth);
@@ -151,6 +152,7 @@ blocksRouter.delete("/:targetId", (req, res) => {
 // 신고: 사유를 받아 기록하고 그 사람을 차단한다. 신고가 쌓이면 social/reports.ts가 감옥·정지 처리.
 export const reportsRouter = Router();
 reportsRouter.use(requireAuth);
+reportsRouter.use(rateLimit({ name: "report", windowMs: 60 * 60 * 1000, max: 20 }));
 
 reportsRouter.get("/reasons", (_req, res) => {
   res.json({ reasons: REPORT_REASONS });

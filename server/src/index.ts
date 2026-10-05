@@ -38,10 +38,26 @@ import { attachSocket } from "./socket.js";
 import { startLotteryScheduler } from "./social/lottery.js";
 import { startGuestCleanupScheduler } from "./social/guestCleanup.js";
 
+// 운영(Railway)에서 JWT 서명 키가 코드에 적힌 기본값이면 누구나 아무 계정의 토큰을 만들 수 있다(저장소가 공개라서).
+// 그런 상태로는 아예 뜨지 않게 막는다.
+if ((process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === "production") && !process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET 환경변수가 없습니다. 운영 서버는 기본 서명 키로 실행할 수 없습니다.");
+}
+
 const app = express();
+app.set("trust proxy", 1); // Railway 프록시 뒤의 실제 접속 IP(요청 수 제한용)
+app.disable("x-powered-by");
+// 기본 보안 헤더: MIME 추측 금지, 다른 사이트가 iframe으로 감싸 클릭을 가로채는 것 금지, 주소 노출 최소화
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
+  next();
+});
 // 토큰 자동 연장 헤더(middleware/auth.ts)를 브라우저 JS가 읽을 수 있게 노출한다.
 app.use(cors({ exposedHeaders: ["X-Refresh-Token"] }));
-app.use(express.json());
+app.use(express.json({ limit: "1mb" })); // 사진(데이터 URL) 업로드 때문에 기본 100KB보다 크게, 그래도 상한은 둔다
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.use("/api/auth", authRouter);

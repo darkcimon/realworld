@@ -37,3 +37,28 @@ export function purchasePhotoAlbum(userId: number): { balance: number } {
   db.prepare("INSERT INTO photo_album_purchases (user_id) VALUES (?)").run(userId);
   return { balance };
 }
+
+/** 내 사진첩: 사진, 지금 올릴 수 있는 최대 장수, 사진첩(5장) 구매 여부. */
+export function listMyPhotos(userId: number) {
+  const photos = db
+    .prepare("SELECT id, url, sort_order AS sortOrder FROM profile_photos WHERE user_id = ? ORDER BY sort_order")
+    .all(userId);
+  const album = hasAlbum(userId);
+  return { photos, limit: album ? ALBUM_PHOTO_LIMIT : DEFAULT_PHOTO_LIMIT, hasAlbum: album, albumCost: PHOTO_ALBUM_COST, maxLimit: ALBUM_PHOTO_LIMIT };
+}
+
+/** 내 사진 지우기(남은 사진 순서는 1부터 다시 매긴다). */
+export function deletePhoto(userId: number, photoId: number): void {
+  const removed = db.prepare("DELETE FROM profile_photos WHERE id = ? AND user_id = ?").run(photoId, userId).changes;
+  if (!removed) throw { status: 404, message: "내 사진이 아니에요." };
+  const rest = db.prepare("SELECT id FROM profile_photos WHERE user_id = ? ORDER BY sort_order").all(userId) as { id: number }[];
+  const set = db.prepare("UPDATE profile_photos SET sort_order = ? WHERE id = ?");
+  rest.forEach((p, i) => set.run(i + 1, p.id));
+}
+
+/** 사진첩의 사진을 프로필(대표) 사진으로. */
+export function useAsAvatar(userId: number, photoId: number): void {
+  const row = db.prepare("SELECT url FROM profile_photos WHERE id = ? AND user_id = ?").get(photoId, userId) as { url: string } | undefined;
+  if (!row) throw { status: 404, message: "내 사진이 아니에요." };
+  db.prepare("UPDATE users SET avatar_url = ? WHERE id = ?").run(row.url, userId);
+}

@@ -12,6 +12,8 @@ export class InsufficientBalanceError extends Error {
 }
 
 export function withTransaction<T>(fn: () => T): T {
+  // 이미 바깥 트랜잭션 안이면 그 일부로 실행한다(구매처럼 "돈 빼기 + 물건 넣기"를 한 번에 묶을 수 있게).
+  if (db.isTransaction) return fn();
   db.exec("BEGIN");
   try {
     const result = fn();
@@ -67,6 +69,12 @@ export function applyLedgerEntry(
   refId?: number,
   opts: { floorAtZero?: boolean } = {}
 ): { balance: number; amountApplied: number } {
+  // 변조 방어: NaN·무한대·터무니없이 큰 값이 들어오면 잔액이 깨지므로 여기서 한 번 더 막는다.
+  // 배수 계산(급여 ×1.2 등)으로 생긴 소수는 원 단위로 반올림한다.
+  if (!Number.isFinite(amount) || Math.abs(amount) > Number.MAX_SAFE_INTEGER) {
+    throw { status: 400, message: "금액이 올바르지 않아요." };
+  }
+  amount = Math.round(amount);
   return withTransaction(() => {
     ensureWallet(userId);
     const current = (

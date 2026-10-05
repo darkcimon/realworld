@@ -3,6 +3,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
 import { listNearby, updateGpsLocation, updateManualLocation } from "../social/location.js";
+import { checkLatLng } from "../util/validate.js";
 
 function guard(router: Router) {
   router.use(requireAuth);
@@ -13,14 +14,18 @@ export const locationRouter = Router();
 guard(locationRouter);
 
 locationRouter.put("/", (req, res) => {
-  const { lat, lng } = req.body ?? {};
-  res.json(updateGpsLocation(req.userId!, Number(lat), Number(lng)));
+  try {
+    const { lat, lng } = checkLatLng(req.body?.lat, req.body?.lng);
+    res.json(updateGpsLocation(req.userId!, lat, lng));
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+  }
 });
 
 locationRouter.put("/manual", (req, res) => {
   try {
-    const { lat, lng } = req.body ?? {};
-    res.json(updateManualLocation(req.userId!, Number(lat), Number(lng)));
+    const { lat, lng } = checkLatLng(req.body?.lat, req.body?.lng);
+    res.json(updateManualLocation(req.userId!, lat, lng));
   } catch (e: any) {
     res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
   }

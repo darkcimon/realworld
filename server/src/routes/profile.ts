@@ -5,7 +5,8 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
 import { getActiveJail } from "../school/jail.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
-import { addPhoto, purchasePhotoAlbum } from "../social/photos.js";
+import { addPhoto, deletePhoto, listMyPhotos, purchasePhotoAlbum, useAsAvatar } from "../social/photos.js";
+import { checkImageDataUrl, cleanNickname } from "../util/validate.js";
 import { listDisplayedItems } from "../social/catalog.js";
 import { educationOf } from "../social/education.js";
 import { buyStyleItem, getCharacter, listStyleShop, listUnlocks, saveCharacter } from "../social/character.js";
@@ -133,11 +134,16 @@ profileRouter.post("/style-shop/buy", requireNotJailed, (req, res) => {
 });
 
 profileRouter.patch("/", (req, res) => {
-  const { avatarUrl, nickname } = req.body ?? {};
-  db.prepare(
-    "UPDATE users SET avatar_url = COALESCE(?, avatar_url), nickname = COALESCE(?, nickname) WHERE id = ?"
-  ).run(avatarUrl ?? null, nickname ?? null, req.userId);
-  res.json({ ok: true });
+  try {
+    const avatarUrl = req.body?.avatarUrl ? checkImageDataUrl(req.body.avatarUrl, { maxBytes: 400_000, allowSvg: true }) : null;
+    const nickname = cleanNickname(req.body?.nickname);
+    db.prepare(
+      "UPDATE users SET avatar_url = COALESCE(?, avatar_url), nickname = COALESCE(?, nickname) WHERE id = ?"
+    ).run(avatarUrl, nickname, req.userId);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+  }
 });
 
 // README 11.1: 사진첩 — 사회 콘텐츠이므로 이 두 라우트는 수감 중에 막는다.
@@ -146,17 +152,36 @@ profileRouter.post(
   requireNotJailed,
   (req, res) => {
     try {
-      const url = String(req.body?.url ?? "").trim();
-      if (!url) {
-        res.status(400).json({ error: "url은 필수입니다." });
-        return;
-      }
+      // 사진은 데이터 URL(PNG·JPEG·WebP, 400KB 이하)만 — 외부 주소나 다른 파일을 이미지로 속이는 걸 막는다.
+      const url = checkImageDataUrl(req.body?.url, { maxBytes: 400_000 });
       res.json(addPhoto(req.userId!, url));
     } catch (e: any) {
       res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
     }
   }
 );
+
+profileRouter.get("/photos", (req, res) => {
+  res.json(listMyPhotos(req.userId!));
+});
+
+profileRouter.delete("/photos/:id", (req, res) => {
+  try {
+    deletePhoto(req.userId!, Number(req.params.id));
+    res.json(listMyPhotos(req.userId!));
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+  }
+});
+
+profileRouter.post("/photos/:id/avatar", (req, res) => {
+  try {
+    useAsAvatar(req.userId!, Number(req.params.id));
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
+  }
+});
 
 profileRouter.post(
   "/photo-album/purchase",

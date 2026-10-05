@@ -7,6 +7,12 @@ import jwt from "jsonwebtoken";
 import { db } from "../db.js";
 import { JWT_SECRET, requireAuthAllowBanned, signToken } from "../middleware/auth.js";
 import { deleteAccount } from "../social/accountDeletion.js";
+import { checkCredentials, checkImageDataUrl, cleanNickname, rateLimit } from "../util/validate.js";
+
+// 비밀번호 대입·비회원 계정 대량 생성(신고 조작 등)을 막는 IP별 제한
+const guestLimit = rateLimit({ name: "guest", windowMs: 60 * 60 * 1000, max: 10 });
+const registerLimit = rateLimit({ name: "register", windowMs: 60 * 60 * 1000, max: 10 });
+const loginLimit = rateLimit({ name: "login", windowMs: 15 * 60 * 1000, max: 20 });
 
 export const authRouter = Router();
 
@@ -41,11 +47,18 @@ function adultConfirmed(req: import("express").Request, res: import("express").R
   return false;
 }
 
-authRouter.post("/guest", (req, res) => {
+authRouter.post("/guest", guestLimit, (req, res) => {
   if (!adultConfirmed(req, res)) return;
-  const nickname = String(req.body?.nickname ?? "").trim() || `게스트${Date.now() % 10000}`;
-  // 최초 게임 시작 시 고른 기본 아바타 또는 잘라낸 사진(데이터 URL)을 그대로 avatar_url에 저장한다.
-  const avatarUrl = req.body?.avatarUrl ? String(req.body.avatarUrl) : null;
+  let nickname: string;
+  let avatarUrl: string | null;
+  try {
+    nickname = cleanNickname(req.body?.nickname) ?? `게스트${Date.now() % 10000}`;
+    // 최초 게임 시작 시 고른 기본 아바타 또는 잘라낸 사진(데이터 URL). 외부 주소·큰 파일은 거부한다.
+    avatarUrl = req.body?.avatarUrl ? checkImageDataUrl(req.body.avatarUrl, { maxBytes: 400_000, allowSvg: true }) : null;
+  } catch (e: any) {
+    res.status(e.status ?? 400).json({ error: e.message });
+    return;
+  }
   const result = db
     .prepare(
       "INSERT INTO users (nickname, avatar_url, is_guest, last_seen_at, adult_confirmed_at) VALUES (?, ?, 1, datetime('now'), datetime('now'))"
@@ -56,10 +69,14 @@ authRouter.post("/guest", (req, res) => {
   res.json({ token: signToken(userId), user: { id: userId, nickname, isGuest: true } });
 });
 
-authRouter.post("/register", (req, res) => {
-  const { email, password, nickname, avatarUrl } = req.body ?? {};
-  if (!email || !password) {
-    res.status(400).json({ error: "email, password는 필수입니다." });
+authRouter.post("/register", registerLimit, (req, res) => {
+  let email: string, password: string, nickname: string | null, avatarUrl: string | null;
+  try {
+    ({ email, password } = checkCredentials(req.body?.email, req.body?.password));
+    nickname = cleanNickname(req.body?.nickname);
+    avatarUrl = req.body?.avatarUrl ? checkImageDataUrl(req.body.avatarUrl, { maxBytes: 400_000, allowSvg: true }) : null;
+  } catch (e: any) {
+    res.status(e.status ?? 400).json({ error: e.message });
     return;
   }
   const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
@@ -90,15 +107,16 @@ authRouter.post("/register", (req, res) => {
     .prepare(
       "INSERT INTO users (email, password_hash, nickname, avatar_url, is_guest, adult_confirmed_at) VALUES (?, ?, ?, ?, 0, datetime('now'))"
     )
-    .run(email, passwordHash, nickname ?? email, avatarUrl ? String(avatarUrl) : null);
+    .run(email, passwordHash, nickname ?? email.split("@")[0].slice(0, 20), avatarUrl);
   const userId = Number(result.lastInsertRowid);
   db.prepare("INSERT INTO student_profile (user_id) VALUES (?)").run(userId);
   res.json({ token: signToken(userId), user: { id: userId, nickname, isGuest: false } });
 });
 
-authRouter.post("/login", (req, res) => {
-  const { email, password } = req.body ?? {};
-  const row = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as
+authRouter.post("/login", loginLimit, (req, res) => {
+  const { password } = req.body ?? {};
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const row = db.prepare("SELECT * FROM users WHERE lower(email) = ?").get(email) as
     | UserRow
     | undefined;
   if (!row || !row.password_hash || !bcrypt.compareSync(String(password ?? ""), row.password_hash)) {
