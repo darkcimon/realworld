@@ -819,10 +819,14 @@ if (!userColumns.some((c) => c.name === "last_seen_at")) {
   db.exec("ALTER TABLE users ADD COLUMN last_seen_at TEXT");
   db.exec("UPDATE users SET last_seen_at = datetime('now')");
 }
-// 만 18세 이상 이용 확인 시각(성인 대상 게임 — 연애·로또 콘텐츠). 새 계정은 시작할 때 확인해야 만들어진다.
+// (예전) 만 18세 이상 이용 확인 시각. 지금은 출생 연월(birth_ym)을 받고, 이 값은 연령 확인 전 계정을 성인으로 보는 데만 쓴다(social/age.ts).
 // 이 컬럼이 생기기 전에 만든 계정은 NULL로 남는다.
 if (!userColumns.some((c) => c.name === "adult_confirmed_at")) {
   db.exec("ALTER TABLE users ADD COLUMN adult_confirmed_at TEXT");
+}
+// 출생 연월 "YYYY-MM"(자기 신고, social/age.ts). 성인·미성년자 구분과 만 14세 미만 가입 차단에 쓴다.
+if (!userColumns.some((c) => c.name === "birth_ym")) {
+  db.exec("ALTER TABLE users ADD COLUMN birth_ym TEXT");
 }
 // 이용 정지 시각(신고 누적, social/reports.ts). NULL이면 정상. 정지되면 계정 삭제 외에는 아무것도 할 수 없다.
 if (!userColumns.some((c) => c.name === "banned_at")) {

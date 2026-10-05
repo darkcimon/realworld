@@ -5,6 +5,8 @@ import { Login } from "./components/Login";
 import { ProfileHeader } from "./components/ProfileHeader";
 import { SaveAccountModal } from "./components/SaveAccountModal";
 import { DeleteAccountModal } from "./components/DeleteAccountModal";
+import { AgeGateModal } from "./components/AgeGateModal";
+import { setAgeGroup } from "./ageGroup";
 import { CharacterStudio } from "./character/CharacterStudio";
 import { confirmDialog } from "./components/ConfirmDialog";
 import { RoomList } from "./components/RoomList";
@@ -84,6 +86,7 @@ export default function App() {
         api.get<PlacementInfo[]>("/school/placement"),
       ]);
       setProfile(p);
+      setAgeGroup(p.ageGroup);
       // 캐릭터가 없으면 처음 한 번 "나만의 캐릭터 만들기"를 띄운다(그때는 저장 권유를 미룬다).
       if (!p.character && !characterSkipped()) setFirstStudio(true);
       else maybeNudgeSave(p);
@@ -551,6 +554,17 @@ export default function App() {
           onSaved={() => {
             setFirstStudio(false);
             loadAll();
+          }}
+        />
+      )}
+      {profile.ageGroup === "unknown" && !deleteOpen && (
+        <AgeGateModal
+          onDone={loadAll}
+          onDeleteAccount={() => setDeleteOpen(true)}
+          onLogout={() => {
+            clearToken();
+            setAuthed(false);
+            setProfile(null);
           }}
         />
       )}

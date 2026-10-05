@@ -7,6 +7,7 @@ import jwt from "jsonwebtoken";
 import { db } from "../db.js";
 import { JWT_SECRET, requireAuthAllowBanned, signToken } from "../middleware/auth.js";
 import { deleteAccount } from "../social/accountDeletion.js";
+import { checkBirthYm } from "../social/age.js";
 import { checkCredentials, checkImageDataUrl, cleanNickname, rateLimit } from "../util/validate.js";
 
 // 비밀번호 대입·비회원 계정 대량 생성(신고 조작 등)을 막는 IP별 제한
@@ -40,15 +41,19 @@ function currentGuestUserId(req: import("express").Request): number | null {
   }
 }
 
-// 성인(만 18세 이상) 대상 게임이라 새 계정을 만들 때는 이용 연령 확인을 받는다.
-function adultConfirmed(req: import("express").Request, res: import("express").Response): boolean {
-  if (req.body?.adultConfirmed === true) return true;
-  res.status(400).json({ error: "만 18세 이상만 이용할 수 있어요. 연령 확인에 체크해 주세요." });
-  return false;
+// 새 계정은 출생 연월을 받는다(자기 신고). 만 14세 미만은 거부, 성인·미성년자는 서로 1:1로 만나지 못하게 나눈다(social/age.ts).
+function birthOf(req: import("express").Request, res: import("express").Response): { birthYm: string; group: "adult" | "minor" } | null {
+  try {
+    return checkBirthYm(req.body?.birthYm);
+  } catch (e: any) {
+    res.status(e.status ?? 400).json({ error: e.message, code: e.code });
+    return null;
+  }
 }
 
 authRouter.post("/guest", guestLimit, (req, res) => {
-  if (!adultConfirmed(req, res)) return;
+  const birth = birthOf(req, res);
+  if (!birth) return;
   let nickname: string;
   let avatarUrl: string | null;
   try {
@@ -61,9 +66,9 @@ authRouter.post("/guest", guestLimit, (req, res) => {
   }
   const result = db
     .prepare(
-      "INSERT INTO users (nickname, avatar_url, is_guest, last_seen_at, adult_confirmed_at) VALUES (?, ?, 1, datetime('now'), datetime('now'))"
+      "INSERT INTO users (nickname, avatar_url, is_guest, last_seen_at, birth_ym) VALUES (?, ?, 1, datetime('now'), ?)"
     )
-    .run(nickname, avatarUrl);
+    .run(nickname, avatarUrl, birth.birthYm);
   const userId = Number(result.lastInsertRowid);
   db.prepare("INSERT INTO student_profile (user_id) VALUES (?)").run(userId);
   res.json({ token: signToken(userId), user: { id: userId, nickname, isGuest: true } });
@@ -102,12 +107,13 @@ authRouter.post("/register", registerLimit, (req, res) => {
   }
 
   // 비회원 승격은 게스트로 시작할 때 이미 연령 확인을 받았다. 새로 가입할 때만 확인한다.
-  if (!adultConfirmed(req, res)) return;
+  const birth = birthOf(req, res);
+  if (!birth) return;
   const result = db
     .prepare(
-      "INSERT INTO users (email, password_hash, nickname, avatar_url, is_guest, adult_confirmed_at) VALUES (?, ?, ?, ?, 0, datetime('now'))"
+      "INSERT INTO users (email, password_hash, nickname, avatar_url, is_guest, birth_ym) VALUES (?, ?, ?, ?, 0, ?)"
     )
-    .run(email, passwordHash, nickname ?? email.split("@")[0].slice(0, 20), avatarUrl);
+    .run(email, passwordHash, nickname ?? email.split("@")[0].slice(0, 20), avatarUrl, birth.birthYm);
   const userId = Number(result.lastInsertRowid);
   db.prepare("INSERT INTO student_profile (user_id) VALUES (?)").run(userId);
   res.json({ token: signToken(userId), user: { id: userId, nickname, isGuest: false } });

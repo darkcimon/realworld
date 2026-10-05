@@ -8,6 +8,7 @@ export interface Education {
 }
 
 export interface Profile {
+  ageGroup: "adult" | "minor" | "unknown"; // 1:1 상호작용은 같은 연령대끼리. unknown이면 출생 연월을 한 번 묻는다
   id: number;
   nickname: string;
   avatarUrl: string | null;

@@ -7,6 +7,7 @@ import { getActiveJail } from "../school/jail.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
 import { addPhoto, deletePhoto, listMyPhotos, purchasePhotoAlbum, useAsAvatar } from "../social/photos.js";
 import { checkImageDataUrl, cleanNickname } from "../util/validate.js";
+import { ageGroupOf, setBirthYmOnce } from "../social/age.js";
 import { listDisplayedItems } from "../social/catalog.js";
 import { educationOf } from "../social/education.js";
 import { buyStyleItem, getCharacter, listStyleShop, listUnlocks, saveCharacter } from "../social/character.js";
@@ -53,7 +54,18 @@ profileRouter.get("/", (req, res) => {
     displayedItems: listDisplayedItems(user.id),
     character: getCharacter(user.id), // 아직 안 만들었으면 null → 첫 시작 때 꾸미기 창을 띄운다
     jail: jail ? { type: jail.type, endsAt: jail.ends_at } : null,
+    // 성인·미성년자(1:1 상호작용은 같은 연령대끼리), unknown이면 클라이언트가 출생 연월을 한 번 묻는다
+    ageGroup: ageGroupOf(user.id),
   });
+});
+
+// 연령 확인 전에 만든 예전 계정이 출생 연월을 한 번 넣는다(이후엔 바꿀 수 없다).
+profileRouter.post("/birth", (req, res) => {
+  try {
+    res.json({ ageGroup: setBirthYmOnce(req.userId!, req.body?.birthYm) });
+  } catch (e: any) {
+    res.status(e.status ?? 500).json({ error: e.message ?? "unknown error", code: e.code });
+  }
 });
 
 // 학교 진도. 학교는 사회인이 다니는 "학력 올리기" 과정이라 "N학년 과정"으로 보여준다.

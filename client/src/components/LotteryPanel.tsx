@@ -3,10 +3,9 @@ import { api, ApiError } from "../api";
 import type { LotteryToday } from "../types";
 import { feedback } from "../feedback";
 
-// README 7장: 만원 단위, 회차당 3개 제한, 매일 09·12·15·18시 네 번 추첨.
+// README 7장: 무료 응모권(게임머니를 걸지 않는다), 회차당 3장, 매일 09·12·15·18시 네 번 추첨.
 export function LotteryPanel({ onBalanceChange }: { onBalanceChange: () => void }) {
   const [today, setToday] = useState<LotteryToday | null>(null);
-  const [units, setUnits] = useState("1");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -18,20 +17,17 @@ export function LotteryPanel({ onBalanceChange }: { onBalanceChange: () => void 
     load();
   }, []);
 
-  async function buy(e: React.FormEvent) {
-    e.preventDefault();
+  async function enter() {
     setError(null);
     setMessage(null);
     try {
-      const r = await api.post<{ amount: number; roundDate: string }>("/lottery/buy", {
-        amount: Number(units),
-      });
-      setMessage(`${r.amount.toLocaleString()}원 구매 완료 (${r.roundDate} 회차)`);
-      feedback("purchase");
+      const r = await api.post<{ slot: number; roundDate: string }>("/lottery/buy", { amount: 1 });
+      setMessage(`🎟️ ${r.slot}번째 응모 완료 (${r.roundDate} 회차)`);
+      feedback("coin");
       onBalanceChange();
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "구매에 실패했습니다.");
+      setError(e instanceof ApiError ? e.message : "응모하지 못했어요.");
     }
   }
 
@@ -46,35 +42,27 @@ export function LotteryPanel({ onBalanceChange }: { onBalanceChange: () => void 
       {today && (
         <>
           <p className="muted">
-            {today.roundDate} 회차 — 이번 회차 남은 구매 가능 수: {today.remaining}개
+            {today.roundDate} 회차 — 남은 무료 응모권: {today.remaining}장
             {drawn && " (이미 추첨 완료된 회차)"}
           </p>
           <ul className="ledger-list">
             {today.tickets.map((t) => (
               <li key={t.id}>
-                <span>{t.slot}번째 구매</span>
-                <span>{t.amount.toLocaleString()}원</span>
+                <span>🎟️ {t.slot}번째 응모</span>
+                <span>{t.amount > 0 ? `${t.amount.toLocaleString()}원` : "무료"}</span>
               </li>
             ))}
-            {today.tickets.length === 0 && <p className="muted">아직 구매한 티켓이 없습니다.</p>}
+            {today.tickets.length === 0 && <p className="muted">아직 응모하지 않았어요.</p>}
           </ul>
         </>
       )}
 
-      <form className="lottery-form" onSubmit={buy}>
-        <input
-          type="number"
-          min={1}
-          value={units}
-          onChange={(e) => setUnits(e.target.value)}
-          placeholder="구매 단위 (만원)"
-        />
-        <button type="submit" disabled={!today || today.remaining <= 0}>
-          구매하기
-        </button>
-      </form>
-      <p className="muted">1등 5% / 2등 10% / 3등 20% / 4등(원금의 2배) 50% — 매일{" "}
-        {(today?.drawHours ?? [9, 12, 15, 18]).map((h) => `${h}시`).join(" · ")} 추첨 (회차당 3개)
+      <button onClick={enter} disabled={!today || today.remaining <= 0}>
+        🎟️ 무료로 응모하기
+      </button>
+      <p className="muted">
+        응모는 무료예요. 1등 5% / 2등 10% / 3등 20% / 4등(2만원) 50% — 매일{" "}
+        {(today?.drawHours ?? [9, 12, 15, 18]).map((h) => `${h}시`).join(" · ")} 추첨 (회차당 3장)
       </p>
     </div>
   );

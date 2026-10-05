@@ -6,6 +6,7 @@ import { getCharacter } from "./character.js";
 import { checkSocialContent } from "./manner.js";
 import { nicknameOf, notify, notifyMessage } from "./notifications.js";
 import { chatLengthError } from "../util/chatLimit.js";
+import { assertSameAgeGroup } from "./age.js";
 
 // 하트 50만원 / 프로필 열람(=채팅 개시 조건) 300만원: 일급 상한(S등급 최대 30만원)을 받은 상태에서도
 // 하루에 채팅을 걸 수 있는 상대가 2~5명 정도로 제한되도록 일부러 하트/열람권 비용을 높게 잡았다.
@@ -22,8 +23,10 @@ export function isBlocked(a: number, b: number): boolean {
   return !!row;
 }
 
-function assertNotBlocked(a: number, b: number): void {
+/** 1:1 상호작용 전 공통 확인: 차단 관계가 아니고, 같은 연령대(성인끼리·미성년자끼리)여야 한다. */
+export function assertNotBlocked(a: number, b: number): void {
   if (isBlocked(a, b)) throw { status: 403, message: "차단 관계로 상호작용할 수 없습니다." };
+  assertSameAgeGroup(a, b);
 }
 
 /** README: 차단 시 "매칭 해제 + 대화 비활성화"로 최소 구현(세부 정책은 오픈 이슈). */

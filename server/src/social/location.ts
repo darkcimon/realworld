@@ -2,6 +2,7 @@
 import { db } from "../db.js";
 import { isBlocked } from "./dating.js";
 import { CLEAN_CHECK_THRESHOLD, isVisibleUnderCleanCheck } from "./manner.js";
+import { ageGroupOf } from "./age.js";
 
 const MANUAL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -88,6 +89,8 @@ function distanceBucket(km: number): number {
 export function listNearby(userId: number) {
   const me = getLocation(userId);
   if (!me) throw { status: 400, message: "먼저 위치를 설정해야 합니다." };
+  const myGroup = ageGroupOf(userId);
+  if (myGroup === "unknown") throw { status: 403, code: "age_required", message: "먼저 연령 확인을 해 주세요." };
 
   const others = db
     .prepare(
@@ -105,6 +108,7 @@ export function listNearby(userId: number) {
 
   return others
     .filter((o) => !isBlocked(userId, o.user_id))
+    .filter((o) => ageGroupOf(o.user_id) === myGroup) // 성인은 성인끼리, 미성년자는 미성년자끼리만 보인다
     .filter((o) => isVisibleUnderCleanCheck(userId, o.user_id))
     .map((o) => ({ ...o, distanceKm: haversineKm(me.lat, me.lng, o.lat, o.lng) }))
     .sort((a, b) => a.distanceKm - b.distanceKm)

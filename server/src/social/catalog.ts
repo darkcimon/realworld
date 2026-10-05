@@ -3,6 +3,7 @@ import { db } from "../db.js";
 import { ASSET_RESALE } from "../economy.js";
 import { applyLedgerEntry, getBalance, withTransaction } from "../wallet/ledger.js";
 import { financialAssetsOf } from "./finance.js";
+import { assertNotBlocked } from "./dating.js";
 
 export interface CatalogItem {
   id: number;
@@ -277,6 +278,7 @@ export function giftLuxuryItem(
   itemId: number
 ): { ownedItemId: number; item: CatalogItem } {
   if (senderId === receiverId) throw { status: 400, message: "자기 자신에게 선물할 수 없습니다." };
+  assertNotBlocked(senderId, receiverId); // 차단한 사람·다른 연령대에게는 선물할 수 없다
   const item = getItem(itemId);
   if (!item || item.category !== "luxury") {
     throw { status: 404, message: "존재하지 않는 명품입니다." };

@@ -733,3 +733,8 @@ button.danger:disabled { opacity: 0.5; }
 .person-photos img { width: 96px; height: 96px; flex: none; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); cursor: zoom-in; }
 .photo-lightbox { position: fixed; inset: 0; z-index: 2000; background: rgba(0, 0, 0, 0.85); display: flex; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
 .photo-lightbox img { max-width: 100%; max-height: 100%; border-radius: 12px; }
+
+/* 출생 연월 */
+.birth-picker { display: flex; flex-direction: column; gap: 4px; }
+.birth-picker .row { display: flex; gap: 8px; }
+.birth-picker select { flex: 1; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font: inherit; }

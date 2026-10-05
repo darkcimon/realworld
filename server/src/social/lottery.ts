@@ -2,7 +2,7 @@
 // 1~4등 상금표는 README에 정확한 금액이 나와 있지 않아 임의의 기본값을 두고,
 // "10명 단위마다 1등 당첨금 범위 2배 보정" 규칙만 문서 그대로 구현한다.
 import { db } from "../db.js";
-import { applyLedgerEntry } from "../wallet/ledger.js";
+import { applyLedgerEntry, getBalance } from "../wallet/ledger.js";
 import { notify } from "./notifications.js";
 
 export const DAILY_TICKET_LIMIT = 3; // 회차당 구매 가능 수
@@ -10,13 +10,11 @@ export const DAILY_TICKET_LIMIT = 3; // 회차당 구매 가능 수
 // 예전 회차(하루 1회 시절)는 키가 "YYYY-MM-DD"이고 그날 19:00에 추첨된다.
 export const DRAW_HOURS = [9, 12, 15, 18];
 const LEGACY_DRAW_HOUR = 19;
-const UNIT_AMOUNT = 10_000; // 만원
 
 const TIER1_BASE = { min: 1_000_000, max: 5_000_000 };
 const TIER2 = { min: 300_000, max: 1_000_000 };
 const TIER3 = { min: 100_000, max: 300_000 };
-// 4등은 원금 보전 개념으로 구매 금액의 2배를 돌려준다.
-const TIER4_MULTIPLIER = 2;
+const TIER4_PRIZE = 20_000; // 응모가 무료라 "원금의 2배" 대신 고정 금액(예전 1만원 응모의 2배와 같다)
 
 const TIER_ODDS: { tier: "1" | "2" | "3" | "4"; pct: number }[] = [
   { tier: "1", pct: 5 },
@@ -89,7 +87,7 @@ export function buyTicket(userId: number, units: number): {
   roundDate: string;
 } {
   if (!Number.isInteger(units) || units < 1) {
-    throw { status: 400, message: "구매 금액은 1만원 단위 정수여야 합니다." };
+    throw { status: 400, message: "응모권 수가 올바르지 않아요." };
   }
   const roundDate = resolvePurchaseRoundDate();
   const boughtToday = (
@@ -100,11 +98,13 @@ export function buyTicket(userId: number, units: number): {
       .get(userId, roundDate) as { c: number }
   ).c;
   if (boughtToday >= DAILY_TICKET_LIMIT) {
-    throw { status: 403, message: `로또는 회차당 ${DAILY_TICKET_LIMIT}개까지만 구매할 수 있습니다.` };
+    throw { status: 403, message: `로또 응모권은 회차당 ${DAILY_TICKET_LIMIT}장까지예요.` };
   }
 
-  const amount = units * UNIT_AMOUNT;
-  const { balance } = applyLedgerEntry(userId, "로또구매", -amount);
+  // 응모는 무료다(게임머니를 걸지 않는다) — 돈을 걸고 무작위로 따거나 잃는 "시뮬레이션 도박"이 되지 않게.
+  // 장수 제한(회차당 DAILY_TICKET_LIMIT)은 그대로. amount는 기록용으로 0을 남긴다.
+  const amount = 0;
+  const balance = getBalance(userId);
   ensureRound(roundDate);
   const result = db
     .prepare(
@@ -199,7 +199,7 @@ export function drawRound(roundDate: string): {
               ? randomInRange(TIER2.min, TIER2.max)
               : tier === "3"
                 ? randomInRange(TIER3.min, TIER3.max)
-                : ticket.amount * TIER4_MULTIPLIER;
+                : TIER4_PRIZE;
         awarded = { tier, prize };
         break;
       }

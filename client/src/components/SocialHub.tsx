@@ -13,6 +13,7 @@ import { HomeRestPanel } from "./HomeRestPanel";
 import { StyleShopPanel } from "./StyleShopPanel";
 import { BondsPanel, DepositPanel, StocksPanel } from "./FinancePanel";
 import type { CatalogItem, Vitals } from "../types";
+import { matchWord } from "../ageGroup";
 
 export type SocialTab = "rest" | "shop" | "wallet" | "jobs" | "alba" | "lottery" | "manner" | "catalog" | "nearby" | "style" | "deposit" | "stocks" | "bonds";
 type Tab = SocialTab;
@@ -101,7 +102,7 @@ export function SocialHub({
       <div className="tabs sub-tabs">
         {TABS.filter((t) => facility.tabs.includes(t.key)).map((t) => (
           <button key={t.key} className={tab === t.key ? "active" : ""} onClick={() => setTab(t.key)}>
-            {t.label}
+            {t.key === "nearby" ? `${matchWord()}찾기` : t.label}
           </button>
         ))}
       </div>

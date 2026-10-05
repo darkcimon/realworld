@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { ConversationSummary, IncomingHeart, MatchSummary, NearbyUser } from "../types";
 import { feedback } from "../feedback";
+import { matchWord } from "../ageGroup";
 
 // README 11.2: 위치(자동 GPS/수동, 수동은 24시간 1회) 및 가까운 순 유저 찾기(거리는 구간 라벨로만 표시).
 // 목록이 길어지면 거리 구간·최근 접속·사진·매너·하트 보낸 상대 숨기기 필터로 좁혀 본다.
@@ -136,7 +137,7 @@ export function NearbyPanel({
 
   return (
     <div className="panel">
-      <h3>인연 찾기</h3>
+      <h3>{matchWord()} 찾기</h3>
       {error && <p className="error">{error}</p>}
       {message && <p className="ok-text">{message}</p>}
 
@@ -160,7 +161,7 @@ export function NearbyPanel({
           </button>
         </form>
         <button className="ghost" onClick={loadNearby}>
-          내 주변 인연 찾기
+          내 주변 {matchWord()} 찾기
         </button>
       </div>
 
@@ -270,7 +271,7 @@ export function NearbyPanel({
           <p className="muted">조건에 맞는 사람이 없어요. 필터를 줄여보세요.</p>
         )}
         {nearby.length === 0 && (
-          <p className="muted">위치를 설정하고 "내 주변 인연 찾기"를 눌러보세요.</p>
+          <p className="muted">위치를 설정하고 "내 주변 {matchWord()} 찾기"를 눌러보세요.</p>
         )}
       </ul>
     </div>
