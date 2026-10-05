@@ -1,5 +1,12 @@
 import type { CharacterConfig } from "./character/options";
 
+// 학력: 가장 높은 졸업 학교급. 학력이 높을수록 직장 일급에 배수가 붙는다(server economy.ts EDUCATION).
+export interface Education {
+  level: "none" | "elementary" | "middle" | "high";
+  label: string;
+  payMultiplier: number;
+}
+
 export interface Profile {
   id: number;
   nickname: string;
@@ -13,6 +20,7 @@ export interface Profile {
     status: string;
     label: string;
   };
+  education: Education; // 최종 학력과 직장 일급 배수(학교 = 학력 올리기)
   graduations: Array<{
     school_level: string;
     average_score: number;
@@ -58,6 +66,7 @@ export interface PublicProfile {
     status: string;
     label: string;
   } | null;
+  education: Education; // 최종 학력과 직장 일급 배수(학교 = 학력 올리기)
   graduations: Array<{
     school_level: string;
     average_score: number;
@@ -541,4 +550,32 @@ export interface ShopMenu {
   foods: { key: string; name: string; price: number; stamina: number }[];
   fuel: { missing: number; price: number } | null;
   vitals: Vitals;
+}
+
+// ── 자산 랭킹 / 자랑 카드 ─────────────────────────────────────────────
+// 다른 사람의 자산은 구간("3억원대")만 오고, 정확한 금액(total)은 내 순위에만 들어 있다.
+export interface RankingRow {
+  rank: number;
+  userId: number;
+  nickname: string;
+  avatarUrl: string | null;
+  wealthBand: string;
+  home: string | null; // 가장 비싼 집(null = 박스집)
+  car: string | null;
+  luxuryCount: number;
+  education: string;
+  isMe: boolean;
+}
+
+export interface MyRanking extends RankingRow {
+  total: number;
+  outOf: number;
+}
+
+export interface RankingResp {
+  scope: "all" | "nearby";
+  updatedAt: string;
+  refreshMinutes: number;
+  top: RankingRow[];
+  me: MyRanking;
 }

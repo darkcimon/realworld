@@ -89,20 +89,19 @@ export default function App() {
   }, [authed]);
 
   // 마을 지도의 내 집/내 차 모습은 소유 자산으로 정해진다. 마을로 돌아올 때마다 새로 받는다(매장에서 샀을 수 있음).
-  const graduated = profile?.school.status === "graduated";
   useEffect(() => {
-    if (!graduated || view !== "hub") return;
+    if (!authed || view !== "hub") return;
     api
       .get<OwnedAsset[]>("/catalog/owned")
       .then(setOwned)
       .catch(() => {
         /* 못 받아오면 박스집·걷기로 보일 뿐 */
       });
-  }, [graduated, view]);
+  }, [authed, view]);
 
   // 체력(오른쪽 위 배터리·마을 지도): 화면을 옮길 때, 근무로 체력이 줄었을 때, 그리고 자연 회복을 보여주려고 1분마다 새로 받는다.
   useEffect(() => {
-    if (!graduated) return;
+    if (!authed) return;
     const load = () =>
       api
         .get<Vitals>("/town/vitals")
@@ -117,7 +116,7 @@ export default function App() {
       clearInterval(t);
       off();
     };
-  }, [graduated, view]);
+  }, [authed, view]);
 
   // 마을에서 이동할 때마다 서버가 체력/연료를 깎고 이동 방식(걷기/차/지친 걸음)을 정해준다.
   async function moveInTown(to: FacilityKey): Promise<MoveMode> {
@@ -194,7 +193,7 @@ export default function App() {
     if (
       profile?.isGuest &&
       !(await confirmDialog(
-        "비회원은 로그아웃하면 지금까지의 진행(학년·돈·자산)을 다시 찾을 수 없어요.\n먼저 사이드 메뉴의 '계정 저장하기'로 저장하는 걸 추천해요.",
+        "비회원은 로그아웃하면 지금까지의 진행(학력·돈·자산)을 다시 찾을 수 없어요.\n먼저 사이드 메뉴의 '계정 저장하기'로 저장하는 걸 추천해요.",
         { title: "정말 로그아웃할까요?", confirmText: "그래도 로그아웃" }
       ))
     ) {
@@ -238,9 +237,9 @@ export default function App() {
           세로 공간이 귀하므로, 필요할 때만 여는 사이드바로 옮기고 평소엔 여는 버튼만 남긴다. */}
       <RetentionBar
         refreshKey={view}
-        vitals={graduated ? vitals : null}
+        vitals={vitals}
         onGoTown={view === "hub" ? undefined : () => goTo("hub")}
-        onOpenChat={graduated ? openChatFromNotif : undefined}
+        onOpenChat={openChatFromNotif}
       />
 
       <button
@@ -258,7 +257,7 @@ export default function App() {
               ✕
             </button>
             <ProfileHeader profile={profile} onRefresh={loadAll} />
-            <SidebarAssets graduated={graduated} />
+            <SidebarAssets />
             <div className="sidebar-actions">
               <button
                 className="ghost"
@@ -285,7 +284,6 @@ export default function App() {
 
       {view === "hub" && (
         <TownHub
-          graduated={profile.school.status === "graduated"}
           avatarUrl={profile.avatarUrl}
           owned={owned}
           vitals={vitals}
@@ -302,6 +300,7 @@ export default function App() {
         <RoomList
           rooms={rooms}
           placements={placements}
+          education={profile.education}
           onPlacement={setPlacementOpen}
           onSelect={(roomId) => {
             const room = rooms.find((r) => r.id === roomId) ?? null;

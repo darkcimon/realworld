@@ -2,7 +2,7 @@
 import { db } from "../db.js";
 import { aiProvider } from "../ai/index.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
-import { isSTier } from "../middleware/socialGate.js";
+import { educationOf, isSTier } from "./education.js";
 import { buildChoices } from "../ai/choices.js";
 import type { ExamQuestion } from "../ai/AIProvider.js";
 import { drawWorkBatch } from "./workQuestions.js";
@@ -300,6 +300,8 @@ export function settleUnpaidWork(userId: number): {
   let hadRankBonus = false;
   let hadPayCut = false;
   let overtimeBatches = 0;
+  // 학력(학교 졸업장)에 따른 일급 배수 — 정산 시점의 최종 학력 기준. 직급 배수처럼 만점 보너스에도 곱한다.
+  const eduMult = educationOf(userId).payMultiplier;
   let perfectBatches = 0;
   for (const session of sessions) {
     const attempts = attemptsFor(session.id);
@@ -317,7 +319,7 @@ export function settleUnpaidWork(userId: number): {
       // 만점 보너스에는 직급 배수만 곱하고 감봉은 적용하지 않는다.
       const cutMult = payCutMultiplier(userId, session.job_id);
       if (cutMult !== 1) hadPayCut = true;
-      pay = Math.round((p.base + p.overtime) * rankMult * cutMult + p.bonus * rankMult);
+      pay = Math.round(((p.base + p.overtime) * rankMult * cutMult + p.bonus * rankMult) * eduMult);
       applyLedgerEntry(userId, "일급", pay, session.id);
     }
     db.prepare("UPDATE work_sessions SET paid = 1 WHERE id = ?").run(session.id);
@@ -325,7 +327,7 @@ export function settleUnpaidWork(userId: number): {
     settledSessions += 1;
   }
   if (totalPaid > 0) {
-    notify(userId, "salary", `💰 월급 ${totalPaid.toLocaleString()}원이 지급되었어요! (${settledSessions}건 정산${overtimeBatches > 0 ? `, 잔업 ${overtimeBatches}회 ×${WORK_PAY.overtimeMultiplier}` : ""}${perfectBatches > 0 ? `, 만점 보너스 ${perfectBatches}회` : ""}${hadRankBonus ? ", 직급 배수 반영" : ""}${hadPayCut ? ", 감봉 반영" : ""})`);
+    notify(userId, "salary", `💰 월급 ${totalPaid.toLocaleString()}원이 지급되었어요! (${settledSessions}건 정산${overtimeBatches > 0 ? `, 잔업 ${overtimeBatches}회 ×${WORK_PAY.overtimeMultiplier}` : ""}${perfectBatches > 0 ? `, 만점 보너스 ${perfectBatches}회` : ""}${hadRankBonus ? ", 직급 배수 반영" : ""}${eduMult !== 1 ? `, 학력 ×${eduMult}` : ""}${hadPayCut ? ", 감봉 반영" : ""})`);
   }
   return { settledSessions, totalPaid };
 }

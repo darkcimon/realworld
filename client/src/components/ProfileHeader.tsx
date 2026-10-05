@@ -7,7 +7,7 @@ import { CharacterStudio } from "../character/CharacterStudio";
 import { groupSameItems, itemDisplayName } from "../itemName";
 import { assetIcon } from "../assetIcons";
 
-// README 4.4: 상단 프로필(아바타 클릭 시 기본 아바타/사진으로 교체, 현재 학년 표시) / 4.5: 졸업 등급 표시
+// README 4.4: 상단 프로필(아바타 클릭 시 기본 아바타/사진으로 교체, 학력·학교 진도 표시) / 4.5: 졸업 등급 표시
 export function ProfileHeader({
   profile,
   onRefresh,
@@ -47,7 +47,11 @@ export function ProfileHeader({
             💾 계정 저장하기
           </button>
         )}
-        <div className="profile-grade">{profile.school.label}</div>
+        <div className="profile-grade">
+          🎓 {profile.education.label}
+          {profile.education.payMultiplier !== 1 && ` · 일급 ×${profile.education.payMultiplier}`}
+        </div>
+        {profile.school.status !== "graduated" && <div className="muted">학교: {profile.school.label}</div>}
         <div className="profile-tiers">
           {profile.graduations.map((g) => (
             <span key={g.school_level} className={`badge tier-${g.tier}`}>

@@ -2,7 +2,6 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
-import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { applyLedgerEntry, InsufficientBalanceError } from "../wallet/ledger.js";
 import {
   checkSocialContent,
@@ -14,7 +13,6 @@ import {
 
 export const mannerRouter = Router();
 mannerRouter.use(requireAuth);
-mannerRouter.use(requireGraduatedHighSchool);
 mannerRouter.use(requireNotJailed);
 
 mannerRouter.get("/me", (req, res) => {

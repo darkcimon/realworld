@@ -2,12 +2,10 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
-import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { endMartShift, recordMartTransaction, skipTimedOutCustomer, startMartShift } from "../social/mart.js";
 
 export const albaRouter = Router();
 albaRouter.use(requireAuth);
-albaRouter.use(requireGraduatedHighSchool);
 albaRouter.use(requireNotJailed);
 
 albaRouter.post("/mart/shift/start", (req, res) => {

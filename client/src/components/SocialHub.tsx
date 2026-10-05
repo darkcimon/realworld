@@ -41,7 +41,7 @@ export interface FacilityView {
   catalogOwnedOnly?: boolean; // 내 집: 매장 없이 소유 자산만
 }
 
-// README 6~11장(사회 생활/로또/자산/소셜): 고3 졸업 후 열리는 사회 콘텐츠를 시설 단위로 보여준다.
+// README 6~11장(사회 생활/로또/자산/소셜): 처음부터 열려 있는 사회 콘텐츠를 시설 단위로 보여준다.
 export function SocialHub({
   onProfileChange,
   facility,

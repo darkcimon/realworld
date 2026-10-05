@@ -72,13 +72,6 @@ interface OwnedCar {
 
 export type MoveMode = "walk" | "drive" | "tired";
 
-function isGraduated(userId: number): boolean {
-  const row = db.prepare("SELECT status FROM student_profile WHERE user_id = ?").get(userId) as
-    | { status: string }
-    | undefined;
-  return row?.status === "graduated";
-}
-
 /** 소유한 차 전부(비싼 순). 같은 차종을 여러 대 가질 수 있고, 차마다 연료가 따로 있다. */
 function ownedCars(userId: number): OwnedCar[] {
   return db
@@ -181,7 +174,7 @@ function view(row: VitalsRow, userId: number, now = Date.now()) {
         : null,
     fuel: row.fuel, // 남은 연료(칸)
     fuelCapacity: car?.tank ?? 0, // 지금 차의 연료통(칸), 차가 없으면 0
-    location: row.location ?? "school", // 마을에서 마지막으로 도착한 시설
+    location: row.location ?? "home", // 마을에서 마지막으로 도착한 시설
     car: car ? { ownedItemId: car.ownedId, name: car.name, fullTankPrice: fullTankPrice(car.name) } : null,
     // 운행할 차를 고를 수 있게 소유한 차 전부와 각자의 연료(안 타 본 차는 연료통 가득으로 보인다)
     cars: ownedCars(userId).map((c) => {
@@ -219,7 +212,6 @@ export function getVitals(userId: number): Vitals {
  * 마을에서 지금 있는 시설 → to로 이동한다. 거리(칸)는 서버가 지도로 잰다(social/townMap.ts).
  * 차가 있고 연료가 그 거리만큼 남았으면 연료를 칸 수만큼 써서 차로, 아니면 체력을 써서 걷는다
  * (연료가 모자라면 차를 두고 걷는다 — 연료는 그대로). 체력이 모자라면 "지친 걸음"(아주 느림).
- * 졸업 전(학교만 갈 수 있을 때)에는 아무것도 소모하지 않는다.
  */
 export function move(
   userId: number,
@@ -227,11 +219,11 @@ export function move(
 ): { mode: MoveMode; cells: number; homeRefuel: number; vitals: Vitals } {
   if (!isFacility(to)) throw { status: 400, message: "없는 장소예요." };
   const row = load(userId);
-  const cells = cellsBetween(row.location ?? "school", to);
+  const cells = cellsBetween(row.location ?? "home", to);
   row.location = to;
   let mode: MoveMode = "walk";
   const car = carAndTank(userId, row);
-  if (isGraduated(userId) && cells > 0) {
+  if (cells > 0) {
     if (car && row.fuel >= cells) {
       row.fuel -= cells;
       mode = "drive";
@@ -243,7 +235,7 @@ export function move(
       mode = "tired";
     }
   } else if (car && row.fuel > 0) {
-    mode = "drive"; // 제자리(0칸)거나 졸업 전: 소모 없이 지금 모습 그대로
+    mode = "drive"; // 제자리(0칸): 소모 없이 지금 모습 그대로
   }
   // 내 집에 도착하면(다른 곳에서 와야 함) 주차장에서 연료통의 일부를 채운다 — 쿨타임마다 한 번.
   let homeRefuel = 0;
@@ -252,7 +244,6 @@ export function move(
     to === "home" &&
     cells > 0 &&
     car &&
-    isGraduated(userId) &&
     (!row.home_refuel_at || now - row.home_refuel_at >= VITALS.homeRefuelCooldownHours * HOUR)
   ) {
     const add = Math.min(car.tank - row.fuel, Math.ceil(car.tank * homeRefuelRatioOf(row.home ?? null)));
@@ -338,7 +329,6 @@ interface CookSession {
 const cookSessions = new Map<string, CookSession>();
 
 function assertCanCook(userId: number, row: VitalsRow, now: number): void {
-  if (!isGraduated(userId)) throw { status: 403, message: "졸업 후 내 집에서 요리할 수 있어요." };
   if (row.cooked_at && now - row.cooked_at < COOKING.cooldownMinutes * 60_000) {
     throw { status: 409, message: "방금 요리했어요. 조금 있다가 다시 만들어요." };
   }

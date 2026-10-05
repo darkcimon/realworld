@@ -397,7 +397,7 @@ schoolRouter.post("/rooms/:roomId/promote", (req, res) => {
 
     const levelIdx = LEVEL_ORDER.indexOf(room.school_level);
     if (levelIdx === LEVEL_ORDER.length - 1) {
-      // 고등학교 졸업 — 학교 전 과정 완료 (Phase 2에서 사회 콘텐츠로 이어짐)
+      // 고등학교 졸업 — 학교 전 과정 완료(최종 학력 고졸)
       db.prepare(
         "UPDATE student_profile SET status = 'graduated' WHERE user_id = ?"
       ).run(req.userId);
@@ -439,7 +439,7 @@ schoolRouter.get("/graduation/:level", (req, res) => {
 // ── 배치고사 ─────────────────────────────────────────────────────
 // 학년별 승급 시험을 하나하나 거치지 않고 학교급(초/중/고) 단위로 한 번에 졸업할 수 있는 지름길.
 // 10문제 중 8문제 이상 맞히면 해당 학교급 졸업장(성적 등급 포함)을 바로 받고 다음 학교급 1학년으로
-// 올라가며(고등학교면 사회 진입), 고정 보상 300만원을 받는다. 지금 다니는 학교급만 응시할 수 있다.
+// 올라가며(고등학교면 학교 과정 완료 — 최종 학력 고졸), 고정 보상 300만원을 받는다. 지금 다니는 학교급만 응시할 수 있다.
 const LEVEL_LABEL: Record<string, string> = {
   elementary: "초등학교",
   middle: "중학교",

@@ -819,6 +819,11 @@ if (!userColumns.some((c) => c.name === "last_seen_at")) {
   db.exec("ALTER TABLE users ADD COLUMN last_seen_at TEXT");
   db.exec("UPDATE users SET last_seen_at = datetime('now')");
 }
+// 만 18세 이상 이용 확인 시각(성인 대상 게임 — 연애·로또 콘텐츠). 새 계정은 시작할 때 확인해야 만들어진다.
+// 이 컬럼이 생기기 전에 만든 계정은 NULL로 남는다.
+if (!userColumns.some((c) => c.name === "adult_confirmed_at")) {
+  db.exec("ALTER TABLE users ADD COLUMN adult_confirmed_at TEXT");
+}
 
 // 졸업 기록은 학교급당 1건(재응시하면 최근 결과로 갱신). 예전에는 졸업할 때마다 행이 쌓여 프로필에
 // "초졸S 초졸A …"처럼 중복 표시됐으므로 학교급별 가장 최근 행만 남기고 유니크 인덱스를 건다.

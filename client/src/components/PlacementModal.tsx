@@ -133,7 +133,7 @@ export function PlacementModal({
                   🎓 합격! {info.label} 졸업장(등급 {result.tier})을 받았어요.
                   <br />
                   💰 보상 {won(result.reward ?? info.reward)} 지급 완료
-                  {result.nextLevel ? "" : " — 이제 사회로 나갈 수 있어요!"}
+                  {result.nextLevel ? "" : " — 최종 학력 고졸! 이제 직장 일급이 ×1.5로 올라요."}
                 </p>
                 <button
                   onClick={() => {

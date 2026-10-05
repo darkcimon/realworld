@@ -121,20 +121,12 @@ function questProgress(userId: number, key: QuestKey, from: string, to: string):
   }
 }
 
-// 학생은 지금 다니는 학교급, 졸업생은 고등학교 졸업일로부터 NEWBIE_DAYS일(KST, 졸업 당일 포함)
-// 동안은 신입(newbie), 그 뒤로는 사회인(adult) 퀘스트를 받는다.
+// 가입일로부터 NEWBIE_DAYS일(KST, 가입 당일 포함) 동안은 신입(newbie), 그 뒤로는 사회인(adult) 퀘스트를 받는다.
 function questPhase(userId: number, today: string): QuestPhase {
-  const profile = db
-    .prepare("SELECT school_level, status FROM student_profile WHERE user_id = ?")
-    .get(userId) as { school_level: string; status: string } | undefined;
-  if (!profile) return "elementary";
-  if (profile.status !== "graduated") return profile.school_level as QuestPhase;
-  const grad = db
-    .prepare(
-      "SELECT date(MAX(graduated_at), '+9 hours') AS d FROM graduations WHERE user_id = ? AND school_level = 'high'"
-    )
-    .get(userId) as { d: string | null };
-  return grad.d && grad.d > addDays(today, -NEWBIE_DAYS) ? "newbie" : "adult";
+  const user = db
+    .prepare("SELECT date(created_at, '+9 hours') AS d FROM users WHERE id = ?")
+    .get(userId) as { d: string | null } | undefined;
+  return user?.d && user.d > addDays(today, -NEWBIE_DAYS) ? "newbie" : "adult";
 }
 
 /** 문자열 → 0~1 사이 고정 난수(같은 입력이면 항상 같은 값). */

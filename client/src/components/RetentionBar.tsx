@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { AppNotification, DailyStatus, NotificationsResp, Vitals } from "../types";
+import { RankingModal } from "./RankingModal";
 
-// 리텐션 루프 UI: 우상단의 📅(출석/일일 퀘스트)와 🔔(알림) 버튼.
+// 리텐션 루프 UI: 우상단의 🏆(자산 랭킹·자랑 카드), 📅(출석/일일 퀘스트)와 🔔(알림) 버튼.
 // - 그날 첫 접속에 출석하지 않았다면 출석 패널을 자동으로 띄워 "오늘 할 일"을 바로 보여준다.
 // - 뱃지는 화면을 이동할 때(refreshKey)와 30초마다 갱신한다(웹 푸시 대신 앱 안 알림).
 const won = (n: number) => `${n.toLocaleString()}원`;
@@ -26,7 +27,7 @@ export function RetentionBar({
 }: {
   refreshKey: string;
   onBalanceChange?: () => void;
-  vitals?: Vitals | null; // 졸업 후에만 넘어온다 — 달력 옆에 체력 배터리로 표시
+  vitals?: Vitals | null; // 달력 옆에 체력 배터리로 표시
   onGoTown?: () => void; // 마을 지도가 아닌 화면에서만 넘어온다 — 스크롤 위치와 상관없이 바로 마을로
   onOpenChat?: (targetId: number | null) => void; // 메시지 알림 클릭: 상대 id면 그 대화, null이면 대화 목록
 }) {
@@ -34,6 +35,7 @@ export function RetentionBar({
   const [notif, setNotif] = useState<NotificationsResp | null>(null);
   const [dailyOpen, setDailyOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [rankingOpen, setRankingOpen] = useState(false);
   // 알림창을 열 때 "읽음 처리"를 하더라도 방금 본 새 알림은 강조 표시를 유지하기 위한 스냅샷
   const [freshIds, setFreshIds] = useState<Set<number>>(new Set());
   const [msg, setMsg] = useState<string | null>(null);
@@ -153,11 +155,16 @@ export function RetentionBar({
           📅
           {!!daily?.pendingCount && <span className="retention-badge">{daily.pendingCount}</span>}
         </button>
+        <button className="retention-btn" onClick={() => setRankingOpen(true)} aria-label="자산 랭킹" title="자산 랭킹 · 자랑 카드">
+          🏆
+        </button>
         <button className="retention-btn" onClick={openNotif} aria-label="알림" title="알림">
           🔔
           {!!notif?.unread && <span className="retention-badge">{notif.unread}</span>}
         </button>
       </div>
+
+      {rankingOpen && <RankingModal onClose={() => setRankingOpen(false)} />}
 
       {notifOpen && (
         <div className="notif-panel">

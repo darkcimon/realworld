@@ -1,8 +1,7 @@
-// 금융 건물: /api/finance — 예금, 주식, 채권. 다른 사회 시설처럼 고3 졸업/비수감 게이트를 건다.
+// 금융 건물: /api/finance — 예금, 주식, 채권. 다른 사회 시설처럼 수감 중에는 막는다.
 import { Router, type Response } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
-import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
 import {
   buyBond,
@@ -17,7 +16,6 @@ import {
 
 export const financeRouter = Router();
 financeRouter.use(requireAuth);
-financeRouter.use(requireGraduatedHighSchool);
 financeRouter.use(requireNotJailed);
 
 function handle(res: Response, fn: () => unknown) {

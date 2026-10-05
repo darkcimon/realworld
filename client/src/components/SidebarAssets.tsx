@@ -9,7 +9,7 @@ import type { AssetCategory } from "./AssetViewer";
 
 // 사이드바의 내 현금 + 소유 자산(이모지). 이모지를 누르면 그 자산을 3D로 본다.
 // 사이드바는 열 때마다 새로 그려지므로 열 때마다 최신 값을 받아온다.
-export function SidebarAssets({ graduated }: { graduated: boolean }) {
+export function SidebarAssets() {
   const [balance, setBalance] = useState<number | null>(null);
   const [owned, setOwned] = useState<OwnedItem[] | null>(null);
   const [view, setView] = useState<{ category: AssetCategory; name: string } | null>(null);
@@ -21,18 +21,15 @@ export function SidebarAssets({ graduated }: { graduated: boolean }) {
       .get<{ balance: number }>("/wallet/me")
       .then((w) => setBalance(w.balance))
       .catch(() => {});
-    // 자산은 졸업 후에만 살 수 있다(학생은 자산 API 자체가 막혀 있음).
-    if (graduated) {
-      api
-        .get<OwnedItem[]>("/catalog/owned")
-        .then(setOwned)
-        .catch(() => setOwned([]));
-      api
-        .get<Vitals>("/town/vitals")
-        .then(setVitals)
-        .catch(() => {});
-    }
-  }, [graduated]);
+    api
+      .get<OwnedItem[]>("/catalog/owned")
+      .then(setOwned)
+      .catch(() => setOwned([]));
+    api
+      .get<Vitals>("/town/vitals")
+      .then(setVitals)
+      .catch(() => {});
+  }, []);
 
   async function chooseCar(ownedItemId: number) {
     setCarError(null);
@@ -63,56 +60,52 @@ export function SidebarAssets({ graduated }: { graduated: boolean }) {
         <span>💰 현금</span>
         <b>{balance === null ? "…" : `${balance.toLocaleString()}원`}</b>
       </div>
-      {graduated && (
+      <div className="sidebar-assets-title">내 자산</div>
+      {owned && tiles.length === 0 && <p className="muted sidebar-assets-empty">아직 가진 자산이 없어요.</p>}
+      <div className="sidebar-asset-grid">
+        {tiles.map(({ item, count }) => (
+          <button
+            key={`${item.category}|${item.name}`}
+            type="button"
+            className={`sidebar-asset${item.category === "car" && vitals?.car?.name === item.name ? " driving" : ""}`}
+            title={`${itemDisplayName(item)} — 눌러서 3D로 보기`}
+            aria-label={`${itemDisplayName(item)}${count > 1 ? ` ${count}개` : ""} 3D로 보기`}
+            onClick={() => setView({ category: item.category, name: item.name })}
+          >
+            <span className="sidebar-asset-icon">{assetIcon(item.category, item.name)}</span>
+            {count > 1 && <span className="sidebar-asset-count">×{count}</span>}
+          </button>
+        ))}
+      </div>
+
+      {vitals && vitals.cars.length > 0 && (
         <>
-          <div className="sidebar-assets-title">내 자산</div>
-          {owned && tiles.length === 0 && <p className="muted sidebar-assets-empty">아직 가진 자산이 없어요.</p>}
-          <div className="sidebar-asset-grid">
-            {tiles.map(({ item, count }) => (
+          <div className="sidebar-assets-title">🚗 운행할 차</div>
+          {carError && <p className="error sidebar-assets-empty">{carError}</p>}
+          <div className="sidebar-car-list">
+            {vitals.cars.map((c) => (
               <button
-                key={`${item.category}|${item.name}`}
+                key={c.ownedItemId}
                 type="button"
-                className={`sidebar-asset${item.category === "car" && vitals?.car?.name === item.name ? " driving" : ""}`}
-                title={`${itemDisplayName(item)} — 눌러서 3D로 보기`}
-                aria-label={`${itemDisplayName(item)}${count > 1 ? ` ${count}개` : ""} 3D로 보기`}
-                onClick={() => setView({ category: item.category, name: item.name })}
+                className={`sidebar-car${c.active ? " active" : ""}`}
+                disabled={c.active}
+                aria-pressed={c.active}
+                onClick={() => chooseCar(c.ownedItemId)}
               >
-                <span className="sidebar-asset-icon">{assetIcon(item.category, item.name)}</span>
-                {count > 1 && <span className="sidebar-asset-count">×{count}</span>}
+                <span className="sidebar-car-icon">{assetIcon("car", c.name)}</span>
+                <span className="sidebar-car-info">
+                  <b>{c.name}</b>
+                  <span className="sidebar-car-fuel">
+                    <span className="sidebar-car-fuel-bar">
+                      <span style={{ width: `${Math.round((c.fuel / c.tank) * 100)}%` }} />
+                    </span>
+                    ⛽ {c.fuel}/{c.tank}칸
+                  </span>
+                </span>
+                <span className="sidebar-car-state">{c.active ? "운행 중" : "타기"}</span>
               </button>
             ))}
           </div>
-
-          {vitals && vitals.cars.length > 0 && (
-            <>
-              <div className="sidebar-assets-title">🚗 운행할 차</div>
-              {carError && <p className="error sidebar-assets-empty">{carError}</p>}
-              <div className="sidebar-car-list">
-                {vitals.cars.map((c) => (
-                  <button
-                    key={c.ownedItemId}
-                    type="button"
-                    className={`sidebar-car${c.active ? " active" : ""}`}
-                    disabled={c.active}
-                    aria-pressed={c.active}
-                    onClick={() => chooseCar(c.ownedItemId)}
-                  >
-                    <span className="sidebar-car-icon">{assetIcon("car", c.name)}</span>
-                    <span className="sidebar-car-info">
-                      <b>{c.name}</b>
-                      <span className="sidebar-car-fuel">
-                        <span className="sidebar-car-fuel-bar">
-                          <span style={{ width: `${Math.round((c.fuel / c.tank) * 100)}%` }} />
-                        </span>
-                        ⛽ {c.fuel}/{c.tank}칸
-                      </span>
-                    </span>
-                    <span className="sidebar-car-state">{c.active ? "운행 중" : "타기"}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
         </>
       )}
       {view && (

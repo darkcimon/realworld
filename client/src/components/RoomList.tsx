@@ -1,7 +1,8 @@
 import { useState } from "react";
-import type { PlacementInfo, RoomSummary } from "../types";
+import type { Education, PlacementInfo, RoomSummary } from "../types";
 
 // README 4.1: 상위 탭(초/중/고) 안에 학년별 방. 잠긴 방은 입장 불가.
+// 학교는 사회인이 언제든 다니는 "학력 올리기" 콘텐츠라, 맨 위에 지금 학력과 졸업 혜택을 보여준다.
 const LEVELS: Array<{ key: RoomSummary["schoolLevel"]; label: string }> = [
   { key: "elementary", label: "초등학교" },
   { key: "middle", label: "중학교" },
@@ -11,10 +12,12 @@ const LEVELS: Array<{ key: RoomSummary["schoolLevel"]; label: string }> = [
 export function RoomList({
   rooms,
   placements,
+  education,
   onSelect,
   onPlacement,
 }: {
   rooms: RoomSummary[];
+  education: Education;
   placements: PlacementInfo[];
   onSelect: (roomId: number) => void;
   onPlacement: (info: PlacementInfo) => void;
@@ -26,6 +29,15 @@ export function RoomList({
 
   return (
     <div className="room-list">
+      <div className="placement-banner">
+        <div>
+          <strong>🎓 학력 올리기 — 지금 학력: {education.label}</strong>
+          <p className="muted">
+            졸업장을 딸수록 직장 일급이 올라요(초졸 ×1.1 · 중졸 ×1.25 · 고졸 ×1.5). 고등학교를 S등급으로 졸업하면
+            S등급 전용 직업도 열려요.
+          </p>
+        </div>
+      </div>
       <div className="tabs">
         {LEVELS.map((l) => (
           <button key={l.key} className={tab === l.key ? "active" : ""} onClick={() => setTab(l.key)}>

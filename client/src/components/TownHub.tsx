@@ -17,7 +17,7 @@ export type FacilityKey =
 
 // 마을 지도(홈 화면). README 2장의 "게임 내 주요 시설"을 작은 2.5D 마을로 보여주고, 건물을 누르면 내 캐릭터가
 // 도로를 따라 걸어가서(최단 경로) 문 앞에 도착한 뒤 그 시설로 들어간다.
-// 졸업 전에는 학교만 들어갈 수 있고, 잠긴 시설은 걸어가서 말풍선으로 이유를 알려준다.
+// 처음부터 모든 시설이 열려 있다(학교는 언제든 다니는 "학력 올리기"). 감옥만 잠겨 있고, 걸어가면 말풍선으로 이유를 알려준다.
 // three.js 대신 SVG로 그려서 홈 화면은 가볍게 바로 뜬다(3D 뷰어는 자산 상세에서만 lazy 로드).
 // "내 집"과 내 차는 3D 모델을 미리 렌더링한 이미지(public/sprites)로 그린다: 집이 없으면 박스집,
 // 집을 사면 가장 비싼 집으로 바뀌고, 차가 있으면 걷는 대신 가장 비싼 차를 타고 빠르게 이동한다.
@@ -54,7 +54,7 @@ interface FacilityDef {
 
 const FACILITIES: FacilityDef[] = [
   { key: "alba", icon: "🧢", label: "알바", col: 0, row: 0, w: 78, h: 62, wall: "#f4efe6", roof: "awning", roofColor: "#2f9e6b" },
-  { key: "school", icon: "🏫", label: "학교", col: 1, row: 0, w: 92, h: 84, wall: "#c9674f", roof: "gable", roofColor: "#6b3a2e" },
+  { key: "school", icon: "🏫", label: "학교(학력)", col: 1, row: 0, w: 92, h: 84, wall: "#c9674f", roof: "gable", roofColor: "#6b3a2e" },
   { key: "jobs", icon: "💼", label: "직장", col: 2, row: 0, w: 70, h: 112, wall: "#5d88b8", roof: "flat", roofColor: "#34506f" },
   { key: "mart", icon: "🛒", label: "마트", col: 0, row: 1, w: 90, h: 66, wall: "#e8f1e2", roof: "awning", roofColor: "#e0843c" },
   { key: "lottery", icon: "🎰", label: "로또", col: 1, row: 1, w: 66, h: 60, wall: "#ffd65a", roof: "dome", roofColor: "#e2542f" },
@@ -71,13 +71,13 @@ const FACILITIES: FacilityDef[] = [
 // ── 내 집 / 내 차 스프라이트 ────────────────────────────────────────────
 // 이미지 크기는 렌더링한 PNG의 비율을 지도 단위로 옮긴 것이다(h 기준으로 w를 맞춤).
 type Sprite = { src: string; w: number; h: number };
-const HOME_SPRITES: Record<string, Sprite> = {
+export const HOME_SPRITES: Record<string, Sprite> = {
   box: { src: "/sprites/home-box.png", w: 64, h: 44 },
   원룸: { src: "/sprites/home-oneroom.png", w: 78, h: 75 },
   "84㎡ 아파트": { src: "/sprites/home-apartment-84.png", w: 104, h: 90 },
   펜트하우스: { src: "/sprites/home-penthouse.png", w: 50, h: 100 },
 };
-const CAR_SPRITES: Record<string, Sprite> = {
+export const CAR_SPRITES: Record<string, Sprite> = {
   경차: { src: "/sprites/car-compact.png", w: 30, h: 19.5 },
   "준중형 세단": { src: "/sprites/car-sedan.png", w: 40, h: 15 },
   스포츠카: { src: "/sprites/car-sports.png", w: 42, h: 15 },
@@ -168,12 +168,12 @@ function shortestPath(g: Graph, from: string, to: string): string[] {
   return path;
 }
 
-function isEnabled(key: FacilityKey, graduated: boolean) {
-  return key === "school" ? true : key === "jail" ? false : graduated;
+function isEnabled(key: FacilityKey) {
+  return key !== "jail";
 }
 
-function lockedMessage(key: FacilityKey) {
-  return key === "jail" ? "여긴 규칙을 어기면 끌려오는 곳이에요 😰" : "고3을 졸업하면 들어갈 수 있어요 🔒";
+function lockedMessage() {
+  return "여긴 규칙을 어기면 끌려오는 곳이에요 😰";
 }
 
 function readLastSpot(): string | null {
@@ -188,20 +188,18 @@ function saveLastSpot(id: string) {
   try {
     sessionStorage.setItem(LAST_SPOT_KEY, id);
   } catch {
-    /* 저장 못 해도 다음엔 학교 앞에서 시작할 뿐 */
+    /* 저장 못 해도 다음엔 집 앞에서 시작할 뿐 */
   }
 }
 
 // ── 컴포넌트 ────────────────────────────────────────────────────────
 export function TownHub({
-  graduated,
   avatarUrl,
   owned = [],
   vitals,
   onMove,
   onSelect,
 }: {
-  graduated: boolean;
   avatarUrl?: string | null;
   owned?: OwnedAsset[];
   vitals?: Vitals | null;
@@ -221,7 +219,7 @@ export function TownHub({
   const riding = !!carSprite && mode === "drive";
   const startId = useMemo(() => {
     const saved = readLastSpot();
-    return saved && graph.nodes.has(saved) ? saved : attachId("school");
+    return saved && graph.nodes.has(saved) ? saved : attachId("home");
   }, [graph]);
 
   const [pos, setPos] = useState<Pt>(() => graph.nodes.get(startId)!);
@@ -254,8 +252,8 @@ export function TownHub({
       setWalking(false);
       setTarget(null);
       saveLastSpot(attachId(key));
-      if (!isEnabled(key, graduated)) {
-        setBubble(lockedMessage(key));
+      if (!isEnabled(key)) {
+        setBubble(lockedMessage());
         // 잠긴 건물 앞에서는 도로로 한 발 물러난다(다음 이동의 출발점).
         const back = graph.nodes.get(attachId(key))!;
         timers.current.push(window.setTimeout(() => setPos(back), 350));
@@ -266,7 +264,7 @@ export function TownHub({
       setEntering(true);
       timers.current.push(window.setTimeout(() => onSelect(key), reducedMotion ? 0 : 320));
     },
-    [graduated, graph, onSelect, reducedMotion]
+    [graph, onSelect, reducedMotion]
   );
 
   const startWalk = useCallback(
@@ -391,13 +389,11 @@ export function TownHub({
   return (
     <div className="town-hub">
       <p className="town-hub-intro">
-        {graduated
-          ? carSprite
-            ? "가고 싶은 건물을 누르면 차를 타고 빠르게 가요. 연료는 마트에서 채워요."
-            : "가고 싶은 건물을 누르면 걸어가요. 걸으면 체력이 줄어요 — 마트에서 먹거나 집에서 쉬면 회복돼요."
-          : "가고 싶은 건물을 누르면 걸어가요. 지금은 학교만 열려 있고, 고3을 졸업하면 다른 시설도 열려요."}
+        {carSprite
+          ? "가고 싶은 건물을 누르면 차를 타고 빠르게 가요. 연료는 마트에서 채워요."
+          : "가고 싶은 건물을 누르면 걸어가요. 걸으면 체력이 줄어요 — 마트에서 먹거나 집에서 쉬면 회복돼요."}
       </p>
-      {graduated && vitals && <VitalsBar vitals={vitals} />}
+      {vitals && <VitalsBar vitals={vitals} />}
       <div className="town-map-wrap">
         <svg className="town-map" viewBox={`0 0 ${W} ${H}`} role="group" aria-label="마을 지도">
           <defs>
@@ -473,7 +469,7 @@ export function TownHub({
               key={f.key}
               def={f}
               sprite={f.key === "home" ? homeSprite : undefined}
-              enabled={isEnabled(f.key, graduated)}
+              enabled={isEnabled(f.key)}
               targeted={target === f.key}
               onActivate={() => go(f.key)}
               onKey={(e) => onKey(e, f.key)}

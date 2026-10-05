@@ -33,12 +33,22 @@ function currentGuestUserId(req: import("express").Request): number | null {
   }
 }
 
+// 성인(만 18세 이상) 대상 게임이라 새 계정을 만들 때는 이용 연령 확인을 받는다.
+function adultConfirmed(req: import("express").Request, res: import("express").Response): boolean {
+  if (req.body?.adultConfirmed === true) return true;
+  res.status(400).json({ error: "만 18세 이상만 이용할 수 있어요. 연령 확인에 체크해 주세요." });
+  return false;
+}
+
 authRouter.post("/guest", (req, res) => {
+  if (!adultConfirmed(req, res)) return;
   const nickname = String(req.body?.nickname ?? "").trim() || `게스트${Date.now() % 10000}`;
   // 최초 게임 시작 시 고른 기본 아바타 또는 잘라낸 사진(데이터 URL)을 그대로 avatar_url에 저장한다.
   const avatarUrl = req.body?.avatarUrl ? String(req.body.avatarUrl) : null;
   const result = db
-    .prepare("INSERT INTO users (nickname, avatar_url, is_guest, last_seen_at) VALUES (?, ?, 1, datetime('now'))")
+    .prepare(
+      "INSERT INTO users (nickname, avatar_url, is_guest, last_seen_at, adult_confirmed_at) VALUES (?, ?, 1, datetime('now'), datetime('now'))"
+    )
     .run(nickname, avatarUrl);
   const userId = Number(result.lastInsertRowid);
   db.prepare("INSERT INTO student_profile (user_id) VALUES (?)").run(userId);
@@ -73,9 +83,11 @@ authRouter.post("/register", (req, res) => {
     return;
   }
 
+  // 비회원 승격은 게스트로 시작할 때 이미 연령 확인을 받았다. 새로 가입할 때만 확인한다.
+  if (!adultConfirmed(req, res)) return;
   const result = db
     .prepare(
-      "INSERT INTO users (email, password_hash, nickname, avatar_url, is_guest) VALUES (?, ?, ?, ?, 0)"
+      "INSERT INTO users (email, password_hash, nickname, avatar_url, is_guest, adult_confirmed_at) VALUES (?, ?, ?, ?, 0, datetime('now'))"
     )
     .run(email, passwordHash, nickname ?? email, avatarUrl ? String(avatarUrl) : null);
   const userId = Number(result.lastInsertRowid);

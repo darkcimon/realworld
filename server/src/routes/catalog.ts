@@ -1,7 +1,6 @@
 // README 8~10장: 자동차/아파트/명품샵. /api/catalog, /api/owned-items, /api/luxury 세 라우터를 함께 관리한다.
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
-import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
 import {
   getNetWorth,
@@ -17,7 +16,6 @@ import {
 
 function guard(router: Router) {
   router.use(requireAuth);
-  router.use(requireGraduatedHighSchool);
 }
 
 export const catalogRouter = Router();

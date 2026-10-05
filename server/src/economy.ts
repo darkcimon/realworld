@@ -16,11 +16,11 @@ export type QuestKey =
   | "lottery_buy"
   | "shop_food";
 
-// 퀘스트 단계는 유저 상태로 정해진다(social/daily.ts의 questPhase).
-// - elementary/middle/high: 졸업 전 학생(학교급이 오를수록 목표·보상이 커진다)
-// - newbie: 고등학교 졸업 후 NEWBIE_DAYS일 동안 — 사회에서 무엇부터 할지 안내하는 입문 퀘스트
+// 퀘스트 단계는 유저 상태로 정해진다(social/daily.ts의 questPhase). 학교는 시작 관문이 아니라
+// 언제든 다니는 "학력 올리기" 콘텐츠라, 처음부터 모두 사회인이다.
+// - newbie: 가입 후 NEWBIE_DAYS일 동안 — 첫 월급·첫 인연·첫 학력까지 무엇부터 할지 안내하는 입문 퀘스트
 // - adult: 그 이후의 사회인
-export type QuestPhase = "elementary" | "middle" | "high" | "newbie" | "adult";
+export type QuestPhase = "newbie" | "adult";
 
 export const NEWBIE_DAYS = 3;
 
@@ -34,21 +34,10 @@ export const QUESTS: {
   phase: QuestPhase;
   once?: boolean;
 }[] = [
-  { key: "lesson_ask", label: "AI 선생님께 질문하기", goal: 1, reward: 100_000, phase: "elementary" },
-  { key: "group_chat", label: "단체 수업방에서 대화하기", goal: 1, reward: 100_000, phase: "elementary" },
-  { key: "exam_try", label: "시험(승급/배치고사) 1회 끝까지 응시하기", goal: 1, reward: 200_000, phase: "elementary" },
-
-  { key: "lesson_ask", label: "AI 선생님께 질문 3번 하기", goal: 3, reward: 150_000, phase: "middle" },
-  { key: "group_chat", label: "단체 수업방에서 대화하기", goal: 1, reward: 150_000, phase: "middle" },
-  { key: "exam_try", label: "시험(승급/배치고사) 1회 끝까지 응시하기", goal: 1, reward: 300_000, phase: "middle" },
-
-  { key: "lesson_ask", label: "AI 선생님께 질문 5번 하기", goal: 5, reward: 200_000, phase: "high" },
-  { key: "group_chat", label: "단체 수업방에서 대화하기", goal: 1, reward: 200_000, phase: "high" },
-  { key: "exam_try", label: "시험(승급/배치고사) 1회 끝까지 응시하기", goal: 1, reward: 400_000, phase: "high" },
-
   { key: "get_job", label: "직업 구하기", goal: 1, reward: 500_000, phase: "newbie", once: true },
   { key: "first_alba", label: "마트 알바에서 계산 1건 해보기", goal: 1, reward: 200_000, phase: "newbie" },
   { key: "set_location", label: "내 위치 설정하고 인연 찾아보기", goal: 1, reward: 100_000, phase: "newbie" },
+  { key: "lesson_ask", label: "학교에서 AI 선생님께 질문해 보기(학력 올리기)", goal: 1, reward: 100_000, phase: "newbie" },
 
   { key: "work_batch", label: "직장 근무 5문제 풀기", goal: 5, reward: 500_000, phase: "adult" },
   { key: "alba_tx", label: "마트 계산 10건 처리하기", goal: 10, reward: 300_000, phase: "adult" },
@@ -59,24 +48,36 @@ export const QUESTS: {
 // 어떤 퀘스트가 열릴지는 유저·날짜·시간대로 정해져서 새로고침해도 바뀌지 않는다(social/daily.ts).
 export const TIMED_QUEST_HOURS = [9, 12, 15, 18];
 export const TIMED_QUESTS: { key: QuestKey; label: string; goal: number; reward: number; phases: QuestPhase[] }[] = [
-  // 학생
-  { key: "lesson_ask", label: "AI 선생님께 질문 2번 하기", goal: 2, reward: 80_000, phases: ["elementary", "middle", "high"] },
-  { key: "group_chat", label: "단체 수업방에서 한마디 하기", goal: 1, reward: 60_000, phases: ["elementary", "middle", "high"] },
-  { key: "exam_try", label: "시험 1회 끝까지 응시하기", goal: 1, reward: 120_000, phases: ["elementary", "middle", "high"] },
-  // 사회인(졸업 후)
   { key: "work_batch", label: "직장 근무 5문제 풀기", goal: 5, reward: 200_000, phases: ["newbie", "adult"] },
   { key: "alba_tx", label: "마트 계산 5건 처리하기", goal: 5, reward: 150_000, phases: ["newbie", "adult"] },
   { key: "lottery_buy", label: "로또 한 장 사기", goal: 1, reward: 50_000, phases: ["newbie", "adult"] },
   { key: "shop_food", label: "마트에서 음식 사 먹기", goal: 1, reward: 50_000, phases: ["newbie", "adult"] },
-  { key: "exam_try", label: "학교에 가서 시험 다시 보기", goal: 1, reward: 150_000, phases: ["newbie", "adult"] },
+  { key: "lesson_ask", label: "학교에서 AI 선생님께 질문 2번 하기", goal: 2, reward: 80_000, phases: ["newbie", "adult"] },
+  { key: "exam_try", label: "학교에서 시험 보고 학력 올리기", goal: 1, reward: 150_000, phases: ["newbie", "adult"] },
 ];
-// 학교급이 오를수록 학생 시간대 퀘스트 보상을 키운다.
 export const TIMED_QUEST_REWARD_SCALE: Record<QuestPhase, number> = {
-  elementary: 1,
-  middle: 1.5,
-  high: 2,
   newbie: 1,
   adult: 1,
+};
+
+// ── 학력(학교 졸업장) ───────────────────────────────────────────────────
+// 가장 높은 졸업 학교급이 최종 학력이다(social/education.ts). 학력은 직장 일급에 배수로 곱해진다
+// (직급 배수와 함께 적용). 고등학교 S등급 졸업이면 S등급 전용 직업도 열린다.
+export type EducationLevel = "none" | "elementary" | "middle" | "high";
+export const EDUCATION: Record<EducationLevel, { label: string; payMultiplier: number }> = {
+  none: { label: "학력 없음", payMultiplier: 1 },
+  elementary: { label: "초졸", payMultiplier: 1.1 },
+  middle: { label: "중졸", payMultiplier: 1.25 },
+  high: { label: "고졸", payMultiplier: 1.5 },
+};
+
+// ── 자산 랭킹 ───────────────────────────────────────────────────────
+// 순위는 refreshMinutes마다 다시 센다(social/ranking.ts). activeDays 안에 접속한 유저만 순위에 든다.
+export const RANKING = {
+  refreshMinutes: 10,
+  activeDays: 30,
+  topCount: 50,
+  nearbyKm: 50, // 내 주변 랭킹 반경(인연찾기 기본 매칭 반경과 같은 값)
 };
 
 // ── 마트 알바 스피드 보너스 ─────────────────────────────────────────────

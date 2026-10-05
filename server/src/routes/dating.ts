@@ -3,7 +3,6 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
-import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
 import {
   block,
@@ -24,7 +23,6 @@ import {
 
 function guard(router: Router) {
   router.use(requireAuth);
-  router.use(requireGraduatedHighSchool);
   router.use(requireNotJailed);
 }
 

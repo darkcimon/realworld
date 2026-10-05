@@ -1,13 +1,13 @@
-// README 4.4: 화면 상단 프로필(아바타, 현재 학년), 4.5: 졸업장/등급 표시, 11.1: 사진첩(Phase 3)
+// README 4.4: 화면 상단 프로필(아바타, 학력·학교 진도), 4.5: 졸업장/등급 표시, 11.1: 사진첩(Phase 3)
 import { Router } from "express";
 import { db } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
-import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { getActiveJail } from "../school/jail.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
 import { addPhoto, purchasePhotoAlbum } from "../social/photos.js";
 import { listDisplayedItems } from "../social/catalog.js";
+import { educationOf } from "../social/education.js";
 import { buyStyleItem, getCharacter, listStyleShop, listUnlocks, saveCharacter } from "../social/character.js";
 
 export const profileRouter = Router();
@@ -46,6 +46,7 @@ profileRouter.get("/", (req, res) => {
       status: profile.status,
       label: schoolLabel(profile),
     },
+    education: educationOf(user.id),
     graduations,
     // 다른 사람이 내 프로필을 열면 보이는 전시 물건 — 내 프로필 헤더에도 뱃지로 보여준다.
     displayedItems: listDisplayedItems(user.id),
@@ -54,17 +55,18 @@ profileRouter.get("/", (req, res) => {
   });
 });
 
-// 졸업생은 학년 대신 "고등학교 졸업"으로 보여준다. 배치고사로 졸업하면 grade가 1로 남고, 고3 승급 시험으로
-// 졸업해도 grade가 3으로 남아서 학년을 그대로 붙이면 "고등학교 1학년"처럼 재학생으로 보인다.
+// 학교 진도. 학교는 사회인이 다니는 "학력 올리기" 과정이라 "N학년 과정"으로 보여준다.
+// 졸업생은 "고등학교 졸업" — 배치고사로 졸업하면 grade가 1로 남고, 고3 승급 시험으로 졸업해도 grade가
+// 3으로 남아서 학년을 그대로 붙이면 아직 다니는 중처럼 보인다.
 function schoolLabel(profile: { school_level: string; grade: number; status: string }): string {
   return profile.status === "graduated"
     ? `${LEVEL_LABEL.high} 졸업` // 졸업(status)은 고등학교 졸업으로만 생긴다 — 재응시로 school_level이 바뀌어도 최종 학력 기준
-    : `${LEVEL_LABEL[profile.school_level]} ${profile.grade}학년`;
+    : `${LEVEL_LABEL[profile.school_level]} ${profile.grade}학년 과정`;
 }
 
 // 채팅(학교 단체 채팅/1:1 채팅) 메시지의 프로필 사진 아이콘을 눌렀을 때 조회하는 공개 프로필.
-// PersonPanel(11절, 300만원 열람권이 필요한 상세 프로필/소셜 콘텐츠)과 달리 비용이나 고3 졸업
-// 여부와 무관하게 누구나 볼 수 있는 정보(닉네임/사진/학년/졸업 등급)만 돌려준다.
+// PersonPanel(11절, 300만원 열람권이 필요한 상세 프로필/소셜 콘텐츠)과 달리 비용 없이
+// 누구나 볼 수 있는 정보(닉네임/사진/학력/졸업 등급)만 돌려준다.
 profileRouter.get("/public/:userId", (req, res) => {
   const userId = Number(req.params.userId);
   const user = db
@@ -95,6 +97,7 @@ profileRouter.get("/public/:userId", (req, res) => {
           label: schoolLabel(profile),
         }
       : null,
+    education: educationOf(userId),
     graduations,
   });
 });
@@ -107,17 +110,17 @@ profileRouter.put("/character", (req, res) => {
   }
 });
 
-// 꾸미기 창의 잠금 표시용(졸업 전에도 기본 캐릭터는 꾸밀 수 있어 게이트 없음)
+// 꾸미기 창의 잠금 표시용
 profileRouter.get("/character/unlocks", (req, res) => {
   res.json(listUnlocks(req.userId!));
 });
 
-// 스타일샵(마을 시설): 다른 매장처럼 고3 졸업/비수감 게이트를 건다.
-profileRouter.get("/style-shop", requireGraduatedHighSchool, requireNotJailed, (req, res) => {
+// 스타일샵(마을 시설): 다른 매장처럼 수감 중에는 막는다.
+profileRouter.get("/style-shop", requireNotJailed, (req, res) => {
   res.json(listStyleShop(req.userId!));
 });
 
-profileRouter.post("/style-shop/buy", requireGraduatedHighSchool, requireNotJailed, (req, res) => {
+profileRouter.post("/style-shop/buy", requireNotJailed, (req, res) => {
   try {
     res.json(buyStyleItem(req.userId!, String(req.body?.key ?? "")));
   } catch (e: any) {
@@ -137,10 +140,9 @@ profileRouter.patch("/", (req, res) => {
   res.json({ ok: true });
 });
 
-// README 11.1: 사진첩 — 사회 콘텐츠이므로 이 두 라우트에만 고3 졸업/비수감 게이트를 건다.
+// README 11.1: 사진첩 — 사회 콘텐츠이므로 이 두 라우트는 수감 중에 막는다.
 profileRouter.post(
   "/photos",
-  requireGraduatedHighSchool,
   requireNotJailed,
   (req, res) => {
     try {
@@ -158,7 +160,6 @@ profileRouter.post(
 
 profileRouter.post(
   "/photo-album/purchase",
-  requireGraduatedHighSchool,
   requireNotJailed,
   (req, res) => {
     try {

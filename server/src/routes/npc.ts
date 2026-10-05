@@ -2,7 +2,6 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
-import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { chooseOption, getManagerPanel } from "../social/npcManager.js";
 import { voiceGreeting, voiceLine } from "../social/npcVoice.js";
 import { chooseBossOption, getBossPanel } from "../social/npcBoss.js";
@@ -10,7 +9,6 @@ import { chatWithColleague, getColleagueMessages, getWorkplace } from "../social
 
 export const npcRouter = Router();
 npcRouter.use(requireAuth);
-npcRouter.use(requireGraduatedHighSchool);
 npcRouter.use(requireNotJailed);
 
 npcRouter.get("/manager", async (req, res) => {

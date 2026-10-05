@@ -2,13 +2,11 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotJailed } from "../middleware/jailGate.js";
-import { requireGraduatedHighSchool } from "../middleware/socialGate.js";
 import { InsufficientBalanceError } from "../wallet/ledger.js";
 import { buyTicket, drawRound, getRound, getTodayStatus } from "../social/lottery.js";
 
 export const lotteryRouter = Router();
 lotteryRouter.use(requireAuth);
-lotteryRouter.use(requireGraduatedHighSchool);
 lotteryRouter.use(requireNotJailed);
 
 lotteryRouter.post("/buy", (req, res) => {

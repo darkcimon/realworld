@@ -683,3 +683,23 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .price-change { font-size: 12px; font-weight: 700; }
 .price-change.up { color: #e5484d; }
 .price-change.down { color: #4c8dff; }
+
+/* ── 자산 랭킹 / 자랑 카드 ── */
+.ranking-modal { width: min(480px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; }
+.ranking-me { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; margin-bottom: 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--panel-2); }
+.ranking-me button { flex-shrink: 0; }
+.ranking-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ranking-list li { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 10px; background: var(--panel-2); }
+.ranking-list li.me { outline: 2px solid var(--accent); }
+.ranking-rank { width: 32px; text-align: center; font-weight: 700; flex-shrink: 0; }
+.ranking-person { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 0; background: none; border: 0; color: var(--text); text-align: left; }
+.ranking-avatar { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; flex-shrink: 0; display: grid; place-items: center; background: var(--panel); font-size: 14px; }
+.ranking-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ranking-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ranking-showcase { flex-shrink: 0; font-size: 14px; }
+.ranking-band { flex-shrink: 0; font-weight: 700; font-size: 13px; }
+.ranking-note { font-size: 12px; margin-top: 10px; }
+.share-card-modal { width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; }
+.share-card-preview { width: 100%; border-radius: 12px; display: block; }
+.share-card-actions { display: flex; gap: 8px; margin-top: 12px; }
+.share-card-actions button { flex: 1; }
