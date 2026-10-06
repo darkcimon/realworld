@@ -141,8 +141,11 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
   padding: 20px 16px; display: flex; flex-direction: column; gap: 14px;
   overflow-y: auto;
 }
+.sidebar-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sidebar-settings { display: flex; gap: 6px; }
+.sidebar-settings button { width: 36px; height: 36px; padding: 0; font-size: 18px; line-height: 1; }
 .sidebar-close {
-  align-self: flex-end; width: 32px; height: 32px; padding: 0;
+  flex-shrink: 0; width: 32px; height: 32px; padding: 0;
   background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
 }
 .sidebar-actions { display: flex; gap: 8px; }
@@ -693,8 +696,8 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .ranking-list li { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 10px; background: var(--panel-2); }
 .ranking-list li.me { outline: 2px solid var(--accent); }
 .ranking-rank { width: 32px; text-align: center; font-weight: 700; flex-shrink: 0; }
-.ranking-person { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 0; background: none; border: 0; color: var(--text); text-align: left; }
-.ranking-avatar { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; flex-shrink: 0; display: grid; place-items: center; background: var(--panel); font-size: 14px; }
+.ranking-person { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 0; background: none; border: 0; color: var(--text); text-align: left; }
+.ranking-avatar { width: 96px; height: 96px; border-radius: 50%; overflow: hidden; flex-shrink: 0; display: grid; place-items: center; background: var(--panel); font-size: 40px; }
 .ranking-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .ranking-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ranking-showcase { flex-shrink: 0; font-size: 14px; }

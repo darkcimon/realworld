@@ -161,7 +161,7 @@ export function NearbyPanel({
           </button>
         </form>
         <button className="ghost" onClick={loadNearby}>
-          내 주변 {matchWord()} 찾기
+          {matchWord()} 찾기
         </button>
       </div>
 
@@ -271,7 +271,7 @@ export function NearbyPanel({
           <p className="muted">조건에 맞는 사람이 없어요. 필터를 줄여보세요.</p>
         )}
         {nearby.length === 0 && (
-          <p className="muted">위치를 설정하고 "내 주변 {matchWord()} 찾기"를 눌러보세요.</p>
+          <p className="muted">위치를 설정하고 "{matchWord()} 찾기"를 눌러보세요.</p>
         )}
       </ul>
     </div>

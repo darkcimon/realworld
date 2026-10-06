@@ -372,9 +372,62 @@ export default function App() {
       {sidebarOpen && (
         <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)}>
           <aside className="sidebar" onClick={(e) => e.stopPropagation()}>
-            <button className="sidebar-close" onClick={() => setSidebarOpen(false)}>
-              ✕
-            </button>
+            {/* 소리·진동·알림은 한 번 정하면 잘 안 바꿔서 아이콘만 맨 위에 둔다. */}
+            <div className="sidebar-top">
+              <div className="sidebar-settings">
+                <button
+                  className="ghost"
+                  aria-pressed={soundOn}
+                  aria-label={soundOn ? "소리 켜짐" : "소리 꺼짐"}
+                  title={soundOn ? "소리 켜짐" : "소리 꺼짐"}
+                  onClick={() => {
+                    setSoundOn(!soundOn);
+                    setSoundOnState(!soundOn);
+                  }}
+                >
+                  {soundOn ? "🔊" : "🔇"}
+                </button>
+                <button
+                  className="ghost"
+                  aria-pressed={hapticOn}
+                  aria-label={hapticOn ? "진동 켜짐" : "진동 꺼짐"}
+                  title={hapticOn ? "진동 켜짐" : "진동 꺼짐"}
+                  onClick={() => {
+                    setHapticOn(!hapticOn);
+                    setHapticOnState(!hapticOn);
+                  }}
+                >
+                  {hapticOn ? "📳" : "📴"}
+                </button>
+                {pushState !== "unsupported" && (
+                  <button
+                    className="ghost"
+                    aria-pressed={pushState === "on"}
+                    aria-label={
+                      pushState === "on"
+                        ? "휴대폰 알림 켜짐"
+                        : pushState === "denied"
+                          ? "알림이 차단됨"
+                          : "휴대폰 알림 받기"
+                    }
+                    title={
+                      pushState === "on"
+                        ? "휴대폰 알림 켜짐"
+                        : pushState === "denied"
+                          ? "알림이 차단됨 — 휴대폰 설정 > 앱 > 알림에서 허용해 주세요"
+                          : "휴대폰 알림 받기"
+                    }
+                    disabled={pushBusy || pushState === "denied"}
+                    onClick={togglePush}
+                  >
+                    {pushState === "on" ? "🔔" : "🔕"}
+                  </button>
+                )}
+              </div>
+              <button className="sidebar-close" onClick={() => setSidebarOpen(false)}>
+                ✕
+              </button>
+            </div>
             <ProfileHeader profile={profile} onRefresh={loadAll} />
             <SidebarAssets />
             <div className="sidebar-actions">
@@ -390,8 +443,6 @@ export default function App() {
               <button className="logout" onClick={logout}>
                 로그아웃
               </button>
-            </div>
-            <div className="sidebar-actions">
               <button
                 className="logout"
                 onClick={() => {
@@ -402,45 +453,6 @@ export default function App() {
                 계정 삭제
               </button>
             </div>
-            <div className="sidebar-actions">
-              <button
-                className="ghost"
-                aria-pressed={soundOn}
-                onClick={() => {
-                  setSoundOn(!soundOn);
-                  setSoundOnState(!soundOn);
-                }}
-              >
-                {soundOn ? "🔊 소리 켜짐" : "🔇 소리 꺼짐"}
-              </button>
-              <button
-                className="ghost"
-                aria-pressed={hapticOn}
-                onClick={() => {
-                  setHapticOn(!hapticOn);
-                  setHapticOnState(!hapticOn);
-                }}
-              >
-                {hapticOn ? "📳 진동 켜짐" : "📴 진동 꺼짐"}
-              </button>
-            </div>
-            {pushState !== "unsupported" && (
-              <div className="sidebar-actions">
-                <button
-                  className="ghost"
-                  aria-pressed={pushState === "on"}
-                  disabled={pushBusy || pushState === "denied"}
-                  onClick={togglePush}
-                  title={pushState === "denied" ? "휴대폰 설정 > 앱 > 알림에서 허용해 주세요" : undefined}
-                >
-                  {pushState === "on"
-                    ? "🔔 휴대폰 알림 켜짐"
-                    : pushState === "denied"
-                      ? "🔕 알림이 차단됨 (휴대폰 설정에서 허용)"
-                      : "🔕 휴대폰 알림 받기"}
-                </button>
-              </div>
-            )}
             {/* 시설로 바로 가는 지름길은 두지 않는다 — 마을로 돌아가 걸어서(차로) 이동한다. */}
             <div className="tabs sidebar-nav">
               <button className={view === "hub" ? "active" : ""} onClick={() => goTo("hub")}>
