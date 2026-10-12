@@ -384,6 +384,7 @@ export function PersonPanel({
                     >
                       <span>
                         {assetIcon(o.category, o.name)} {itemDisplayName(o)}
+                        {o.quantity > 1 && <span className="muted"> ×{o.quantity}</span>}
                       </span>
                       <span className="muted">
                         {CATEGORY_LABEL[o.category]} · 시세 {o.resale.price.toLocaleString()}원

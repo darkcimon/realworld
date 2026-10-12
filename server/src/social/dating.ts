@@ -1,6 +1,6 @@
 // README 11.2~11.5: 프로필 열람권, 채팅 개시 게이트, 선물/하트/맞하트, 차단.
 import { db } from "../db.js";
-import { applyLedgerEntry } from "../wallet/ledger.js";
+import { applyLedgerEntry, withTransaction } from "../wallet/ledger.js";
 import { getNetWorth, listDisplayedItems, wealthBand } from "./catalog.js";
 import { getCharacter } from "./character.js";
 import { checkSocialContent } from "./manner.js";
@@ -257,18 +257,29 @@ export function sendGift(
   assertNotBlocked(senderId, receiverId);
   const row = db
     .prepare(
-      "SELECT oi.id, oi.user_id, oi.catalog_item_id, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.id = ?"
+      "SELECT oi.id, oi.user_id, oi.catalog_item_id, oi.quantity, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.id = ?"
     )
     .get(ownedItemId) as any;
   if (!row || row.user_id !== senderId) throw { status: 404, message: "선물할 자산을 찾을 수 없습니다." };
-  // user_id 조건으로 옮겨야 같은 자산을 동시에 두 번 보내거나 판 뒤에 보내는 일을 막을 수 있다.
-  const moved = db
-    .prepare("UPDATE owned_items SET user_id = ?, displayed = 0, paid_price = NULL WHERE id = ? AND user_id = ?")
-    .run(receiverId, ownedItemId, senderId);
-  if (Number(moved.changes) !== 1) throw { status: 409, message: "이미 보냈거나 판 자산입니다." };
-  db.prepare(
-    "INSERT INTO gifts (sender_id, receiver_id, item_ref, amount) VALUES (?, ?, ?, ?)"
-  ).run(senderId, receiverId, row.catalog_item_id, row.price);
+  withTransaction(() => {
+    // user_id 조건으로 옮겨야 같은 자산을 동시에 두 번 보내거나 판 뒤에 보내는 일을 막을 수 있다.
+    // 여러 개가 묶인 명품 행이면 1개만 떼어 상대에게 새 행으로 준다.
+    if (row.quantity > 1) {
+      const split = db
+        .prepare("UPDATE owned_items SET quantity = quantity - 1 WHERE id = ? AND user_id = ? AND quantity = ?")
+        .run(ownedItemId, senderId, row.quantity);
+      if (Number(split.changes) !== 1) throw { status: 409, message: "이미 보냈거나 판 자산입니다." };
+      db.prepare("INSERT INTO owned_items (user_id, catalog_item_id) VALUES (?, ?)").run(receiverId, row.catalog_item_id);
+    } else {
+      const moved = db
+        .prepare("UPDATE owned_items SET user_id = ?, displayed = 0, paid_price = NULL WHERE id = ? AND user_id = ?")
+        .run(receiverId, ownedItemId, senderId);
+      if (Number(moved.changes) !== 1) throw { status: 409, message: "이미 보냈거나 판 자산입니다." };
+    }
+    db.prepare(
+      "INSERT INTO gifts (sender_id, receiver_id, item_ref, amount) VALUES (?, ?, ?, ?)"
+    ).run(senderId, receiverId, row.catalog_item_id, row.price);
+  });
   notify(receiverId, "gift", `🎁 ${nicknameOf(senderId)}님이 ${row.name}을(를) 선물했어요!`);
   return { name: row.name };
 }

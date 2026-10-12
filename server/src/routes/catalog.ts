@@ -8,8 +8,8 @@ import {
   listCatalog,
   listOwnedItems,
   purchaseItem,
+  sellLuxury,
   sellOwnedItem,
-  sellOwnedItems,
   setDisplayed,
   currentMarketSlot,
 } from "../social/catalog.js";
@@ -63,11 +63,10 @@ ownedItemsRouter.patch("/:id", (req, res) => {
   }
 });
 
-// 여러 개를 한꺼번에 판다: { ids: number[] }
-ownedItemsRouter.post("/sell-many", (req, res) => {
+// 같은 명품 여러 개를 한꺼번에 판다: { catalogItemId, quantity }
+ownedItemsRouter.post("/sell-luxury", (req, res) => {
   try {
-    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number) : [];
-    res.json(sellOwnedItems(req.userId!, ids));
+    res.json(sellLuxury(req.userId!, Number(req.body?.catalogItemId), Number(req.body?.quantity)));
   } catch (e: any) {
     res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
   }

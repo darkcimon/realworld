@@ -561,6 +561,38 @@ if (!ownedItemColumns.some((c) => c.name === "paid_price")) {
 if (!ownedItemColumns.some((c) => c.name === "fuel")) {
   db.exec("ALTER TABLE owned_items ADD COLUMN fuel INTEGER");
 }
+// 명품은 한 번 살 때 행 하나에 개수(quantity)만 적는다(자동차·집은 항상 1).
+// 예전에 개수만큼 쌓인 명품 행은 (유저, 상품, 낸 금액, 전시 여부)가 같으면 한 행으로 합친다.
+if (!ownedItemColumns.some((c) => c.name === "quantity")) {
+  db.exec("BEGIN");
+  try {
+    db.exec("ALTER TABLE owned_items ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1");
+    db.exec(`
+      CREATE TEMP TABLE luxury_merge AS
+        SELECT MIN(oi.id) AS keep_id, COUNT(*) AS n
+        FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id
+        WHERE ci.category = 'luxury'
+        GROUP BY oi.user_id, oi.catalog_item_id, oi.paid_price, oi.displayed
+        HAVING COUNT(*) > 1;
+      DELETE FROM owned_items
+        WHERE id IN (
+          SELECT oi.id FROM owned_items oi
+          JOIN catalog_items ci ON ci.id = oi.catalog_item_id
+          JOIN owned_items k ON k.id IN (SELECT keep_id FROM luxury_merge)
+            AND k.user_id = oi.user_id AND k.catalog_item_id = oi.catalog_item_id
+            AND k.paid_price IS oi.paid_price AND k.displayed = oi.displayed
+          WHERE ci.category = 'luxury' AND oi.id <> k.id
+        );
+      UPDATE owned_items SET quantity = (SELECT n FROM luxury_merge WHERE keep_id = owned_items.id)
+        WHERE id IN (SELECT keep_id FROM luxury_merge);
+      DROP TABLE luxury_merge;
+    `);
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
+}
 
 // 마트 알바: 손님 카트(정답 금액)를 서버가 발급/보관해 클라이언트가 정답을 조작하지 못하게 한다.
 const martShiftColumns = db.prepare("PRAGMA table_info(mart_shifts)").all() as { name: string }[];

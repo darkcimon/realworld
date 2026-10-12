@@ -28,7 +28,7 @@ export interface Profile {
     tier: string;
     graduated_at: string;
   }>;
-  displayedItems: { id: number; category: string; brand: string | null; name: string }[];
+  displayedItems: { id: number; quantity: number; category: string; brand: string | null; name: string }[];
   character: CharacterConfig | null; // 아직 안 만들었으면 null
   jail: { type: "jail" | "solitary"; endsAt: string } | null;
 }
@@ -223,6 +223,7 @@ export interface OwnedItem {
   name: string;
   price: number; // 정가
   paidPrice: number | null; // 실제로 낸 금액(선물 받은 건 null)
+  quantity: number; // 이 행의 개수. 명품은 한 번에 산 개수만큼, 자동차·집은 항상 1
   // 지금 되팔면 받는 금액. 자동차는 보유 기간만큼 감가(depreciation), 아파트·명품은 시세(market) 배수.
   resale: { price: number; ratio: number; kind: "depreciation" | "market" };
   // 건물(아파트)만: 지금 팔면 내는 양도소득세. 세율은 보유 건물 수(2개 20% … 5개 이상 50%), 이익이 없으면 0.
@@ -246,7 +247,7 @@ export interface PersonDetail {
   nickname: string;
   avatarUrl: string | null;
   photos: { url: string; sort_order: number }[];
-  displayedItems: { id: number; category: string; brand: string | null; name: string }[];
+  displayedItems: { id: number; quantity: number; category: string; brand: string | null; name: string }[];
   wealthBand: string; // 자산 합계 구간("3억원대"). 정확한 금액은 본인만 /catalog/net-worth로 본다
   character: CharacterConfig | null;
 }

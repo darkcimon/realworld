@@ -144,29 +144,33 @@ function getItem(itemId: number): CatalogItem | undefined {
     | undefined;
 }
 
-/** 한 번에 살 수 있는 최대 개수. */
-const MAX_PURCHASE_QUANTITY = 100;
-
-/** 구매 시점에는 "전시 가능한 상태"로만 저장되고, 실제 노출은 별도 토글(PATCH)로 켜야 한다. quantity개를 같은 시세로 한꺼번에 산다. */
+/**
+ * 구매 시점에는 "전시 가능한 상태"로만 저장되고, 실제 노출은 별도 토글(PATCH)로 켜야 한다.
+ * 명품은 quantity개를 같은 시세로 한꺼번에 사고, 개수와 상관없이 owned_items 한 행에 개수만 적는다(개수 제한 없음).
+ * 자동차·집은 차마다 연료, 집마다 양도세가 따로라 한 번에 하나씩만 산다.
+ */
 export function purchaseItem(
   userId: number,
   itemId: number,
   quantity = 1
-): { ownedItemId: number; ownedItemIds: number[]; quantity: number; total: number; item: CatalogItem } {
-  if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_PURCHASE_QUANTITY) {
-    throw { status: 400, message: `수량은 1~${MAX_PURCHASE_QUANTITY}개로 입력해주세요.` };
-  }
+): { ownedItemId: number; quantity: number; total: number; item: CatalogItem } {
   const item = getItem(itemId);
   if (!item) throw { status: 404, message: "존재하지 않는 상품입니다." };
+  if (!Number.isInteger(quantity) || quantity < 1) throw { status: 400, message: "수량은 1개 이상으로 입력해주세요." };
+  if (item.category !== "luxury" && quantity !== 1) throw { status: 400, message: "자동차·집은 하나씩만 살 수 있어요." };
   const paid = currentBuyPrice(item);
   const total = paid * quantity;
+  if (!Number.isSafeInteger(total)) throw { status: 400, message: "수량이 너무 많아요." };
   // 돈 빼기와 물건 넣기를 한 트랜잭션으로 — 중간에 실패하면 돈만 빠지는 일이 없게
-  const ownedItemIds = withTransaction(() => {
+  const ownedItemId = withTransaction(() => {
     applyLedgerEntry(userId, "자산구매", -total, item.id); // 잔액이 모자라면 여기서 막혀 아무것도 안 생긴다
-    const insert = db.prepare("INSERT INTO owned_items (user_id, catalog_item_id, paid_price) VALUES (?, ?, ?)");
-    return Array.from({ length: quantity }, () => Number(insert.run(userId, item.id, paid).lastInsertRowid));
+    return Number(
+      db
+        .prepare("INSERT INTO owned_items (user_id, catalog_item_id, paid_price, quantity) VALUES (?, ?, ?, ?)")
+        .run(userId, item.id, paid, quantity).lastInsertRowid
+    );
   });
-  return { ownedItemId: ownedItemIds[0], ownedItemIds, quantity, total, item: { ...item, price: paid } };
+  return { ownedItemId, quantity, total, item: { ...item, price: paid } };
 }
 
 export function setDisplayed(userId: number, ownedItemId: number, displayed: boolean): void {
@@ -180,7 +184,7 @@ export function setDisplayed(userId: number, ownedItemId: number, displayed: boo
 export function listOwnedItems(userId: number) {
   const rows = db
     .prepare(
-      "SELECT oi.id, oi.displayed, oi.purchased_at, oi.catalog_item_id, oi.paid_price, ci.category, ci.brand, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.user_id = ? ORDER BY oi.id DESC"
+      "SELECT oi.id, oi.displayed, oi.purchased_at, oi.catalog_item_id, oi.paid_price, oi.quantity, ci.category, ci.brand, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.user_id = ? ORDER BY oi.id DESC"
     )
     .all(userId) as any[];
   const now = Date.now();
@@ -198,59 +202,82 @@ export function listOwnedItems(userId: number) {
   });
 }
 
-/** 소유 자산을 지금 시세(자동차는 감가 반영)로 되판다. 판 자산은 목록·전시에서 사라진다. */
+/**
+ * 소유 자산 하나를 지금 시세(자동차는 감가 반영)로 되판다. 판 자산은 목록·전시에서 사라진다.
+ * 여러 개가 묶인 명품 행이면 1개만 판다(개수만 줄어든다).
+ */
 export function sellOwnedItem(
   userId: number,
   ownedItemId: number
 ): { soldFor: number; tax: number; balance: number; name: string } {
   const row = db
     .prepare(
-      "SELECT oi.id, oi.user_id, oi.purchased_at, oi.catalog_item_id, oi.paid_price, ci.category, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.id = ?"
+      "SELECT oi.id, oi.user_id, oi.purchased_at, oi.catalog_item_id, oi.paid_price, oi.quantity, ci.category, ci.name, ci.price FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.id = ?"
     )
     .get(ownedItemId) as any;
   if (!row || row.user_id !== userId) throw { status: 404, message: "소유하지 않은 자산입니다." };
   const quote = resaleQuote(row);
   const cgt = capitalGainsTax(countBuildings(userId), row, quote.price); // 삭제 전에 세야 파는 건물이 포함된다
-  // 행 삭제가 성공해야 돈이 들어간다(같은 자산을 두 번 파는 것 방지).
-  const del = db.prepare("DELETE FROM owned_items WHERE id = ? AND user_id = ?").run(ownedItemId, userId);
-  if (Number(del.changes) !== 1) throw { status: 409, message: "이미 판 자산입니다." };
-  let { balance } = applyLedgerEntry(userId, "자산판매", quote.price, row.catalog_item_id);
-  // 세금은 판매 대금과 따로 원장에 남긴다(이익 ≤ 판매 대금이라 잔액이 모자랄 일은 없다).
-  if (cgt && cgt.tax > 0) balance = applyLedgerEntry(userId, "양도소득세", -cgt.tax, row.catalog_item_id).balance;
-  return { soldFor: quote.price, tax: cgt?.tax ?? 0, balance, name: row.name };
+  return withTransaction(() => {
+    // 행을 줄이거나 지우는 게 성공해야 돈이 들어간다(같은 자산을 두 번 파는 것 방지).
+    const removed =
+      row.quantity > 1
+        ? db
+            .prepare("UPDATE owned_items SET quantity = quantity - 1 WHERE id = ? AND user_id = ? AND quantity = ?")
+            .run(ownedItemId, userId, row.quantity)
+        : db.prepare("DELETE FROM owned_items WHERE id = ? AND user_id = ?").run(ownedItemId, userId);
+    if (Number(removed.changes) !== 1) throw { status: 409, message: "이미 판 자산입니다." };
+    let { balance } = applyLedgerEntry(userId, "자산판매", quote.price, row.catalog_item_id);
+    // 세금은 판매 대금과 따로 원장에 남긴다(이익 ≤ 판매 대금이라 잔액이 모자랄 일은 없다).
+    if (cgt && cgt.tax > 0) balance = applyLedgerEntry(userId, "양도소득세", -cgt.tax, row.catalog_item_id).balance;
+    return { soldFor: quote.price, tax: cgt?.tax ?? 0, balance, name: row.name };
+  });
 }
 
-/** 여러 자산을 한꺼번에 판다. 하나씩 파는 것과 같은 계산(건물 양도세는 파는 순서대로 보유 수가 줄어든다). */
-export function sellOwnedItems(
+/**
+ * 같은 명품을 quantity개 한꺼번에 판다 — 개수와 상관없이 한 트랜잭션, 원장에도 한 줄.
+ * 여러 번 나눠 산 행이 있으면 전시 안 한 행부터, 오래된 행부터 개수를 뺀다(전시 중인 건 최대한 남긴다).
+ */
+export function sellLuxury(
   userId: number,
-  ownedItemIds: number[]
-): { count: number; soldFor: number; tax: number; balance: number } {
-  const ids = [...new Set(ownedItemIds)];
-  if (ids.length === 0 || ids.some((id) => !Number.isInteger(id))) {
-    throw { status: 400, message: "팔 자산을 골라주세요." };
-  }
-  // 하나라도 내 것이 아니면 아무것도 팔지 않는다.
-  const mine = ids.filter(
-    (id) => (db.prepare("SELECT user_id FROM owned_items WHERE id = ?").get(id) as { user_id: number } | undefined)?.user_id === userId
-  );
-  if (mine.length !== ids.length) throw { status: 404, message: "소유하지 않은 자산이 섞여 있습니다." };
-  let soldFor = 0;
-  let tax = 0;
-  let balance = 0;
-  for (const id of ids) {
-    const r = sellOwnedItem(userId, id);
-    soldFor += r.soldFor;
-    tax += r.tax;
-    balance = r.balance;
-  }
-  return { count: ids.length, soldFor, tax, balance };
+  catalogItemId: number,
+  quantity: number
+): { count: number; soldFor: number; balance: number } {
+  if (!Number.isInteger(quantity) || quantity < 1) throw { status: 400, message: "팔 개수를 1개 이상으로 입력해주세요." };
+  const item = getItem(catalogItemId);
+  if (!item || item.category !== "luxury") throw { status: 404, message: "존재하지 않는 명품입니다." };
+  // 명품 되팔기 값은 시세 배수만 쓰므로 산 날짜는 필요 없다.
+  const unit = resaleQuote({ catalog_item_id: item.id, category: item.category, price: item.price, purchased_at: "" }).price;
+  return withTransaction(() => {
+    const rows = db
+      .prepare("SELECT id, quantity FROM owned_items WHERE user_id = ? AND catalog_item_id = ? ORDER BY displayed, id")
+      .all(userId, catalogItemId) as { id: number; quantity: number }[];
+    const have = rows.reduce((sum, r) => sum + r.quantity, 0);
+    if (have < quantity) throw { status: 409, message: `가진 개수(${have}개)보다 많이 팔 수 없어요.` };
+    const del = db.prepare("DELETE FROM owned_items WHERE id = ?");
+    const dec = db.prepare("UPDATE owned_items SET quantity = quantity - ? WHERE id = ?");
+    let left = quantity;
+    for (const r of rows) {
+      if (left === 0) break;
+      if (r.quantity <= left) {
+        del.run(r.id);
+        left -= r.quantity;
+      } else {
+        dec.run(left, r.id);
+        left = 0;
+      }
+    }
+    const soldFor = unit * quantity;
+    const { balance } = applyLedgerEntry(userId, "자산판매", soldFor, item.id);
+    return { count: quantity, soldFor, balance };
+  });
 }
 
 /** 내 자산 합계: 현금 + 예금 + 주식 평가액 + 채권 원금 + 소유 자산(지금 팔면 받는 금액, 양도세 전). */
 export function getNetWorth(userId: number) {
   const cash = getBalance(userId);
   const { deposit, stocks, bonds } = financialAssetsOf(userId);
-  const items = listOwnedItems(userId).reduce((sum, o) => sum + o.resale.price, 0);
+  const items = listOwnedItems(userId).reduce((sum, o) => sum + o.resale.price * o.quantity, 0);
   return { total: cash + deposit + stocks + bonds + items, cash, deposit, stocks, bonds, items };
 }
 
@@ -266,7 +293,7 @@ export function wealthBand(total: number): string {
 export function listDisplayedItems(userId: number) {
   return db
     .prepare(
-      "SELECT oi.id, ci.category, ci.brand, ci.name FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.user_id = ? AND oi.displayed = 1"
+      "SELECT oi.id, oi.quantity, ci.category, ci.brand, ci.name FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id WHERE oi.user_id = ? AND oi.displayed = 1"
     )
     .all(userId);
 }
@@ -285,12 +312,15 @@ export function giftLuxuryItem(
   }
   // 명품 선물도 지금 시세로 산다. 받은 사람은 낸 돈이 없으므로 paid_price는 비워 둔다.
   const paid = currentBuyPrice(item);
-  applyLedgerEntry(senderId, "명품선물구매", -paid, item.id);
-  const result = db
-    .prepare("INSERT INTO owned_items (user_id, catalog_item_id) VALUES (?, ?)")
-    .run(receiverId, item.id);
-  db.prepare(
-    "INSERT INTO gifts (sender_id, receiver_id, item_ref, amount) VALUES (?, ?, ?, ?)"
-  ).run(senderId, receiverId, item.id, paid);
-  return { ownedItemId: Number(result.lastInsertRowid), item: { ...item, price: paid } };
+  const ownedItemId = withTransaction(() => {
+    applyLedgerEntry(senderId, "명품선물구매", -paid, item.id);
+    const result = db
+      .prepare("INSERT INTO owned_items (user_id, catalog_item_id) VALUES (?, ?)")
+      .run(receiverId, item.id);
+    db.prepare(
+      "INSERT INTO gifts (sender_id, receiver_id, item_ref, amount) VALUES (?, ?, ?, ?)"
+    ).run(senderId, receiverId, item.id, paid);
+    return Number(result.lastInsertRowid);
+  });
+  return { ownedItemId, item: { ...item, price: paid } };
 }

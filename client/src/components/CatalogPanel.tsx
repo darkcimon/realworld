@@ -94,10 +94,10 @@ export function CatalogPanel({
     loadOwned();
   }, []);
 
-  // 같은 명품 여러 개를 한꺼번에 판다. 전시 안 한 것부터 팔아서 전시 중인 건 최대한 남긴다.
+  // 같은 명품 여러 개를 한꺼번에 판다(서버가 한 번에 처리). 전시 안 한 것부터 팔아서 전시 중인 건 최대한 남긴다.
   async function sellMany(group: OwnedItem[]) {
     const first = group[0];
-    const n = Math.min(qtyOf(`sell-${first.catalog_item_id}`), group.length);
+    const n = Math.min(qtyOf(`sell-${first.catalog_item_id}`), countOf(group));
     const total = first.resale.price * n;
     if (
       !(await confirmDialog(
@@ -108,12 +108,11 @@ export function CatalogPanel({
       return;
     setError(null);
     setMessage(null);
-    const ids = [...group]
-      .sort((a, b) => Number(a.displayed) - Number(b.displayed))
-      .slice(0, n)
-      .map((o) => o.id);
     try {
-      const r = await api.post<{ count: number; soldFor: number }>(`/owned-items/sell-many`, { ids });
+      const r = await api.post<{ count: number; soldFor: number }>(`/owned-items/sell-luxury`, {
+        catalogItemId: first.catalog_item_id,
+        quantity: n,
+      });
       setMessage(`${itemDisplayName(first)} ${r.count}개를 ${r.soldFor.toLocaleString()}원에 팔았어요.`);
       feedback("coin");
       onBalanceChange();
@@ -175,6 +174,8 @@ export function CatalogPanel({
   }
 
   const visibleOwned = fixedCategory ? owned.filter((o) => o.category === fixedCategory) : owned;
+  // 명품 행은 여러 개가 한 행(quantity)에 묶여 있다.
+  const countOf = (group: OwnedItem[]) => group.reduce((sum, o) => sum + o.quantity, 0);
   // 명품은 같은 상품끼리 한 줄로 묶어 여러 개를 한꺼번에 팔 수 있게 한다(자동차·집은 하나씩).
   const ownedRows: OwnedItem[][] = [];
   const luxuryRows = new Map<number, OwnedItem[]>();
@@ -256,7 +257,6 @@ export function CatalogPanel({
                   className="qty-input"
                   type="number"
                   min={1}
-                  max={100}
                   value={qty[`buy-${it.id}`] ?? "1"}
                   onChange={(e) => setQty((q) => ({ ...q, [`buy-${it.id}`]: e.target.value }))}
                   aria-label={`${itemDisplayName(it)} 구매 수량`}
@@ -295,17 +295,21 @@ export function CatalogPanel({
       <ul className="catalog-list">
         {ownedRows.map((group) => {
           const o = group[0];
-          if (group.length > 1) {
+          const count = countOf(group);
+          if (count > 1) {
             // 같은 명품 여러 개: 개수만큼 한꺼번에 판다
             const paid = group.filter((g) => g.paidPrice != null);
-            const avgPaid = paid.length ? Math.round(paid.reduce((sum, g) => sum + g.paidPrice!, 0) / paid.length) : null;
+            const paidCount = countOf(paid);
+            const avgPaid = paidCount
+              ? Math.round(paid.reduce((sum, g) => sum + g.paidPrice! * g.quantity, 0) / paidCount)
+              : null;
             const displayed = group.some((g) => g.displayed);
             const sellKey = `sell-${o.catalog_item_id}`;
             return (
               <li key={`lux-${o.catalog_item_id}`}>
                 <div>
                   <strong>
-                    {itemDisplayName(o)} <span className="muted">×{group.length}</span>
+                    {itemDisplayName(o)} <span className="muted">×{count.toLocaleString()}</span>
                   </strong>
                   <div className="muted">
                     {avgPaid != null ? `평균 구매 ${avgPaid.toLocaleString()}원` : "선물 받음"} → 지금 팔면 개당{" "}
@@ -323,12 +327,12 @@ export function CatalogPanel({
                     className="qty-input"
                     type="number"
                     min={1}
-                    max={group.length}
+                    max={count}
                     value={qty[sellKey] ?? "1"}
                     onChange={(e) => setQty((q) => ({ ...q, [sellKey]: e.target.value }))}
                     aria-label={`${itemDisplayName(o)} 판매 수량`}
                   />
-                  <button className="ghost" onClick={() => setQty((q) => ({ ...q, [sellKey]: String(group.length) }))}>
+                  <button className="ghost" onClick={() => setQty((q) => ({ ...q, [sellKey]: String(count) }))}>
                     전부
                   </button>
                   <button className="ghost" onClick={() => sellMany(group)}>

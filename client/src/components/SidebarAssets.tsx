@@ -47,8 +47,8 @@ export function SidebarAssets() {
   for (const o of owned ?? []) {
     const k = `${o.category}|${o.name}`;
     const g = groups.get(k);
-    if (g) g.count += 1;
-    else groups.set(k, { item: o, count: 1 });
+    if (g) g.count += o.quantity;
+    else groups.set(k, { item: o, count: o.quantity });
   }
   const tiles = [...groups.values()].sort(
     (a, b) => (order[a.item.category] ?? 9) - (order[b.item.category] ?? 9) || b.item.price - a.item.price

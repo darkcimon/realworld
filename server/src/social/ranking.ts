@@ -28,14 +28,14 @@ let snapshot: { at: number; entries: Entry[] } | null = null;
 function showcaseOf(userId: number): { home: string | null; car: string | null; luxuryCount: number } {
   const rows = db
     .prepare(
-      `SELECT ci.category, ci.name FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id
+      `SELECT ci.category, ci.name, oi.quantity FROM owned_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id
        WHERE oi.user_id = ? ORDER BY ci.price DESC`
     )
-    .all(userId) as { category: string; name: string }[];
+    .all(userId) as { category: string; name: string; quantity: number }[];
   return {
     home: rows.find((r) => r.category === "apartment")?.name ?? null,
     car: rows.find((r) => r.category === "car")?.name ?? null,
-    luxuryCount: rows.filter((r) => r.category === "luxury").length,
+    luxuryCount: rows.filter((r) => r.category === "luxury").reduce((sum, r) => sum + r.quantity, 0),
   };
 }
 

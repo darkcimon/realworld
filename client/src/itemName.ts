@@ -5,15 +5,16 @@ export function itemDisplayName(item: { brand: string | null; name: string }): s
 }
 
 // 같은 물건을 여러 개 전시하면 하나로 묶고 개수(×N)로 보여준다(처음 나온 순서 유지).
-export function groupSameItems<T extends { category: string; brand: string | null; name: string }>(
+export function groupSameItems<T extends { category: string; brand: string | null; name: string; quantity?: number }>(
   items: T[]
 ): { item: T; count: number }[] {
   const groups = new Map<string, { item: T; count: number }>();
   for (const it of items) {
     const key = `${it.category}|${itemDisplayName(it)}`;
     const g = groups.get(key);
-    if (g) g.count += 1;
-    else groups.set(key, { item: it, count: 1 });
+    const n = it.quantity ?? 1;
+    if (g) g.count += n;
+    else groups.set(key, { item: it, count: n });
   }
   return [...groups.values()];
 }
