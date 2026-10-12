@@ -86,7 +86,7 @@ guard(luxuryRouter);
 luxuryRouter.post("/:itemId/gift", (req, res) => {
   try {
     const receiverId = Number(req.body?.receiverId ?? req.body?.targetId);
-    res.json(giftLuxuryItem(req.userId!, receiverId, Number(req.params.itemId)));
+    res.json(giftLuxuryItem(req.userId!, receiverId, Number(req.params.itemId), Number(req.body?.quantity ?? 1)));
   } catch (e: any) {
     if (e instanceof InsufficientBalanceError) {
       res.status(400).json({ error: e.message });

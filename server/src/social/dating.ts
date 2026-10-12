@@ -247,13 +247,16 @@ export function listMatches(userId: number) {
  * 내가 가진 자산(자동차·건물·명품) 하나를 상대에게 그대로 넘긴다. 돈이 아니라 물건이 옮겨 간다.
  * 받은 사람은 낸 돈이 없으므로 paid_price를 비우고(양도세는 정가 기준), 전시는 꺼 둔다.
  * 자동차 감가는 처음 산 날(purchased_at)부터 그대로 이어지고, 남은 연료도 차에 따라간다.
+ * 여러 개가 묶인 명품 행이면 quantity개를 한 트랜잭션으로 보낸다(상대에게는 한 행, 선물 기록도 한 줄).
  */
 export function sendGift(
   senderId: number,
   receiverId: number,
-  ownedItemId: number
-): { name: string } {
+  ownedItemId: number,
+  quantity = 1
+): { name: string; quantity: number } {
   if (senderId === receiverId) throw { status: 400, message: "자기 자신에게 선물할 수 없습니다." };
+  if (!Number.isInteger(quantity) || quantity < 1) throw { status: 400, message: "보낼 개수를 1개 이상으로 입력해주세요." };
   assertNotBlocked(senderId, receiverId);
   const row = db
     .prepare(
@@ -261,15 +264,20 @@ export function sendGift(
     )
     .get(ownedItemId) as any;
   if (!row || row.user_id !== senderId) throw { status: 404, message: "선물할 자산을 찾을 수 없습니다." };
+  if (quantity > row.quantity) throw { status: 409, message: `가진 개수(${row.quantity}개)보다 많이 보낼 수 없어요.` };
   withTransaction(() => {
     // user_id 조건으로 옮겨야 같은 자산을 동시에 두 번 보내거나 판 뒤에 보내는 일을 막을 수 있다.
-    // 여러 개가 묶인 명품 행이면 1개만 떼어 상대에게 새 행으로 준다.
-    if (row.quantity > 1) {
+    // 묶음의 일부만 보내면 그만큼 떼어 상대에게 새 행으로 주고, 전부 보내면 행째 넘긴다.
+    if (quantity < row.quantity) {
       const split = db
-        .prepare("UPDATE owned_items SET quantity = quantity - 1 WHERE id = ? AND user_id = ? AND quantity = ?")
-        .run(ownedItemId, senderId, row.quantity);
+        .prepare("UPDATE owned_items SET quantity = quantity - ? WHERE id = ? AND user_id = ? AND quantity = ?")
+        .run(quantity, ownedItemId, senderId, row.quantity);
       if (Number(split.changes) !== 1) throw { status: 409, message: "이미 보냈거나 판 자산입니다." };
-      db.prepare("INSERT INTO owned_items (user_id, catalog_item_id) VALUES (?, ?)").run(receiverId, row.catalog_item_id);
+      db.prepare("INSERT INTO owned_items (user_id, catalog_item_id, quantity) VALUES (?, ?, ?)").run(
+        receiverId,
+        row.catalog_item_id,
+        quantity
+      );
     } else {
       const moved = db
         .prepare("UPDATE owned_items SET user_id = ?, displayed = 0, paid_price = NULL WHERE id = ? AND user_id = ?")
@@ -277,11 +285,12 @@ export function sendGift(
       if (Number(moved.changes) !== 1) throw { status: 409, message: "이미 보냈거나 판 자산입니다." };
     }
     db.prepare(
-      "INSERT INTO gifts (sender_id, receiver_id, item_ref, amount) VALUES (?, ?, ?, ?)"
-    ).run(senderId, receiverId, row.catalog_item_id, row.price);
+      "INSERT INTO gifts (sender_id, receiver_id, item_ref, amount, quantity) VALUES (?, ?, ?, ?, ?)"
+    ).run(senderId, receiverId, row.catalog_item_id, row.price * quantity, quantity);
   });
-  notify(receiverId, "gift", `🎁 ${nicknameOf(senderId)}님이 ${row.name}을(를) 선물했어요!`);
-  return { name: row.name };
+  const what = quantity > 1 ? `${row.name} ${quantity.toLocaleString()}개를` : `${row.name}을(를)`;
+  notify(receiverId, "gift", `🎁 ${nicknameOf(senderId)}님이 ${what} 선물했어요!`);
+  return { name: row.name, quantity };
 }
 
 /** 프로필 화면에서 하트 버튼 상태를 정하는 데 쓴다(보냄 / 받음 → 맞하트 가능 / 맞하트 성립). */

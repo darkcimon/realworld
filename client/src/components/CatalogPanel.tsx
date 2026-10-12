@@ -155,6 +155,7 @@ export function CatalogPanel({
     setPreviewId(me.id);
   }
 
+  // 수량 칸에 적은 개수만큼 사서 한꺼번에 선물한다(서버가 한 번에 처리).
   async function gift(itemId: number) {
     setError(null);
     setMessage(null);
@@ -164,8 +165,15 @@ export function CatalogPanel({
       return;
     }
     try {
-      const r = await api.post<{ item: CatalogItem }>(`/luxury/${itemId}/gift`, { targetId });
-      setMessage(`${r.item.name}을(를) 선물했습니다!`);
+      const r = await api.post<{ item: CatalogItem; quantity: number; total: number }>(`/luxury/${itemId}/gift`, {
+        targetId,
+        quantity: qtyOf(`buy-${itemId}`),
+      });
+      setMessage(
+        r.quantity > 1
+          ? `${r.item.name} ${r.quantity.toLocaleString()}개를 선물했습니다! (${r.total.toLocaleString()}원)`
+          : `${r.item.name}을(를) 선물했습니다!`
+      );
       feedback("heart");
       onBalanceChange();
     } catch (e) {
@@ -259,7 +267,7 @@ export function CatalogPanel({
                   min={1}
                   value={qty[`buy-${it.id}`] ?? "1"}
                   onChange={(e) => setQty((q) => ({ ...q, [`buy-${it.id}`]: e.target.value }))}
-                  aria-label={`${itemDisplayName(it)} 구매 수량`}
+                  aria-label={`${itemDisplayName(it)} 구매·선물 수량`}
                 />
               )}
               <button className="ghost" onClick={() => buy(it)}>

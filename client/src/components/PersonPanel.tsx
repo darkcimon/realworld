@@ -61,6 +61,7 @@ export function PersonPanel({
   // 선물: 돈이 아니라 내가 가진 자산(자동차·건물·명품) 하나를 골라 넘긴다.
   const [giftItems, setGiftItems] = useState<OwnedItem[] | null>(null);
   const [giftPick, setGiftPick] = useState<number | null>(null);
+  const [giftQty, setGiftQty] = useState("1"); // 여러 개 묶인 명품을 고르면 보낼 개수
   const chatRef = useRef<HTMLDivElement>(null);
   const [netWorth, setNetWorth] = useState<NetWorth | null>(null);
 
@@ -167,7 +168,8 @@ export function PersonPanel({
   async function sendGift() {
     const item = giftItems?.find((o) => o.id === giftPick);
     if (!item) return;
-    const name = itemDisplayName(item);
+    const quantity = Math.min(Math.max(1, Math.floor(Number(giftQty)) || 1), item.quantity);
+    const name = quantity > 1 ? `${itemDisplayName(item)} ${quantity.toLocaleString()}개` : itemDisplayName(item);
     const who = basic?.nickname ?? `유저 #${targetId}`;
     if (
       !(await confirmDialog(`${name}을(를) ${who}님에게 보내시겠습니까?
@@ -180,7 +182,7 @@ export function PersonPanel({
     setError(null);
     setMessage(null);
     try {
-      await api.post(`/gifts/${targetId}`, { ownedItemId: item.id });
+      await api.post(`/gifts/${targetId}`, { ownedItemId: item.id, quantity });
       feedback("heart");
       setMessage(`${name}을(를) 선물했습니다.`);
       setGiftItems(null);
@@ -229,6 +231,7 @@ export function PersonPanel({
 
   // 열람권이 없어도 공개 정보(닉네임/사진/학력)는 보여준다.
   const basic = detail ?? publicProfile;
+  const pickedGift = giftItems?.find((o) => o.id === giftPick) ?? null;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -380,7 +383,10 @@ export function PersonPanel({
                   <li key={o.id}>
                     <button
                       className={giftPick === o.id ? "gift-item selected" : "gift-item"}
-                      onClick={() => setGiftPick(o.id)}
+                      onClick={() => {
+                        setGiftPick(o.id);
+                        setGiftQty("1");
+                      }}
                     >
                       <span>
                         {assetIcon(o.category, o.name)} {itemDisplayName(o)}
@@ -393,6 +399,22 @@ export function PersonPanel({
                   </li>
                 ))}
               </ul>
+            )}
+            {pickedGift && pickedGift.quantity > 1 && (
+              <label className="gift-qty">
+                보낼 개수
+                <input
+                  className="qty-input"
+                  type="number"
+                  min={1}
+                  max={pickedGift.quantity}
+                  value={giftQty}
+                  onChange={(e) => setGiftQty(e.target.value)}
+                />
+                <button className="ghost" onClick={() => setGiftQty(String(pickedGift.quantity))}>
+                  전부
+                </button>
+              </label>
             )}
             <div className="person-actions">
               <button onClick={sendGift} disabled={giftPick == null}>

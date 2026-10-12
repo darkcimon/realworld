@@ -298,13 +298,15 @@ export function listDisplayedItems(userId: number) {
     .all(userId);
 }
 
-/** README 10장: 명품을 사서 바로 상대에게 선물한다(내 소유가 아니라 상대 소유가 된다). */
+/** README 10장: 명품을 사서 바로 상대에게 선물한다(내 소유가 아니라 상대 소유가 된다). quantity개를 한 트랜잭션으로 보낸다. */
 export function giftLuxuryItem(
   senderId: number,
   receiverId: number,
-  itemId: number
-): { ownedItemId: number; item: CatalogItem } {
+  itemId: number,
+  quantity = 1
+): { ownedItemId: number; quantity: number; total: number; item: CatalogItem } {
   if (senderId === receiverId) throw { status: 400, message: "자기 자신에게 선물할 수 없습니다." };
+  if (!Number.isInteger(quantity) || quantity < 1) throw { status: 400, message: "수량은 1개 이상으로 입력해주세요." };
   assertNotBlocked(senderId, receiverId); // 차단한 사람·다른 연령대에게는 선물할 수 없다
   const item = getItem(itemId);
   if (!item || item.category !== "luxury") {
@@ -312,15 +314,17 @@ export function giftLuxuryItem(
   }
   // 명품 선물도 지금 시세로 산다. 받은 사람은 낸 돈이 없으므로 paid_price는 비워 둔다.
   const paid = currentBuyPrice(item);
+  const total = paid * quantity;
+  if (!Number.isSafeInteger(total)) throw { status: 400, message: "수량이 너무 많아요." };
   const ownedItemId = withTransaction(() => {
-    applyLedgerEntry(senderId, "명품선물구매", -paid, item.id);
+    applyLedgerEntry(senderId, "명품선물구매", -total, item.id);
     const result = db
-      .prepare("INSERT INTO owned_items (user_id, catalog_item_id) VALUES (?, ?)")
-      .run(receiverId, item.id);
+      .prepare("INSERT INTO owned_items (user_id, catalog_item_id, quantity) VALUES (?, ?, ?)")
+      .run(receiverId, item.id, quantity);
     db.prepare(
-      "INSERT INTO gifts (sender_id, receiver_id, item_ref, amount) VALUES (?, ?, ?, ?)"
-    ).run(senderId, receiverId, item.id, paid);
+      "INSERT INTO gifts (sender_id, receiver_id, item_ref, amount, quantity) VALUES (?, ?, ?, ?, ?)"
+    ).run(senderId, receiverId, item.id, total, quantity);
     return Number(result.lastInsertRowid);
   });
-  return { ownedItemId, item: { ...item, price: paid } };
+  return { ownedItemId, quantity, total, item: { ...item, price: paid } };
 }

@@ -593,6 +593,11 @@ if (!ownedItemColumns.some((c) => c.name === "quantity")) {
     throw e;
   }
 }
+// 선물도 여러 개를 한 번에 보내면 gifts 한 행에 개수만 적는다(amount는 전체 금액).
+const giftColumns = db.prepare("PRAGMA table_info(gifts)").all() as { name: string }[];
+if (!giftColumns.some((c) => c.name === "quantity")) {
+  db.exec("ALTER TABLE gifts ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1");
+}
 
 // 마트 알바: 손님 카트(정답 금액)를 서버가 발급/보관해 클라이언트가 정답을 조작하지 못하게 한다.
 const martShiftColumns = db.prepare("PRAGMA table_info(mart_shifts)").all() as { name: string }[];

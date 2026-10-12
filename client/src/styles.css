@@ -396,6 +396,8 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .gift-picker h4 { margin: 0; }
 .gift-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 30vh; overflow-y: auto; }
 .gift-item { width: 100%; display: flex; justify-content: space-between; gap: 8px; text-align: left; background: transparent; border: 1px solid var(--border); color: inherit; }
+.gift-qty { display: flex; align-items: center; gap: 8px; }
+.gift-qty .qty-input { width: 80px; padding: 6px 8px; }
 .gift-item.selected { border-color: var(--accent); background: var(--panel); }
 
 .dm-chat { display: flex; flex-direction: column; height: 320px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-top: 8px; }

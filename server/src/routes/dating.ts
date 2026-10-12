@@ -95,7 +95,7 @@ guard(giftsRouter);
 
 giftsRouter.post("/:targetId", (req, res) => {
   try {
-    res.json(sendGift(req.userId!, Number(req.params.targetId), Number(req.body?.ownedItemId)));
+    res.json(sendGift(req.userId!, Number(req.params.targetId), Number(req.body?.ownedItemId), Number(req.body?.quantity ?? 1)));
   } catch (e: any) {
     res.status(e.status ?? 500).json({ error: e.message ?? "unknown error" });
   }
