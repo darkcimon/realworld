@@ -5,7 +5,16 @@ import type { PublicProfile } from "../types";
 // 채팅(학교 단체 채팅 / 1:1 채팅) 메시지의 프로필 사진 아이콘을 눌렀을 때 뜨는 가벼운 프로필 카드.
 // PersonPanel(README 11절, 300만원 열람권이 필요한 상세 프로필)과 달리 비용/졸업 여부와 무관하게
 // 누구나 볼 수 있는 공개 정보(닉네임/사진/학년/졸업 등급)만 보여준다 — 트위터 아이콘 클릭과 같은 감각.
-export function MiniProfileModal({ userId, onClose }: { userId: number; onClose: () => void }) {
+// largeAvatar: 자산 랭킹에서 열 때는 사진을 3배(56px → 168px)로 크게 보여준다.
+export function MiniProfileModal({
+  userId,
+  onClose,
+  largeAvatar = false,
+}: {
+  userId: number;
+  onClose: () => void;
+  largeAvatar?: boolean;
+}) {
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +34,7 @@ export function MiniProfileModal({ userId, onClose }: { userId: number; onClose:
         {error && <p className="error">{error}</p>}
         {profile && (
           <>
-            <div className="avatar" style={{ margin: "0 auto 12px" }}>
+            <div className={largeAvatar ? "avatar avatar-large" : "avatar"} style={{ margin: "0 auto 12px" }}>
               {profile.avatarUrl ? (
                 <img src={profile.avatarUrl} alt="avatar" />
               ) : (

@@ -97,7 +97,7 @@ export function RankingModal({ onClose }: { onClose: () => void }) {
         </button>
       </div>
     </div>
-    {profileId !== null && <MiniProfileModal userId={profileId} onClose={() => setProfileId(null)} />}
+    {profileId !== null && <MiniProfileModal userId={profileId} largeAvatar onClose={() => setProfileId(null)} />}
     {shareOpen && <ShareCardModal onClose={() => setShareOpen(false)} />}
     </>
   );
