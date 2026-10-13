@@ -34,13 +34,13 @@ export const QUESTS: {
   phase: QuestPhase;
   once?: boolean;
 }[] = [
-  { key: "get_job", label: "직업 구하기", goal: 1, reward: 500_000, phase: "newbie", once: true },
-  { key: "first_alba", label: "마트 알바에서 계산 1건 해보기", goal: 1, reward: 200_000, phase: "newbie" },
-  { key: "set_location", label: "내 위치 설정하고 인연 찾아보기", goal: 1, reward: 100_000, phase: "newbie" },
-  { key: "lesson_ask", label: "학교에서 AI 선생님께 질문해 보기(학력 올리기)", goal: 1, reward: 100_000, phase: "newbie" },
+  { key: "get_job", label: "직업 구하기", goal: 1, reward: 1_000_000, phase: "newbie", once: true },
+  { key: "first_alba", label: "마트 알바에서 계산 1건 해보기", goal: 1, reward: 400_000, phase: "newbie" },
+  { key: "set_location", label: "내 위치 설정하고 인연 찾아보기", goal: 1, reward: 200_000, phase: "newbie" },
+  { key: "lesson_ask", label: "학교에서 AI 선생님께 질문해 보기(학력 올리기)", goal: 1, reward: 200_000, phase: "newbie" },
 
-  { key: "work_batch", label: "직장 근무 5문제 풀기", goal: 5, reward: 500_000, phase: "adult" },
-  { key: "alba_tx", label: "마트 계산 10건 처리하기", goal: 10, reward: 300_000, phase: "adult" },
+  { key: "work_batch", label: "직장 근무 5문제 풀기", goal: 5, reward: 1_000_000, phase: "adult" },
+  { key: "alba_tx", label: "마트 계산 10건 처리하기", goal: 10, reward: 600_000, phase: "adult" },
 ];
 
 // ── 시간대 퀘스트 ─────────────────────────────────────────────────────────
@@ -48,12 +48,12 @@ export const QUESTS: {
 // 어떤 퀘스트가 열릴지는 유저·날짜·시간대로 정해져서 새로고침해도 바뀌지 않는다(social/daily.ts).
 export const TIMED_QUEST_HOURS = [9, 12, 15, 18];
 export const TIMED_QUESTS: { key: QuestKey; label: string; goal: number; reward: number; phases: QuestPhase[] }[] = [
-  { key: "work_batch", label: "직장 근무 5문제 풀기", goal: 5, reward: 200_000, phases: ["newbie", "adult"] },
-  { key: "alba_tx", label: "마트 계산 5건 처리하기", goal: 5, reward: 150_000, phases: ["newbie", "adult"] },
-  { key: "lottery_buy", label: "로또 한 장 사기", goal: 1, reward: 50_000, phases: ["newbie", "adult"] },
-  { key: "shop_food", label: "마트에서 음식 사 먹기", goal: 1, reward: 50_000, phases: ["newbie", "adult"] },
-  { key: "lesson_ask", label: "학교에서 AI 선생님께 질문 2번 하기", goal: 2, reward: 80_000, phases: ["newbie", "adult"] },
-  { key: "exam_try", label: "학교에서 시험 보고 학력 올리기", goal: 1, reward: 150_000, phases: ["newbie", "adult"] },
+  { key: "work_batch", label: "직장 근무 5문제 풀기", goal: 5, reward: 400_000, phases: ["newbie", "adult"] },
+  { key: "alba_tx", label: "마트 계산 5건 처리하기", goal: 5, reward: 300_000, phases: ["newbie", "adult"] },
+  { key: "lottery_buy", label: "로또 한 장 사기", goal: 1, reward: 100_000, phases: ["newbie", "adult"] },
+  { key: "shop_food", label: "마트에서 음식 사 먹기", goal: 1, reward: 100_000, phases: ["newbie", "adult"] },
+  { key: "lesson_ask", label: "학교에서 AI 선생님께 질문 2번 하기", goal: 2, reward: 160_000, phases: ["newbie", "adult"] },
+  { key: "exam_try", label: "학교에서 시험 보고 학력 올리기", goal: 1, reward: 300_000, phases: ["newbie", "adult"] },
 ];
 export const TIMED_QUEST_REWARD_SCALE: Record<QuestPhase, number> = {
   newbie: 1,
@@ -69,6 +69,13 @@ export const EDUCATION: Record<EducationLevel, { label: string; payMultiplier: n
   elementary: { label: "초졸", payMultiplier: 1.1 },
   middle: { label: "중졸", payMultiplier: 1.25 },
   high: { label: "고졸", payMultiplier: 1.5 },
+};
+// 졸업한 뒤에도 학력을 계속 올릴 수 있게: 이미 졸업한 학교급의 수업을 lessonUnitSec마다,
+// 또는 그 학교급 승급 시험에 다시 합격할 때마다 그 학교급의 perUnit만큼 일급 배수가 더해진다(상한 없음).
+// 예) 고졸(×1.5)이 고등학교 시험 6번 합격 → ×1.5 + 0.5 × 6 = ×4.5
+export const EDUCATION_BOOST = {
+  lessonUnitSec: 3 * 60,
+  perUnit: { elementary: 0.1, middle: 0.25, high: 0.5 } as Record<string, number>,
 };
 
 // ── 자산 랭킹 ───────────────────────────────────────────────────────

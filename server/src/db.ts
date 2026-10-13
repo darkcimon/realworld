@@ -490,6 +490,19 @@ CREATE TABLE IF NOT EXISTS lesson_messages (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 졸업 후 학력 강화 기록(economy.ts EDUCATION_BOOST). 수업 세션 하나·시험 결과 하나당 한 행이라
+-- 같은 수업/시험이 두 번 적립되지 않는다. units: 수업은 3분 단위 개수, 시험 합격은 1.
+CREATE TABLE IF NOT EXISTS education_boosts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  school_level TEXT NOT NULL,
+  source TEXT NOT NULL, -- 'lesson' | 'exam'
+  ref_id INTEGER NOT NULL, -- lesson_sessions.id | exam_results.id
+  units INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(source, ref_id)
+);
+
 -- 이 학생에게 최근에 이미 다룬 개인 수업 주제 이력. room_topic_log(단체 토론방용)와 동일한
 -- 목적이지만, 개인 수업은 방이 아니라 학생 단위로 반복을 피해야 해서 별도 테이블을 둔다.
 CREATE TABLE IF NOT EXISTS lesson_topic_log (

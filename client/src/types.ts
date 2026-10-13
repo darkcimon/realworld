@@ -1,10 +1,12 @@
 import type { CharacterConfig } from "./character/options";
 
 // 학력: 가장 높은 졸업 학교급. 학력이 높을수록 직장 일급에 배수가 붙는다(server economy.ts EDUCATION).
+// boost: 졸업 후 수업·재시험으로 더 쌓은 배수(payMultiplier에 이미 포함, EDUCATION_BOOST).
 export interface Education {
   level: "none" | "elementary" | "middle" | "high";
   label: string;
   payMultiplier: number;
+  boost: number;
 }
 
 export interface Profile {

@@ -26,6 +26,7 @@ interface AnswerResp {
   passed?: boolean;
   reward?: number;
   rewardNote?: string | null;
+  educationBoost?: number; // 졸업한 학교급 재합격으로 오른 일급 배수
   wrongAnswers?: ExamWrongAnswer[];
 }
 
@@ -149,6 +150,7 @@ export function ExamModal({
                 <p>승급 자격을 얻었습니다! 승급하시겠어요?</p>
                 {!!result.reward && <p>💰 합격 보상 {result.reward.toLocaleString()}원이 지급되었어요!</p>}
                 {result.rewardNote && <p className="muted">{result.rewardNote}</p>}
+                {!!result.educationBoost && <p>🎓 학력 강화! 일급 배수 +{result.educationBoost}</p>}
                 <div className="exam-actions">
                   <button onClick={() => choose(true)}>승급한다</button>
                   <button onClick={() => choose(false)}>이 학년에 머무른다</button>

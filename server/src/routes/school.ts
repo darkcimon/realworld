@@ -11,6 +11,7 @@ import { applyLedgerEntry } from "../wallet/ledger.js";
 import { buildChoices } from "../ai/choices.js";
 import { SCHOOL_REPEAT_REWARD } from "../economy.js";
 import { todayKstDate } from "../social/lottery.js";
+import { grantEducationBoost } from "../social/education.js";
 
 export const schoolRouter = Router();
 schoolRouter.use(requireAuth);
@@ -269,9 +270,15 @@ schoolRouter.post("/rooms/:roomId/exam/answer", (req, res) => {
   const finalAttempts = currentCycleAttempts(req.userId!, roomId);
   const correctCount = finalAttempts.filter((a: any) => a.correct).length;
   const passed = correctCount >= PASS_THRESHOLD;
-  db.prepare(
-    "INSERT INTO exam_results (user_id, room_id, correct_count, total, passed) VALUES (?, ?, ?, ?, ?)"
-  ).run(req.userId, roomId, correctCount, EXAM_TOTAL, passed ? 1 : 0);
+  const resultRow = db
+    .prepare(
+      "INSERT INTO exam_results (user_id, room_id, correct_count, total, passed) VALUES (?, ?, ?, ?, ?)"
+    )
+    .run(req.userId, roomId, correctCount, EXAM_TOTAL, passed ? 1 : 0);
+  // 이미 졸업한 학교급의 시험에 다시 합격하면 학력 배수가 오른다(economy.ts EDUCATION_BOOST).
+  const educationBoost = passed
+    ? grantEducationBoost(req.userId!, room.school_level, "exam", Number(resultRow.lastInsertRowid), 1)
+    : 0;
 
   let reward = 0;
   let rewardNote: string | null = null;
@@ -323,6 +330,7 @@ schoolRouter.post("/rooms/:roomId/exam/answer", (req, res) => {
     passed,
     reward,
     rewardNote,
+    educationBoost,
     wrongAnswers,
   });
 });

@@ -9,6 +9,8 @@ import { aiProvider } from "../ai/index.js";
 import type { BoardCommand, ConversationMemory, ConversationTurn } from "../ai/AIProvider.js";
 import { assertRoomAccessible } from "./school.js";
 import { chatLengthError } from "../util/chatLimit.js";
+import { grantEducationBoost } from "../social/education.js";
+import { EDUCATION_BOOST } from "../economy.js";
 
 export const lessonRouter = Router();
 lessonRouter.use(requireAuth);
@@ -78,12 +80,41 @@ function getOwnedSession(userId: number, sessionId: number): LessonSessionRow | 
   return session;
 }
 
+/**
+ * 수업 세션을 끝내고, 이미 졸업한 학교급 수업이면 들은 시간(3분 단위)만큼 학력 배수를 적립한다.
+ * 들은 시간은 시작부터 마지막 대화까지만 센다 — 창만 열어두고 방치한 시간은 치지 않는다.
+ * 적립된 배수 증가분을 돌려준다.
+ */
+function closeSession(userId: number, sessionId: number): number {
+  db.prepare("UPDATE lesson_sessions SET ended_at = datetime('now') WHERE id = ? AND ended_at IS NULL").run(sessionId);
+  const row = db
+    .prepare(
+      `SELECT r.school_level AS schoolLevel,
+              CAST((julianday(MAX(m.created_at)) - julianday(s.started_at)) * 86400 AS INTEGER) AS activeSec
+       FROM lesson_sessions s JOIN rooms r ON r.id = s.room_id
+       LEFT JOIN lesson_messages m ON m.session_id = s.id
+       WHERE s.id = ?`
+    )
+    .get(sessionId) as { schoolLevel: string; activeSec: number | null } | undefined;
+  if (!row) return 0;
+  const units = Math.floor((row.activeSec ?? 0) / EDUCATION_BOOST.lessonUnitSec);
+  return grantEducationBoost(userId, row.schoolLevel, "lesson", sessionId, units);
+}
+
 // ── 개인 수업 시작 ────────────────────────────────────────────────
 lessonRouter.post("/rooms/:roomId/start", async (req, res) => {
   try {
     const roomId = Number(req.params.roomId);
     const userId = req.userId!;
     const room = assertRoomAccessible(userId, roomId);
+
+    // 다른 방에 열어둔 채 방치된 세션도 여기서 닫아 들은 시간을 적립한다.
+    const staleOthers = db
+      .prepare(
+        "SELECT id FROM lesson_sessions WHERE user_id = ? AND room_id <> ? AND ended_at IS NULL AND started_at < datetime('now', ?)"
+      )
+      .all(userId, roomId, `-${STALE_SESSION_SECONDS} seconds`) as { id: number }[];
+    for (const s of staleOthers) closeSession(userId, s.id);
 
     const existing = db
       .prepare(
@@ -103,7 +134,7 @@ lessonRouter.post("/rooms/:roomId/start", async (req, res) => {
         });
         return;
       }
-      db.prepare("UPDATE lesson_sessions SET ended_at = datetime('now') WHERE id = ?").run(existing.id);
+      closeSession(userId, existing.id);
     }
 
     const avoid = recentLessonTopics(userId, room.school_level, room.grade);
@@ -219,6 +250,6 @@ lessonRouter.post("/sessions/:id/end", (req, res) => {
     res.status(404).json({ error: "존재하지 않거나 본인의 수업 세션이 아닙니다." });
     return;
   }
-  db.prepare("UPDATE lesson_sessions SET ended_at = datetime('now') WHERE id = ?").run(session.id);
-  res.json({ ok: true });
+  const educationBoost = session.ended_at ? 0 : closeSession(req.userId!, session.id);
+  res.json({ ok: true, educationBoost });
 });
