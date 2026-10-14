@@ -62,7 +62,7 @@ export function RankingModal({ onClose }: { onClose: () => void }) {
               </strong>
               <span className="muted"> / {me.outOf.toLocaleString()}명</span>
               <div className="muted">
-                💰 {me.total.toLocaleString()}원 ({me.wealthBand}) · 🎓 {me.education}
+                💰 {me.total.toLocaleString()}원 ({me.wealthBand}) · 🎓 {me.education} · 🧠 {me.intelligence}
               </div>
             </div>
             <button onClick={() => setShareOpen(true)}>📸 자랑하기</button>
@@ -80,7 +80,7 @@ export function RankingModal({ onClose }: { onClose: () => void }) {
                   </span>
                   <span className="ranking-name">
                     {r.nickname}
-                    <small className="muted"> · {r.education}</small>
+                    <small className="muted"> · {r.education} · 🧠 {r.intelligence}</small>
                   </span>
                 </button>
                 <Showcase row={r} />

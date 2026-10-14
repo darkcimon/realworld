@@ -20,6 +20,7 @@ interface Entry {
   car: string | null; // 가장 비싼 차
   luxuryCount: number;
   education: string;
+  intelligence: number;
 }
 
 let snapshot: { at: number; entries: Entry[] } | null = null;
@@ -40,13 +41,15 @@ function showcaseOf(userId: number): { home: string | null; car: string | null; 
 }
 
 function entryOf(user: { id: number; nickname: string; avatar_url: string | null }, total: number): Entry {
+  const education = educationOf(user.id);
   return {
     userId: user.id,
     nickname: user.nickname,
     avatarUrl: user.avatar_url,
     total,
     ...showcaseOf(user.id),
-    education: educationOf(user.id).label,
+    education: education.label,
+    intelligence: education.intelligence,
   };
 }
 
@@ -91,6 +94,7 @@ function publicRow(e: Entry, rank: number, viewerId: number) {
     car: e.car,
     luxuryCount: e.luxuryCount,
     education: e.education,
+    intelligence: e.intelligence,
     isMe: e.userId === viewerId,
   };
 }

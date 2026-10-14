@@ -53,8 +53,8 @@ export function ProfileHeader({
           </button>
         )}
         <div className="profile-grade">
-          🎓 {profile.education.label}
-          {profile.education.payMultiplier !== 1 && ` · 일급 ×${profile.education.payMultiplier}`}
+          🎓 {profile.education.label} · 🧠 지능 {profile.education.intelligence}
+          {profile.education.payMultiplier !== 1 && ` (일급 ×${profile.education.payMultiplier})`}
         </div>
         {profile.school.status !== "graduated" && <div className="muted">학교: {profile.school.label}</div>}
         <div className="profile-tiers">

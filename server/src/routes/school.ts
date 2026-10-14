@@ -11,7 +11,7 @@ import { applyLedgerEntry } from "../wallet/ledger.js";
 import { buildChoices } from "../ai/choices.js";
 import { SCHOOL_REPEAT_REWARD } from "../economy.js";
 import { todayKstDate } from "../social/lottery.js";
-import { grantEducationBoost } from "../social/education.js";
+import { grantEducationBoost, toIntelligence } from "../social/education.js";
 
 export const schoolRouter = Router();
 schoolRouter.use(requireAuth);
@@ -331,6 +331,7 @@ schoolRouter.post("/rooms/:roomId/exam/answer", (req, res) => {
     reward,
     rewardNote,
     educationBoost,
+    intelligenceGain: toIntelligence(educationBoost),
     wrongAnswers,
   });
 });

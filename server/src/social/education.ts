@@ -3,7 +3,7 @@
 // 고등학교를 S등급으로 졸업하면 S등급 전용 직업도 열린다.
 // 졸업한 학교급의 수업을 더 듣거나 시험에 다시 합격하면 배수가 계속 오른다(economy.ts EDUCATION_BOOST).
 import { db } from "../db.js";
-import { EDUCATION, EDUCATION_BOOST, type EducationLevel } from "../economy.js";
+import { EDUCATION, EDUCATION_BOOST, INTELLIGENCE, type EducationLevel } from "../economy.js";
 
 const ORDER: Record<string, number> = { elementary: 1, middle: 2, high: 3 };
 
@@ -12,6 +12,7 @@ export function educationOf(userId: number): {
   label: string;
   payMultiplier: number;
   boost: number;
+  intelligence: number;
 } {
   const rows = db
     .prepare("SELECT school_level FROM graduations WHERE user_id = ?")
@@ -21,7 +22,13 @@ export function educationOf(userId: number): {
     if ((ORDER[r.school_level] ?? 0) > (ORDER[level] ?? 0)) level = r.school_level as EducationLevel;
   }
   const boost = educationBoost(userId);
-  return { level, label: EDUCATION[level].label, payMultiplier: round2(EDUCATION[level].payMultiplier + boost), boost };
+  const payMultiplier = round2(EDUCATION[level].payMultiplier + boost);
+  return { level, label: EDUCATION[level].label, payMultiplier, boost, intelligence: toIntelligence(payMultiplier) };
+}
+
+/** 일급 배수(또는 배수 증가분)를 지능 수치로 바꾼다(economy.ts INTELLIGENCE). 소수점은 한 자리까지. */
+export function toIntelligence(multiplier: number): number {
+  return Math.round(multiplier * INTELLIGENCE.perMultiplier * 10) / 10;
 }
 
 function round2(n: number): number {

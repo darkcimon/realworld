@@ -77,6 +77,10 @@ export const EDUCATION_BOOST = {
   lessonUnitSec: 3 * 60,
   perUnit: { elementary: 0.1, middle: 0.25, high: 0.5 } as Record<string, number>,
 };
+// 지능: 학력(졸업장 + 졸업 후 강화)을 프로필에 보여주는 수치. 일급 배수 × perMultiplier라
+// 학력 없음 10에서 시작해 초졸 11 · 중졸 12.5 · 고졸 15, 강화 1단위마다 초 +1 · 중 +2.5 · 고 +5.
+// 따로 저장하지 않고 일급 배수에서 계산한다(social/education.ts toIntelligence).
+export const INTELLIGENCE = { perMultiplier: 10 };
 
 // ── 자산 랭킹 ───────────────────────────────────────────────────────
 // 순위는 refreshMinutes마다 다시 센다(social/ranking.ts). activeDays 안에 접속한 유저만 순위에 든다.

@@ -9,7 +9,7 @@ import { aiProvider } from "../ai/index.js";
 import type { BoardCommand, ConversationMemory, ConversationTurn } from "../ai/AIProvider.js";
 import { assertRoomAccessible } from "./school.js";
 import { chatLengthError } from "../util/chatLimit.js";
-import { grantEducationBoost } from "../social/education.js";
+import { grantEducationBoost, toIntelligence } from "../social/education.js";
 import { EDUCATION_BOOST } from "../economy.js";
 
 export const lessonRouter = Router();
@@ -251,5 +251,5 @@ lessonRouter.post("/sessions/:id/end", (req, res) => {
     return;
   }
   const educationBoost = session.ended_at ? 0 : closeSession(req.userId!, session.id);
-  res.json({ ok: true, educationBoost });
+  res.json({ ok: true, educationBoost, intelligenceGain: toIntelligence(educationBoost) });
 });

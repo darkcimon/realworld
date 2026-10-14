@@ -287,6 +287,11 @@ export function PersonPanel({
                   💰 {detail.wealthBand} 자산가
                 </div>
               )}
+              {publicProfile && (
+                <div className="profile-grade">
+                  🎓 {publicProfile.education.label} · 🧠 지능 {publicProfile.education.intelligence}
+                </div>
+              )}
               {publicProfile?.school && <div className="profile-grade">{publicProfile.school.label}</div>}
               {publicProfile && publicProfile.graduations.length > 0 && (
                 <div className="profile-tiers">

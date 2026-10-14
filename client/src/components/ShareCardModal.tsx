@@ -48,7 +48,7 @@ async function drawCard(canvas: HTMLCanvasElement, me: MyRanking): Promise<void>
   fitFont(ctx, `🏆 전체 자산 랭킹 ${me.rank.toLocaleString()}위 / ${me.outOf.toLocaleString()}명`, 700, 46, W - 120);
   ctx.fillText(`🏆 전체 자산 랭킹 ${me.rank.toLocaleString()}위 / ${me.outOf.toLocaleString()}명`, W / 2, 90);
 
-  // 아바타 + 닉네임 + 학력
+  // 아바타 + 닉네임 + 학력·지능
   const avatar = me.avatarUrl ? await loadImage(me.avatarUrl) : null;
   const ax = W / 2;
   const ay = 230;
@@ -79,7 +79,7 @@ async function drawCard(canvas: HTMLCanvasElement, me: MyRanking): Promise<void>
   ctx.fillText(me.nickname, W / 2, 380);
   ctx.fillStyle = "#c9c3e6";
   ctx.font = "500 36px sans-serif";
-  ctx.fillText(`🎓 ${me.education}`, W / 2, 440);
+  ctx.fillText(`🎓 ${me.education} · 🧠 지능 ${me.intelligence}`, W / 2, 440);
 
   // 자산 구간(가장 크게)
   ctx.fillStyle = "#fff";
