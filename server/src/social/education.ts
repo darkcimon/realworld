@@ -4,6 +4,7 @@
 // 졸업한 학교급의 수업을 더 듣거나 시험에 다시 합격하면 배수가 계속 오른다(economy.ts EDUCATION_BOOST).
 import { db } from "../db.js";
 import { EDUCATION, EDUCATION_BOOST, INTELLIGENCE, type EducationLevel } from "../economy.js";
+import { creditSchoolOwner } from "./buildings.js";
 
 const ORDER: Record<string, number> = { elementary: 1, middle: 2, high: 3 };
 
@@ -35,7 +36,7 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** 졸업 후 수업·시험으로 쌓은 추가 일급 배수(학교급별 단위 수 × 단위당 배수). */
+/** 졸업 후 수업·시험으로 쌓은 추가 일급 배수(학교급별 단위 수 × 단위당 배수, 학교 건물주 몫은 school_level 'building'). */
 function educationBoost(userId: number): number {
   const rows = db
     .prepare("SELECT school_level, SUM(units) AS units FROM education_boosts WHERE user_id = ? GROUP BY school_level")
@@ -65,7 +66,9 @@ export function grantEducationBoost(
       "INSERT OR IGNORE INTO education_boosts (user_id, school_level, source, ref_id, units) VALUES (?, ?, ?, ?, ?)"
     )
     .run(userId, schoolLevel, source, refId, units);
-  return r.changes ? round2((EDUCATION_BOOST.perUnit[schoolLevel] ?? 0) * units) : 0;
+  if (!r.changes) return 0;
+  creditSchoolOwner(userId, source, refId, units); // 학교 건물주 지능도 조금 오른다
+  return round2((EDUCATION_BOOST.perUnit[schoolLevel] ?? 0) * units);
 }
 
 /** 고등학교 졸업 등급(S/A/B/C)이 'S'인지 확인한다 — S등급 전용 직업 배정용. */

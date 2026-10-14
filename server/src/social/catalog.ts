@@ -1,9 +1,10 @@
 // README 8~10장: 자동차/아파트/명품샵. 구매 → 소유(owned_items) → 프로필 전시 토글 → 되팔기.
 import { db } from "../db.js";
-import { ASSET_RESALE } from "../economy.js";
+import { ASSET_RESALE, type BuildingKey } from "../economy.js";
 import { applyLedgerEntry, getBalance, withTransaction } from "../wallet/ledger.js";
 import { financialAssetsOf } from "./finance.js";
 import { assertNotBlocked } from "./dating.js";
+import { buildingsValueOf, chargeBuildingFee } from "./buildings.js";
 
 export interface CatalogItem {
   id: number;
@@ -164,6 +165,7 @@ export function purchaseItem(
   // 돈 빼기와 물건 넣기를 한 트랜잭션으로 — 중간에 실패하면 돈만 빠지는 일이 없게
   const ownedItemId = withTransaction(() => {
     applyLedgerEntry(userId, "자산구매", -total, item.id); // 잔액이 모자라면 여기서 막혀 아무것도 안 생긴다
+    chargeBuildingFee(item.category as BuildingKey, userId, total, item.id); // 그 매장 건물주가 있으면 수수료
     return Number(
       db
         .prepare("INSERT INTO owned_items (user_id, catalog_item_id, paid_price, quantity) VALUES (?, ?, ?, ?)")
@@ -228,6 +230,7 @@ export function sellOwnedItem(
         : db.prepare("DELETE FROM owned_items WHERE id = ? AND user_id = ?").run(ownedItemId, userId);
     if (Number(removed.changes) !== 1) throw { status: 409, message: "이미 판 자산입니다." };
     let { balance } = applyLedgerEntry(userId, "자산판매", quote.price, row.catalog_item_id);
+    if (chargeBuildingFee(row.category as BuildingKey, userId, quote.price, row.catalog_item_id) > 0) balance = getBalance(userId);
     // 세금은 판매 대금과 따로 원장에 남긴다(이익 ≤ 판매 대금이라 잔액이 모자랄 일은 없다).
     if (cgt && cgt.tax > 0) balance = applyLedgerEntry(userId, "양도소득세", -cgt.tax, row.catalog_item_id).balance;
     return { soldFor: quote.price, tax: cgt?.tax ?? 0, balance, name: row.name };
@@ -268,17 +271,19 @@ export function sellLuxury(
       }
     }
     const soldFor = unit * quantity;
-    const { balance } = applyLedgerEntry(userId, "자산판매", soldFor, item.id);
-    return { count: quantity, soldFor, balance };
+    applyLedgerEntry(userId, "자산판매", soldFor, item.id);
+    chargeBuildingFee("luxury", userId, soldFor, item.id); // 명품샵 건물주가 있으면 수수료
+    return { count: quantity, soldFor, balance: getBalance(userId) };
   });
 }
 
-/** 내 자산 합계: 현금 + 예금 + 주식 평가액 + 채권 원금 + 소유 자산(지금 팔면 받는 금액, 양도세 전). */
+/** 내 자산 합계: 현금 + 예금 + 주식 평가액 + 채권 원금 + 소유 자산(지금 팔면 받는 금액, 양도세 전) + 인수한 시설(정가). */
 export function getNetWorth(userId: number) {
   const cash = getBalance(userId);
   const { deposit, stocks, bonds } = financialAssetsOf(userId);
   const items = listOwnedItems(userId).reduce((sum, o) => sum + o.resale.price * o.quantity, 0);
-  return { total: cash + deposit + stocks + bonds + items, cash, deposit, stocks, bonds, items };
+  const buildings = buildingsValueOf(userId); // 인수한 시설(정가)
+  return { total: cash + deposit + stocks + bonds + items + buildings, cash, deposit, stocks, bonds, items, buildings };
 }
 
 /** 자산 합계를 "3억원대"처럼 앞자리 단위로 뭉뚱그린다. 다른 사람에게는 정확한 금액 대신 이것만 보여준다. */
@@ -318,6 +323,7 @@ export function giftLuxuryItem(
   if (!Number.isSafeInteger(total)) throw { status: 400, message: "수량이 너무 많아요." };
   const ownedItemId = withTransaction(() => {
     applyLedgerEntry(senderId, "명품선물구매", -total, item.id);
+    chargeBuildingFee("luxury", senderId, total, item.id);
     const result = db
       .prepare("INSERT INTO owned_items (user_id, catalog_item_id, quantity) VALUES (?, ?, ?)")
       .run(receiverId, item.id, quantity);

@@ -5,6 +5,7 @@ import { COOKING, VITALS } from "../economy.js";
 import { randomUUID } from "node:crypto";
 import { applyLedgerEntry } from "../wallet/ledger.js";
 import { cellsBetween, isFacility } from "./townMap.js";
+import { creditBuildingShare } from "./buildings.js";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -298,6 +299,7 @@ export function eat(userId: number, foodKey: string): { vitals: Vitals; balance:
   const row = load(userId);
   if (row.stamina >= VITALS.maxStamina - 0.5) throw { status: 409, message: "배가 불러요. 체력이 이미 가득해요." };
   const { balance } = applyLedgerEntry(userId, "장보기", -food.price);
+  creditBuildingShare("mart", userId, food.price); // 마트 건물주 몫(시스템 지급)
   const before = row.stamina;
   row.stamina = Math.min(VITALS.maxStamina, row.stamina + food.stamina);
   if (row.stamina >= VITALS.maxStamina) row.stamina_at = Date.now();
@@ -314,6 +316,7 @@ export function refuel(userId: number): { vitals: Vitals; balance: number; paid:
   if (missing <= 0) throw { status: 409, message: "연료가 이미 가득해요." };
   const paid = fuelPrice(fullTankPrice(car.name), missing, car.tank);
   const { balance } = applyLedgerEntry(userId, "주유", -paid);
+  creditBuildingShare("mart", userId, paid);
   row.fuel = car.tank;
   save(row);
   return { vitals: view(row, userId), balance, paid };

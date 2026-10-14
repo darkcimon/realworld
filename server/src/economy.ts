@@ -75,7 +75,8 @@ export const EDUCATION: Record<EducationLevel, { label: string; payMultiplier: n
 // 예) 고졸(×1.5)이 고등학교 시험 6번 합격 → ×1.5 + 0.5 × 6 = ×4.5
 export const EDUCATION_BOOST = {
   lessonUnitSec: 3 * 60,
-  perUnit: { elementary: 0.1, middle: 0.25, high: 0.5 } as Record<string, number>,
+  // building: 학교 건물주가 다른 유저의 강화 1단위마다 받는 배수(지능 +0.1, BUILDINGS.schoolOwnerDailyUnits가 하루 상한)
+  perUnit: { elementary: 0.1, middle: 0.25, high: 0.5, building: 0.01 } as Record<string, number>,
 };
 // 지능: 학력(졸업장 + 졸업 후 강화)을 프로필에 보여주는 수치. 일급 배수 × perMultiplier라
 // 학력 없음 10에서 시작해 초졸 11 · 중졸 12.5 · 고졸 15, 강화 1단위마다 초 +1 · 중 +2.5 · 고 +5.
@@ -361,3 +362,43 @@ export const COOKING = {
     },
   } as Record<string, { maxGain: number; fridge: number; extraChances: number[]; dishes: string[] }>,
 };
+
+// ── 시설 인수(건물주) ──────────────────────────────────────────────────
+// 마을 시설마다 건물주가 한 명씩 있을 수 있다(social/buildings.ts). 처음 인수할 때 낸 돈은 시스템이 가져간다(사라진다).
+// 수익은 바로 지갑에 들어오지 않고 그 건물 금고에 쌓이며, 건물주가 그 건물에 직접 가야 받을 수 있다.
+// 건물주 본인의 이용은 수익이 되지 않는다. 돈을 찍어내지 않게 수익은 두 종류로만 만든다:
+// - share: 다른 유저가 번 돈·쓴 돈의 일부를 시스템이 금고에 넣는다. 100% 미만이라 부계정과 짜고 쳐도 손해다.
+//   비회원의 이용은 치지 않는다(공짜로 만드는 부계정 파밍 방지).
+// - fee: 되팔 수 있는 거래(명품·자동차·집·주식)는 이용자가 수수료를 내고 그 돈이 금고로 간다(새 돈이 아니라 이전).
+//   사서 바로 되팔기를 반복해도 이용자가 낸 만큼만 건물주가 받는다. 건물주가 없으면 수수료도 없다.
+export type BuildingKey = "alba" | "school" | "jobs" | "mart" | "lottery" | "luxury" | "car" | "apartment" | "bank" | "style";
+export const BUILDINGS = {
+  facilities: {
+    alba: { label: "편의점", price: 500_000_000_000, share: 0.1, effect: "다른 사람이 알바로 번 돈의 10%" },
+    school: { label: "학교", price: 10_000_000_000_000, effect: "다른 사람이 학력을 강화할 때마다 내 지능 +0.1(하루 최대 +5)" },
+    jobs: { label: "직장", price: 30_000_000_000_000, share: 0.1, effect: "다른 사람이 직장에서 받은 일급의 10%" },
+    mart: { label: "마트", price: 50_000_000_000_000, share: 0.2, effect: "다른 사람이 장보기·주유에 쓴 돈의 20%" },
+    lottery: { label: "로또", price: 40_000_000_000_000, share: 0.3, effect: "다른 사람 로또 당첨금의 30%" },
+    luxury: { label: "명품샵", price: 100_000_000_000_000, fee: 0.02, effect: "명품을 사고팔 때 이용자가 내는 수수료 2%" },
+    car: { label: "자동차 매장", price: 80_000_000_000_000, fee: 0.03, effect: "자동차를 사고팔 때 이용자가 내는 수수료 3%" },
+    apartment: { label: "모델하우스", price: 150_000_000_000_000, fee: 0.02, effect: "집을 사고팔 때 이용자가 내는 수수료 2%" },
+    bank: { label: "금융", price: 120_000_000_000_000, share: 0.1, fee: 0.003, effect: "다른 사람 예금 이자의 10% + 주식 매매 수수료 0.3%" },
+    style: { label: "스타일샵", price: 60_000_000_000_000, share: 0.2, effect: "다른 사람이 스타일샵에서 쓴 돈의 20%" },
+  } as Record<BuildingKey, { label: string; price: number; share?: number; fee?: number; effect: string }>,
+  offerMinRatio: 0.5, // 매수 제안: 정가의 50%~150%(기준은 항상 정가 — 서로 비싸게 사고팔아 값을 올리는 담합 방지)
+  offerMaxRatio: 1.5,
+  offerExpireHours: 72, // 건물주가 이 시간 안에 답하지 않으면 제안은 사라진다
+  takeoverRatio: 2, // 강제 인수: 정가 × 2를 지금 건물주에게 주고 바로 가져온다
+  protectHours: 48, // 인수한 뒤 이 시간 동안은 강제 인수당하지 않는다
+  maxPerUser: 3, // 한 사람이 가질 수 있는 건물 수
+  schoolOwnerDailyUnits: 50, // 학교 건물주 지능 적립 하루 상한(단위 × EDUCATION_BOOST.perUnit.building = 배수 +0.5, 지능 +5)
+};
+
+// ── 예금 이자 구간 ───────────────────────────────────────────────────
+// 3시간마다 복리로 붙는데, 큰 돈일수록 이자율이 낮다(상한 없는 4%/일 복리가 모든 수익을 압도하지 않게).
+// 각 구간에 들어 있는 금액만큼만 그 이자율을 쓴다(누진). upTo가 null이면 그 위 전부.
+export const DEPOSIT_TIERS: { upTo: number | null; rate: number }[] = [
+  { upTo: 10_000_000_000, rate: 0.005 }, // 100억까지 0.5%
+  { upTo: 1_000_000_000_000, rate: 0.001 }, // 1조까지 0.1%
+  { upTo: null, rate: 0.0002 }, // 그 위 0.02%
+];

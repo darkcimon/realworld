@@ -30,16 +30,17 @@ type View = "hub" | "rooms" | "lesson" | "chat" | "social";
 // 마을로 나가 걸어가야(차가 있으면 타고) 한다 — 사이드바/탭으로 바로 넘어가는 지름길은 두지 않는다.
 // 마트는 별도 화면이 없고 알바 안의 마트 계산원 업무로 구현돼 있어 alba 탭을 쓴다.
 // 지갑·매너·인연찾기처럼 특정 건물이 없는 기능은 "내 집"에 모았다.
+// building: 인수할 수 있는 시설(서버 economy.ts BUILDINGS의 키). 학교는 RoomList에 따로 붙는다.
 const FACILITY_VIEWS: Partial<Record<FacilityKey, FacilityView>> = {
-  jobs: { title: "💼 직장", tabs: ["jobs"] },
-  alba: { title: "🧢 알바", tabs: ["alba"] },
-  mart: { title: "🛒 마트", tabs: ["shop", "alba"] },
-  lottery: { title: "🎰 로또", tabs: ["lottery"] },
-  car: { title: "🚗 자동차 매장", tabs: ["catalog"], catalogCategory: "car" },
-  apartment: { title: "🏡 모델하우스", tabs: ["catalog"], catalogCategory: "apartment" },
-  luxury: { title: "💎 명품샵", tabs: ["catalog"], catalogCategory: "luxury" },
-  style: { title: "👗 스타일샵", tabs: ["style"] },
-  bank: { title: "🏦 금융", tabs: ["deposit", "stocks", "bonds"] },
+  jobs: { title: "💼 직장", tabs: ["jobs"], building: "jobs" },
+  alba: { title: "🧢 알바", tabs: ["alba"], building: "alba" },
+  mart: { title: "🛒 마트", tabs: ["shop", "alba"], building: "mart" },
+  lottery: { title: "🎰 로또", tabs: ["lottery"], building: "lottery" },
+  car: { title: "🚗 자동차 매장", tabs: ["catalog"], catalogCategory: "car", building: "car" },
+  apartment: { title: "🏡 모델하우스", tabs: ["catalog"], catalogCategory: "apartment", building: "apartment" },
+  luxury: { title: "💎 명품샵", tabs: ["catalog"], catalogCategory: "luxury", building: "luxury" },
+  style: { title: "👗 스타일샵", tabs: ["style"], building: "style" },
+  bank: { title: "🏦 금융", tabs: ["deposit", "stocks", "bonds"], building: "bank" },
   home: { title: "🏠 내 집", tabs: ["rest", "wallet", "catalog", "manner", "nearby"], catalogOwnedOnly: true },
 };
 

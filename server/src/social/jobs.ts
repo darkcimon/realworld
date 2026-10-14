@@ -11,6 +11,7 @@ import { rankPayMultiplier } from "./npcBoss.js";
 import { payCutMultiplier, rehireBannedUntil, suspendedUntil } from "./workplaceDiscipline.js";
 import { VITALS, WORK_PAY } from "../economy.js";
 import { assertCanWork, spendWorkStamina } from "./vitals.js";
+import { creditBuildingShare } from "./buildings.js";
 
 const BATCH_SIZE = 5;
 
@@ -321,6 +322,7 @@ export function settleUnpaidWork(userId: number): {
       if (cutMult !== 1) hadPayCut = true;
       pay = Math.round(((p.base + p.overtime) * rankMult * cutMult + p.bonus * rankMult) * eduMult);
       applyLedgerEntry(userId, "일급", pay, session.id);
+      creditBuildingShare("jobs", userId, pay); // 직장 건물주 몫(시스템 지급)
     }
     db.prepare("UPDATE work_sessions SET paid = 1 WHERE id = ?").run(session.id);
     totalPaid += pay;

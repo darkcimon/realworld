@@ -69,6 +69,15 @@ export function ProfileHeader({
             </span>
           ))}
         </div>
+        {profile.buildings.length > 0 && (
+          <div className="profile-tiers" title="인수한 시설">
+            {profile.buildings.map((name) => (
+              <span key={name} className="badge building-badge">
+                🏢 {name} 건물주
+              </span>
+            ))}
+          </div>
+        )}
         {profile.displayedItems.length > 0 && (
           <div className="profile-tiers" title="프로필에 전시 중인 자산">
             {groupSameItems(profile.displayedItems).map(({ item: it, count }) => (

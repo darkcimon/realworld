@@ -496,12 +496,36 @@ CREATE TABLE IF NOT EXISTS education_boosts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id),
   school_level TEXT NOT NULL,
-  source TEXT NOT NULL, -- 'lesson' | 'exam'
+  source TEXT NOT NULL, -- 'lesson' | 'exam' | 학교 건물주 몫은 'owner_lesson' | 'owner_exam'(school_level = 'building')
   ref_id INTEGER NOT NULL, -- lesson_sessions.id | exam_results.id
   units INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(source, ref_id)
 );
+
+-- 시설 건물주(economy.ts BUILDINGS, social/buildings.ts). 행이 없으면 아직 아무도 인수하지 않은 시설이다.
+-- 건물주가 탈퇴하면 FK를 따라 행이 지워져 시설이 다시 시스템 소유가 된다.
+CREATE TABLE IF NOT EXISTS buildings (
+  facility TEXT PRIMARY KEY, -- 마을 시설 키(alba, school, ...)
+  owner_id INTEGER NOT NULL REFERENCES users(id),
+  acquired_at TEXT NOT NULL DEFAULT (datetime('now')), -- 강제 인수 보호 기간 기준
+  paid INTEGER NOT NULL, -- 인수할 때 낸 금액
+  vault INTEGER NOT NULL DEFAULT 0, -- 아직 받아가지 않은 수익(그 건물에 가야 받는다)
+  earned_total INTEGER NOT NULL DEFAULT 0 -- 이 건물주가 지금까지 번 수익
+);
+
+-- 건물 매수 제안. 돈은 수락할 때 옮겨진다(제안할 때 묶어 두지 않는다).
+CREATE TABLE IF NOT EXISTS building_offers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  facility TEXT NOT NULL,
+  buyer_id INTEGER NOT NULL REFERENCES users(id),
+  owner_id INTEGER NOT NULL REFERENCES users(id), -- 제안받은 건물주(그 사이 주인이 바뀌면 제안은 무효)
+  amount INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | accepted | rejected | cancelled | expired
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  responded_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_building_offers_facility ON building_offers(facility, status);
 
 -- 이 학생에게 최근에 이미 다룬 개인 수업 주제 이력. room_topic_log(단체 토론방용)와 동일한
 -- 목적이지만, 개인 수업은 방이 아니라 학생 단위로 반복을 피해야 해서 별도 테이블을 둔다.

@@ -6,6 +6,7 @@
 // 나머지는 마을의 스타일샵(내 집 옆)에서 사서 해금한다. "캐릭터"(세트)는 한 모델의 옷+헤어를 한 번에 해금한다.
 import { db } from "../db.js";
 import { applyLedgerEntry } from "../wallet/ledger.js";
+import { creditBuildingShare } from "./buildings.js";
 
 // 옷 스타일: female-a 모델은 목발이 붙어 있어 몸으로는 쓰지 않는다(머리는 헤어 후보로 쓴다).
 export const CHARACTER_BODIES: Record<"female" | "male", string[]> = {
@@ -114,6 +115,7 @@ export function buyStyleItem(userId: number, key: string): { balance: number } {
   if (!item) throw { status: 404, message: "없는 상품입니다." };
   if (item.owned) throw { status: 409, message: "이미 해금한 상품입니다." };
   const { balance } = applyLedgerEntry(userId, "캐릭터꾸미기", -item.price);
+  creditBuildingShare("style", userId, item.price); // 스타일샵 건물주 몫(시스템 지급)
   const insert = db.prepare("INSERT OR IGNORE INTO character_unlocks (user_id, item_key) VALUES (?, ?)");
   for (const k of item.kind === "set" ? [key, ...setParts(item.model)] : [key]) insert.run(userId, k);
   return { balance };

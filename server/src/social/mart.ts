@@ -13,6 +13,7 @@ import {
   onTransactionRecorded,
   wageMultiplier,
 } from "./npcManager.js";
+import { creditBuildingShare } from "./buildings.js";
 
 const PER_MINUTE_WAGE_MIN = 1500;
 const PER_MINUTE_WAGE_MAX = 3000;
@@ -177,6 +178,7 @@ export function recordMartTransaction(
   const wage = Math.round(shift.per_minute_wage * mult.total * scales.wageScale * speed);
   db.prepare("UPDATE mart_shifts SET wage_total = wage_total + ? WHERE id = ?").run(wage, shift.id);
   const { balance: afterWage } = applyLedgerEntry(userId, "알바정산", wage, shift.id);
+  creditBuildingShare("alba", userId, wage); // 편의점 건물주 몫(시스템 지급)
   // 일하고 적자가 나지 않게: 이번 근무의 누적 차감액이 누적 분급을 넘지 않도록 페널티를 깎는다
   // (근무 결과는 최소 0원 — 잘 계산해서 번 분급에서 실수만큼 빠진다).
   const room = Math.max(0, shift.wage_total + wage - penaltyAppliedTotal(shift.id));

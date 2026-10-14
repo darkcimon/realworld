@@ -4,6 +4,7 @@
 import { db } from "../db.js";
 import { applyLedgerEntry, getBalance } from "../wallet/ledger.js";
 import { notify } from "./notifications.js";
+import { creditBuildingShare } from "./buildings.js";
 
 export const DAILY_TICKET_LIMIT = 3; // 회차당 구매 가능 수
 // 하루 추첨 시각(KST, 시). 회차 키는 "YYYY-MM-DD HH:00" 형식이다.
@@ -211,6 +212,7 @@ export function drawRound(roundDate: string): {
 
     if (awarded.prize > 0) {
       applyLedgerEntry(ticket.user_id, "로또당첨", awarded.prize, ticket.id);
+      creditBuildingShare("lottery", ticket.user_id, awarded.prize); // 로또 건물주 몫(시스템 지급)
     }
 
     const sum = summary.get(ticket.user_id) ?? { prize: 0, bestTier: 99 };

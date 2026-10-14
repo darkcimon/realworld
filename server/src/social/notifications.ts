@@ -3,7 +3,7 @@
 import { db } from "../db.js";
 import { sendPush } from "./push.js";
 
-export type NotificationType = "lottery" | "salary" | "heart" | "match" | "gift" | "npc" | "message" | "system";
+export type NotificationType = "lottery" | "salary" | "heart" | "match" | "gift" | "npc" | "message" | "system" | "building";
 
 // 휴대폰 알림(푸시)으로도 보낼 종류와 그 제목. NPC(상사·점장·동료) 알림은 게임 안에서 행동할 때 생기는 말이라
 // 휴대폰까지 울리면 시끄러우므로 게임 안 알림으로만 남긴다.
@@ -14,6 +14,7 @@ const PUSH_TITLES: Partial<Record<NotificationType, string>> = {
   match: "💘 맞하트 성사",
   gift: "🎁 선물 도착",
   message: "💬 새 메시지",
+  building: "🏢 건물",
 };
 
 /** actorId: 알림을 일으킨 상대 유저 — 클라이언트가 알림을 눌렀을 때 그 사람과의 대화로 바로 이동하는 데 쓴다. */

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Education, PlacementInfo, RoomSummary } from "../types";
+import { BuildingBar } from "./BuildingBar";
 
 // README 4.1: 상위 탭(초/중/고) 안에 학년별 방. 잠긴 방은 입장 불가.
 // 학교는 사회인이 언제든 다니는 "학력 올리기" 콘텐츠라, 맨 위에 지금 학력과 졸업 혜택을 보여준다.
@@ -29,6 +30,7 @@ export function RoomList({
 
   return (
     <div className="room-list">
+      <BuildingBar facility="school" />
       <div className="placement-banner">
         <div>
           <strong>🎓 학력 올리기 — 지금 학력: {education.label}</strong>

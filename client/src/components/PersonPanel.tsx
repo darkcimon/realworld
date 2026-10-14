@@ -26,6 +26,7 @@ interface NetWorth {
   stocks: number;
   bonds: number;
   items: number;
+  buildings: number;
 }
 
 // README 11.2~11.5: 프로필 열람권 구매/상세 조회, 선물/하트/맞하트, 차단, 채팅 개시.
@@ -281,6 +282,7 @@ export function PersonPanel({
                     `주식 ${netWorth.stocks.toLocaleString()}원`,
                     `채권 ${netWorth.bonds.toLocaleString()}원`,
                     `자동차·건물·명품(지금 팔면) ${netWorth.items.toLocaleString()}원`,
+                    `인수한 시설(정가) ${netWorth.buildings.toLocaleString()}원`,
                     `합계 ${netWorth.total.toLocaleString()}원`,
                   ].join("\n") : undefined}
                 >
@@ -293,6 +295,15 @@ export function PersonPanel({
                 </div>
               )}
               {publicProfile?.school && <div className="profile-grade">{publicProfile.school.label}</div>}
+              {publicProfile && publicProfile.buildings.length > 0 && (
+                <div className="profile-tiers">
+                  {publicProfile.buildings.map((name) => (
+                    <span key={name} className="badge building-badge">
+                      🏢 {name} 건물주
+                    </span>
+                  ))}
+                </div>
+              )}
               {publicProfile && publicProfile.graduations.length > 0 && (
                 <div className="profile-tiers">
                   {publicProfile.graduations.map((g) => (

@@ -10,6 +10,7 @@ import { checkImageDataUrl, cleanNickname } from "../util/validate.js";
 import { ageGroupOf, setBirthYmOnce } from "../social/age.js";
 import { listDisplayedItems } from "../social/catalog.js";
 import { educationOf } from "../social/education.js";
+import { buildingsOwnedBy } from "../social/buildings.js";
 import { buyStyleItem, getCharacter, listStyleShop, listUnlocks, saveCharacter } from "../social/character.js";
 
 export const profileRouter = Router();
@@ -50,6 +51,7 @@ profileRouter.get("/", (req, res) => {
     },
     education: educationOf(user.id),
     graduations,
+    buildings: buildingsOwnedBy(user.id), // 인수한 시설 이름(🏢 배지)
     // 다른 사람이 내 프로필을 열면 보이는 전시 물건 — 내 프로필 헤더에도 뱃지로 보여준다.
     displayedItems: listDisplayedItems(user.id),
     character: getCharacter(user.id), // 아직 안 만들었으면 null → 첫 시작 때 꾸미기 창을 띄운다
@@ -79,7 +81,7 @@ function schoolLabel(profile: { school_level: string; grade: number; status: str
 
 // 채팅(학교 단체 채팅/1:1 채팅) 메시지의 프로필 사진 아이콘을 눌렀을 때 조회하는 공개 프로필.
 // PersonPanel(11절, 300만원 열람권이 필요한 상세 프로필/소셜 콘텐츠)과 달리 비용 없이
-// 누구나 볼 수 있는 정보(닉네임/사진/학력/졸업 등급)만 돌려준다.
+// 누구나 볼 수 있는 정보(닉네임/사진/학력/졸업 등급/건물주)만 돌려준다.
 profileRouter.get("/public/:userId", (req, res) => {
   const userId = Number(req.params.userId);
   const user = db
@@ -112,6 +114,7 @@ profileRouter.get("/public/:userId", (req, res) => {
       : null,
     education: educationOf(userId),
     graduations,
+    buildings: buildingsOwnedBy(userId),
   });
 });
 

@@ -12,6 +12,7 @@ import { MartShopPanel } from "./MartShopPanel";
 import { HomeRestPanel } from "./HomeRestPanel";
 import { StyleShopPanel } from "./StyleShopPanel";
 import { BondsPanel, DepositPanel, StocksPanel } from "./FinancePanel";
+import { BuildingBar } from "./BuildingBar";
 import type { CatalogItem, Vitals } from "../types";
 import { matchWord } from "../ageGroup";
 
@@ -40,6 +41,7 @@ export interface FacilityView {
   tabs: SocialTab[]; // 이 시설 안에서 볼 수 있는 탭(1개면 탭 줄을 숨긴다)
   catalogCategory?: CatalogItem["category"]; // 자산 매장이면 그 카테고리로 고정
   catalogOwnedOnly?: boolean; // 내 집: 매장 없이 소유 자산만
+  building?: string; // 인수할 수 있는 시설이면 그 키(맨 위에 건물주 바를 보여준다)
 }
 
 // README 6~11장(사회 생활/로또/자산/소셜): 처음부터 열려 있는 사회 콘텐츠를 시설 단위로 보여준다.
@@ -95,6 +97,7 @@ export function SocialHub({
         <strong>{facility.title}</strong>
       </div>
       {notice && <p className="ok-text">{notice}</p>}
+      {facility.building && <BuildingBar facility={facility.building} onBalanceChange={refreshBalance} />}
       <div className="wallet-bar">
         💰 {balance === null ? "불러오는 중..." : `${balance.toLocaleString()}원`}
       </div>

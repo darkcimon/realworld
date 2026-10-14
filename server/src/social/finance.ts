@@ -2,14 +2,29 @@
 // (예금 이자는 지난 시간만큼, 주가는 지난 30분 구간 수만큼, 채권은 만기 지난 것만 정산).
 import { db } from "../db.js";
 import { applyLedgerEntry, withTransaction } from "../wallet/ledger.js";
+import { DEPOSIT_TIERS } from "../economy.js";
+import { chargeBuildingFee, creditBuildingShare } from "./buildings.js";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
-// ── 예금: 3시간마다 0.5% 복리 ───────────────────────────────────────
+// ── 예금: 3시간마다 복리, 금액 구간별 이자율(economy.ts DEPOSIT_TIERS) ─────────────
 const DEPOSIT_PERIOD_HOURS = 3;
 const DEPOSIT_PERIOD_MS = DEPOSIT_PERIOD_HOURS * HOUR;
-const DEPOSIT_RATE_PER_PERIOD = 0.005;
+const DEPOSIT_RATE_PER_PERIOD = DEPOSIT_TIERS[0].rate; // 가장 낮은 구간의 이자율(화면 안내용)
+
+/** 예금 잔액 balance에 한 번(3시간) 붙는 이자. 구간마다 그 구간에 든 금액만큼만 그 이자율을 쓴다. */
+export function depositInterest(balance: number): number {
+  let interest = 0;
+  let floor = 0;
+  for (const t of DEPOSIT_TIERS) {
+    const top = t.upTo ?? Infinity;
+    if (balance <= floor) break;
+    interest += (Math.min(balance, top) - floor) * t.rate;
+    floor = top;
+  }
+  return interest;
+}
 
 interface DepositRow {
   user_id: number;
@@ -23,10 +38,14 @@ function accrueDeposit(userId: number, now = Date.now()): DepositRow {
   if (!row) return { user_id: userId, balance: 0, accrued_at: now };
   const periods = Math.floor((now - row.accrued_at) / DEPOSIT_PERIOD_MS);
   if (periods <= 0) return row;
+  // 구간별 이자율이라 주기마다 한 번씩 붙인다(오래 안 왔어도 1년이면 2,920번이라 충분히 가볍다).
+  let grown = row.balance;
+  for (let i = 0; i < periods; i++) grown += depositInterest(grown);
   // 1.005 × 1억이 100499999.99…로 계산돼 1원이 깎이지 않게 아주 작은 값을 더한 뒤 내린다.
-  const balance = Math.floor(row.balance * (1 + DEPOSIT_RATE_PER_PERIOD) ** periods + 1e-6);
+  const balance = Math.floor(grown + 1e-6);
   const accruedAt = row.accrued_at + periods * DEPOSIT_PERIOD_MS;
   db.prepare("UPDATE deposits SET balance = ?, accrued_at = ? WHERE user_id = ?").run(balance, accruedAt, userId);
+  creditBuildingShare("bank", userId, balance - row.balance); // 금융 건물주 몫(시스템 지급, 이자는 그대로)
   return { ...row, balance, accrued_at: accruedAt };
 }
 
@@ -57,6 +76,7 @@ export function getDeposit(userId: number) {
     balance: row.balance,
     ratePerPeriod: DEPOSIT_RATE_PER_PERIOD,
     periodHours: DEPOSIT_PERIOD_HOURS,
+    tiers: DEPOSIT_TIERS,
     nextInterestAt: row.balance > 0 ? new Date(row.accrued_at + DEPOSIT_PERIOD_MS).toISOString() : null,
   };
 }
@@ -214,12 +234,15 @@ export function buyStock(userId: number, stockId: number, rawShares: unknown) {
   const shares = positiveInt(rawShares, "수량");
   const s = getStock(stockId);
   const total = s.price * shares;
-  applyLedgerEntry(userId, "주식매수", -total, s.id);
+  const fee = withTransaction(() => {
+    applyLedgerEntry(userId, "주식매수", -total, s.id);
+    return chargeBuildingFee("bank", userId, total, s.id); // 금융 건물주가 있으면 매매 수수료
+  });
   db.prepare(
     `INSERT INTO stock_holdings (user_id, stock_id, shares, cost) VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id, stock_id) DO UPDATE SET shares = shares + excluded.shares, cost = cost + excluded.cost`
   ).run(userId, s.id, shares, total);
-  return { price: s.price, shares, total };
+  return { price: s.price, shares, total, fee };
 }
 
 export function sellStock(userId: number, stockId: number, rawShares: unknown) {
@@ -243,7 +266,8 @@ export function sellStock(userId: number, stockId: number, rawShares: unknown) {
     );
   }
   applyLedgerEntry(userId, "주식매도", total, s.id);
-  return { price: s.price, shares, total };
+  const fee = chargeBuildingFee("bank", userId, total, s.id);
+  return { price: s.price, shares, total, fee };
 }
 
 // ── 채권: 1,000만 원 단위, 3종 상시 판매 ─────────────────────────────

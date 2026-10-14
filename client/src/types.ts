@@ -33,6 +33,7 @@ export interface Profile {
     graduated_at: string;
   }>;
   displayedItems: { id: number; quantity: number; category: string; brand: string | null; name: string }[];
+  buildings: string[]; // 인수한 시설 이름(🏢 배지)
   character: CharacterConfig | null; // 아직 안 만들었으면 null
   jail: { type: "jail" | "solitary"; endsAt: string } | null;
 }
@@ -78,6 +79,7 @@ export interface PublicProfile {
     tier: string;
     graduated_at: string;
   }>;
+  buildings: string[]; // 인수한 시설 이름(🏢 배지)
 }
 
 // ── 개인 수업(칠판) ────────────────────────────────────────────────
@@ -585,4 +587,30 @@ export interface RankingResp {
   refreshMinutes: number;
   top: RankingRow[];
   me: MyRanking;
+}
+
+// 시설 인수(건물주) — server social/buildings.ts listBuildings. vault·earnedTotal·incomingOffers는 내 건물일 때만 온다.
+export interface Building {
+  facility: string;
+  label: string;
+  effect: string;
+  price: number;
+  offerMin: number;
+  offerMax: number;
+  takeoverPrice: number;
+  owner: { id: number; nickname: string } | null;
+  acquiredAt: string | null;
+  protectedUntil: string | null; // 강제 인수 보호가 끝나는 시각(지났으면 null)
+  mine: boolean;
+  vault: number | null;
+  earnedTotal: number | null;
+  incomingOffers: { id: number; buyerId: number; buyer: string; amount: number; createdAt: string }[];
+  myOffer: { id: number; amount: number; createdAt: string } | null;
+}
+
+export interface BuildingsResp {
+  buildings: Building[];
+  myCount: number;
+  maxPerUser: number;
+  offerExpireHours: number;
 }

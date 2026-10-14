@@ -24,6 +24,7 @@ import { catalogRouter, luxuryRouter, ownedItemsRouter } from "./routes/catalog.
 import { locationRouter, nearbyRouter } from "./routes/location.js";
 import { financeRouter } from "./routes/finance.js";
 import { rankingRouter } from "./routes/ranking.js";
+import { buildingsRouter } from "./routes/buildings.js";
 import { adminRouter } from "./routes/admin.js";
 import {
   blocksRouter,
@@ -81,9 +82,11 @@ app.use("/api/owned-items", ownedItemsRouter);
 app.use("/api/luxury", luxuryRouter);
 app.use("/api/location", locationRouter);
 app.use("/api/nearby", nearbyRouter);
-// 금융 건물: 예금(시간당 1% 복리) / 주식(30분마다 변동) / 채권(1~7일물)
+// 금융 건물: 예금(3시간마다 구간별 복리) / 주식(30분마다 변동) / 채권(1~7일물)
 app.use("/api/finance", financeRouter);
 app.use("/api/ranking", rankingRouter);
+// 시설 인수(건물주): 인수·매수 제안·강제 인수·금고 수령
+app.use("/api/buildings", buildingsRouter);
 app.use("/api/profile-view", profileViewRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/gifts", giftsRouter);

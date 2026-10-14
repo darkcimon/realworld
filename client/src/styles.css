@@ -318,6 +318,15 @@ button.ghost { background: var(--panel-2); border: 1px solid var(--border); colo
 .social-hub { display: flex; flex-direction: column; gap: 14px; }
 .facility-head { display: flex; align-items: center; gap: 10px; }
 .facility-head strong { font-size: 16px; }
+/* 시설 인수(건물주) 바 — BuildingBar.tsx */
+.building-bar { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; margin: 8px 0; }
+.building-summary { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; background: none; border: none; color: inherit; padding: 4px 0; text-align: left; }
+.building-summary .badge { margin-left: 6px; }
+.building-vault { color: #ffd65a; font-weight: 600; }
+.building-detail { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; }
+.building-detail p { margin: 0; }
+.building-actions { display: flex; gap: 6px; }
+.building-badge { background: #3b2f12; color: #ffd65a; }
 /* 시설 화면에서는 시설 이름(머리글)과 탭 이름이 이미 보이므로 각 패널의 첫 제목은 숨긴다 */
 .social-hub > .panel > h3:first-child { display: none; }
 .town-vitals { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; }
